@@ -1,0 +1,229 @@
+import { Request, Response } from "express";
+import { loginSchema, publicRegisterUserSchema, updateUserSchema } from "../services/Users/user.zod";
+import z from "zod";
+import path from "path";
+import { normalizeText, toE164Argentina } from "../utils/normalization.utils";
+import { userService } from "../services/Users/user.service";
+import { env } from "../config/env";
+import { logger } from "../config/logger";
+import { renderTemplate } from "../utils/template.utils";
+import { prisma } from "../db/prisma";
+import { generateSecureString } from "../utils/security.utils";
+import { getPublicObjectFromDefaultBucket, uploadPublicObject } from "../storage/minio";
+
+class UserController{
+    async publicRegisterUser(req: Request, res: Response): Promise<Response>{
+        try {
+            const parsed = publicRegisterUserSchema.safeParse(req.body);
+            if (!parsed.success) {
+                logger.error("Error catched en publicRegisterUser controller: ", parsed.error.flatten().fieldErrors)
+                return res.status(400).json({
+                message: "Datos invalidos.",
+                err: parsed.error.flatten().fieldErrors
+            })
+            }
+
+            const {
+                name,
+                email,
+                phone
+            } = parsed.data
+
+            const payload = {
+                name: normalizeText(name),
+                email: email.toLowerCase(),
+                phone: phone ? toE164Argentina(normalizeText(phone)) ?? undefined : undefined
+            }
+
+            const user = await userService.publicRegisterUser(payload, req.tenantId!);
+
+            return res.status(user.status).json({
+                message: user.message,
+                err: user.err
+            })
+        } catch (error) {
+            const err = error as Error
+            logger.error("Error catched en publicRegisterUser controller: ", err.message)
+            return res.status(500).json({ message: "Error interno del servidor, por favor intente nuevamente." });
+        }
+    }
+
+    async verifyAccount(req: Request, res: Response): Promise<Response> {
+        try {
+            const token = typeof req.query.token === "string" ? req.query.token : "";
+            if (!token) {
+                const tenantId = req.tenantId;
+                const tenant = tenantId
+                    ? await prisma.tenant.findUnique({
+                        where: { id: tenantId },
+                        select: { business: true }
+                    })
+                    : null;
+                const business = tenant?.business ?? null;
+                const businessLogoBlock = business?.logo
+                    ? `<div style="margin:12px 0;"><img src="${business.logo}" alt="${business.name}" style="max-width:100%; height:auto; border-radius:6px;" /></div>`
+                    : "";
+                const businessBannerBlock = business?.banner
+                    ? `<div style="margin:12px 0;"><img src="${business.banner}" alt="${business.name}" style="max-width:100%; height:auto; border-radius:6px;" /></div>`
+                    : "";
+                const templateName = business ? "verify_failed_business.html" : "verify_failed.html";
+                const html = await renderTemplate(templateName, {
+                    message: "El token de verificacion es requerido.",
+                    businessName: business?.name ?? "",
+                    businessDescription: business?.description ?? "",
+                    businessAddress: business?.address ?? "",
+                    businessPhone: business?.phone ?? "",
+                    businessEmail: business?.email ?? "",
+                    businessWebsite: business?.website ?? "",
+                    businessLogoBlock,
+                    businessBannerBlock
+                });
+                return res.status(400).type("html").send(html);
+            }
+
+            const tenantId = req.tenantId;
+            const result = await userService.verifyAccount(token, tenantId);
+            if (result.status === 200) {
+                res.redirect(env.FRONTEND_URL);
+                return res;
+            }
+
+            const tenant = tenantId
+                ? await prisma.tenant.findUnique({
+                    where: { id: tenantId },
+                    select: { business: true }
+                })
+                : null;
+            const business = tenant?.business ?? null;
+            const businessLogoBlock = business?.logo
+                ? `<div style="margin:12px 0;"><img src="${business.logo}" alt="${business.name}" style="max-width:100%; height:auto; border-radius:6px;" /></div>`
+                : "";
+            const businessBannerBlock = business?.banner
+                ? `<div style="margin:12px 0;"><img src="${business.banner}" alt="${business.name}" style="max-width:100%; height:auto; border-radius:6px;" /></div>`
+                : "";
+            const templateName = business ? "verify_failed_business.html" : "verify_failed.html";
+            const html = await renderTemplate(templateName, {
+                message: result.message,
+                businessName: business?.name ?? "",
+                businessDescription: business?.description ?? "",
+                businessAddress: business?.address ?? "",
+                businessPhone: business?.phone ?? "",
+                businessEmail: business?.email ?? "",
+                businessWebsite: business?.website ?? "",
+                businessLogoBlock,
+                businessBannerBlock
+            });
+            return res.status(result.status).type("html").send(html);
+        } catch (error) {
+            const err = error as Error
+            logger.error("Error catched en verifyAccount controller: ", err.message)
+            return res.status(500).type("html").send("Error interno del servidor.");
+        }
+    }
+
+    async login(req: Request, res: Response): Promise<Response>{
+        try {
+            const parsed = loginSchema.safeParse(req.body)
+            if(!parsed.success){
+                logger.error("Error catched en login controller: ", parsed.error.flatten().fieldErrors)
+                return res.status(400).json({
+                    message: "Datos invalidos.",
+                    err: parsed.error.flatten().fieldErrors
+                })
+            }
+
+            const tenantId = req.tenantId;
+            const result = await userService.login(parsed.data, tenantId)
+
+            return res.status(result.status).json({
+                result
+            })
+        } catch (error) {
+            const err = error as Error
+            logger.error("Error catched en login controller: ", err.message)
+            return res.status(500).json({ message: "Error interno del servidor, por favor intente nuevamente." });
+        }
+    }
+
+    async getMe(req: Request, res: Response): Promise<Response>{
+        try {
+            const userId = req.user?.id
+
+            const result = await userService.getMe(userId!)
+
+            return res.status(result.status).json({
+                result
+            })
+            
+        } catch (error) {
+            const err = error as Error
+            logger.error("Error catched en getMe controller: ", err.message)
+            return res.status(500).json({ message: "Error interno del servidor, por favor intente nuevamente." });
+        }
+    }
+
+    async updateMe(req: Request, res: Response): Promise<Response>{
+        try {
+            const parsed = updateUserSchema.safeParse(req.body)
+            if(!parsed.success){
+                logger.error("Error catched en updateMe controller: ", parsed.error.flatten().fieldErrors)
+                return res.status(400).json({
+                    message: "Datos invalidos.",
+                    err: parsed.error.flatten().fieldErrors
+                })
+            }
+
+            const userId = req.user?.id
+            const data = parsed.data
+            const phoneNormalized = data.phone
+                ? toE164Argentina(normalizeText(data.phone)) ?? undefined
+                : undefined
+            const payload = {
+                ...(data.name ? { name: normalizeText(data.name) } : {}),
+                ...(data.email ? { email: data.email.toLowerCase() } : {}),
+                ...(phoneNormalized ? { phone: phoneNormalized } : {})
+            }
+
+            const result = await userService.updateMe(userId!, payload)
+
+            return res.status(result.status).json({
+                result
+            })
+        } catch (error) {
+            const err = error as Error
+            logger.error("Error catched en updateMe controller: ", err.message)
+            return res.status(500).json({ message: "Error interno del servidor, por favor intente nuevamente." });
+        }
+    }
+
+    async updateAvatar(req: Request, res: Response): Promise<Response>{
+        try {
+            const userId = req.user?.id
+            const file = req.file
+            if (!file) {
+                return res.status(400).json({ message: "Archivo de avatar requerido." });
+            }
+
+            const extension = path.extname(file.originalname ?? "").toLowerCase();
+            const objectName = `avatares/${userId}/${Date.now()}_${generateSecureString()}${extension}`;
+
+            await uploadPublicObject({
+                objectName,
+                buffer: file.buffer,
+                contentType: file.mimetype
+            });
+            const avatarUrl = getPublicObjectFromDefaultBucket(objectName);
+            const result = await userService.updateAvatar(userId!, avatarUrl)
+
+            return res.status(result.status).json({
+                result
+            })
+        } catch (error) {
+            const err = error as Error
+            logger.error("Error catched en updateAvatar controller: ", err.message)
+            return res.status(500).json({ message: "Error interno del servidor, por favor intente nuevamente." });
+        }
+    }
+}
+
+export const userController = new UserController();

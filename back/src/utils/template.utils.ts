@@ -1,0 +1,76 @@
+import { readFile } from "fs/promises";
+import path from "path";
+import { env } from "../config/env";
+import { encryptString } from "../config/security";
+
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+export const renderTemplate = async (
+  templateName: string,
+  variables: Record<string, string>
+): Promise<string> => {
+  const templatePath = path.resolve(process.cwd(), "src", "templates", templateName);
+  const raw = await readFile(templatePath, "utf8");
+
+  return Object.entries(variables).reduce((content, [key, value]) => {
+    const pattern = new RegExp(`{{\\s*${escapeRegExp(key)}\\s*}}`, "g");
+    return content.replace(pattern, value);
+  }, raw);
+};
+
+type WelcomeEmailUserData = {
+  id: string;
+  email: string;
+  name: string | null;
+};
+
+type WelcomeEmailBusinessData = {
+  name?: string | null;
+  description?: string | null;
+  address?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  website?: string | null;
+  logo?: string | null;
+  banner?: string | null;
+} | null;
+
+export const buildWelcomeUserEmailHtml = async ({
+  user,
+  plainPassword,
+  business
+}: {
+  user: WelcomeEmailUserData;
+  plainPassword: string;
+  business: WelcomeEmailBusinessData;
+}): Promise<string> => {
+  const tokenPayload = JSON.stringify({
+    id: user.id,
+    email: user.email
+  });
+  const token = encryptString(tokenPayload);
+  const backendUrl = (env.BACKEND_URL ?? `http://localhost:${env.PORT}`).replace(/\/$/, "");
+  const verifyUrl = `${backendUrl}/api/public/verify?token=${encodeURIComponent(token)}`;
+  const businessLogoBlock = business?.logo
+    ? `<div style="margin:12px 0;"><img src="${business.logo}" alt="${business.name ?? ""}" style="max-width:100%; height:auto; border-radius:6px;" /></div>`
+    : "";
+  const businessBannerBlock = business?.banner
+    ? `<div style="margin:12px 0;"><img src="${business.banner}" alt="${business.name ?? ""}" style="max-width:100%; height:auto; border-radius:6px;" /></div>`
+    : "";
+  const templateName = business ? "welcome_user_business.html" : "welcome_user.html";
+
+  return renderTemplate(templateName, {
+    name: user.name ?? "",
+    email: user.email,
+    password: plainPassword,
+    verifyUrl,
+    businessName: business?.name ?? "",
+    businessDescription: business?.description ?? "",
+    businessAddress: business?.address ?? "",
+    businessPhone: business?.phone ?? "",
+    businessEmail: business?.email ?? "",
+    businessWebsite: business?.website ?? "",
+    businessLogoBlock,
+    businessBannerBlock
+  });
+};

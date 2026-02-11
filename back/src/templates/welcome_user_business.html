@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Bienvenido</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+</head>
+<body style="margin:0; padding:0; background-color:#f7f1fb; font-family: Arial, Helvetica, sans-serif;">
+
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f7f1fb; padding:40px 0;">
+    <tr>
+      <td align="center">
+
+        <table width="100%" cellpadding="0" cellspacing="0" style="max-width:600px; background-color:#ffffff; border-radius:10px; overflow:hidden; box-shadow:0 6px 18px rgba(26,16,42,0.12);">
+
+          <!-- Header -->
+          <tr>
+            <td style="padding:24px; background-color:#2b163f; text-align:center;">
+              <h1 style="margin:0; font-size:22px; color:#ffffff;">
+                ¡Bienvenido, {{name}}!
+              </h1>
+              <p style="margin:8px 0 0 0; color:#e6d9f5; font-size:14px;">
+                Tu cuenta en {{businessName}} ya está lista
+              </p>
+              
+            </td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td style="padding:32px; color:#2b163f; font-size:16px; line-height:1.6;">
+              
+              <p style="margin:0 0 16px 0;">
+                Creamos tu cuenta correctamente. Para comenzar a usar la plataforma, solo necesitás verificar tu email.
+              </p>
+
+              <div style="text-align:center; margin:24px 0;">
+                <p style="margin:0 0 8px 0;"><strong>Email:</strong> {{email}}</p>
+              <p style="margin:0 0 16px 0;"><strong>Contraseña:</strong> {{password}}</p>
+                <a href="{{verifyUrl}}"
+                  style="display:inline-block; padding:12px 24px; background-color:#6b2bbf; color:#ffffff; text-decoration:none; border-radius:999px; font-weight:bold;">
+                  Verificar mi cuenta
+                </a>
+              </div>
+
+              <p style="margin:16px 0 0 0; color:#6a5a7c; font-size:14px;">
+                Una vez verificada tu cuenta, vas a poder acceder a todas las funcionalidades disponibles para vos.
+              </p>
+
+              <hr style="border:none; border-top:1px solid #e6d9f5; margin:24px 0;" />
+
+              <p style="margin:0 0 8px 0; font-size:14px; color:#6a5a7c;">
+                <strong>Dato de seguridad:</strong> si es tu primer ingreso, te recomendamos cambiar tu contraseña desde tu perfil.
+              </p>
+
+              <p style="margin:16px 0 0 0; font-size:14px; color:#6a5a7c;">
+                Si no solicitaste esta cuenta, podés ignorar este mensaje.
+              </p>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding:20px; background-color:#efe7f7; text-align:center; font-size:12px; color:#6a5a7c;">
+              © {{businessName}} · Todos los derechos reservados
+            </td>
+          </tr>
+
+        </table>
+
+      </td>
+    </tr>
+  </table>
+
+</body>
+</html>
