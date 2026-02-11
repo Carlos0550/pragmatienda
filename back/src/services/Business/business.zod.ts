@@ -1,14 +1,15 @@
 import {z} from "zod";
 
 export const createBusinessSchema = z.object({
-    name: z.string().min(3),
-    description: z.string().min(3),
-    address: z.string().min(3),
-    phone: z.string().min(10).max(15),
+    name: z.string().min(3).toLowerCase().trim(),
+    description: z.string().optional(),
+    address: z.string().min(3).toLowerCase().trim(),
+    phone: z.string().min(10).max(15).toLowerCase().trim(),
 }).strict();
 
 export const createBusinessTenantSchema = createBusinessSchema.extend({
-    adminEmail: z.string().email()
+    adminEmail: z.string().email().toLowerCase().trim(),
+    adminName: z.string().min(3).toLowerCase().trim()
 }).strict();
 
 export const updateBusinessSchema = z.object({

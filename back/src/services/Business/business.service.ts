@@ -5,6 +5,10 @@ import { prisma } from "../../db/prisma";
 import { generateSecureString } from "../../utils/security.utils";
 import { createBusinessTenantSchema } from "./business.zod";
 import { z } from "zod";
+import { buildWelcomeUserEmailHtml } from "../../utils/template.utils";
+import { sendMail } from "../../mail/mailer";
+import { capitalizeWords, normalizeText, toE164Argentina } from "../../utils/normalization.utils";
+import { dayjs } from "../../config/dayjs";
 
 class BusinessService {
   async createBusinessTenant(data: z.infer<typeof createBusinessTenantSchema>): Promise<ServiceResponse> {
@@ -13,27 +17,28 @@ class BusinessService {
     let createdTenantId: string | null = null;
 
     try {
-      const securePassword = await hashString(generateSecureString());
+      const secureString = generateSecureString();
+      const securePassword = await hashString(secureString);
 
       const adminUser = await prisma.user.create({
         data: {
-          name: "Administrador",
-          email: data.adminEmail,
-          phone: "",
+          name: capitalizeWords(data.adminName),
+          email: data.adminEmail.toLowerCase().trim(),
+          phone: toE164Argentina(normalizeText(data.phone)) ?? "",
           password: securePassword,
           role: 2,
           isVerified: false,
           status: UserStatus.PENDING
         },
-        select: { id: true, email: true }
+        select: { id: true, email: true, name: true }
       });
       createdUserId = adminUser.id;
 
       const business = await prisma.businessData.create({
         data: {
-          name: data.name,
-          description: data.description,
-          address: data.address,
+          name: normalizeText(data.name),
+          description: data.description ? normalizeText(data.description) : undefined,
+          address: data.address ? normalizeText(data.address) : undefined,
           phone: data.phone
         }
       });
@@ -43,7 +48,8 @@ class BusinessService {
         data: {
           businessId: business.id,
           ownerId: adminUser.id,
-          plan: PlanType.FREE
+          plan: PlanType.PRO,
+          planEndsAt: dayjs().add(7, "day").toDate()
         },
         select: { id: true, plan: true, businessId: true }
       });
@@ -53,6 +59,24 @@ class BusinessService {
         where: { id: adminUser.id },
         data: { tenantId: tenant.id }
       });
+
+      const html = await buildWelcomeUserEmailHtml({
+        user: adminUser,
+        plainPassword: secureString,
+        business: {
+          name: capitalizeWords(data.name),
+          description: data.description,
+          address: capitalizeWords(data.address),
+          phone: data.phone,
+          email: data.adminEmail,
+        }
+    });
+
+    await sendMail({
+        to: adminUser.email,
+        subject: "Bienvenido a Pragmatienda",
+        html
+    });
 
       return {
         status: 201,
@@ -66,7 +90,10 @@ class BusinessService {
       };
     } catch (error) {
       const err = error as Error;
-      logger.error("Error catched en createBusinessTenant service: ", err.message);
+      logger.error("Error catched en createBusinessTenant service", {
+        message: err?.message,
+        stack: err?.stack
+      });
 
       if (createdTenantId) {
         await prisma.tenant.delete({ where: { id: createdTenantId } }).catch(() => undefined);

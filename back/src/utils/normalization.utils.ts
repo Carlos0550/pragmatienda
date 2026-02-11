@@ -26,3 +26,11 @@ export const toE164Argentina = (value: string): string | null => {
 
   return `+54${national}`;
 };
+
+export const capitalizeWords = (value: string): string => {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .replace(/\b\p{L}/gu, (char) => char.toUpperCase());
+};

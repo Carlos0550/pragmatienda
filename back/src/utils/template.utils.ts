@@ -2,6 +2,8 @@ import { readFile } from "fs/promises";
 import path from "path";
 import { env } from "../config/env";
 import { encryptString } from "../config/security";
+import { capitalizeWords, normalizeText } from "./normalization.utils";
+import dayjs from "dayjs";
 
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -33,7 +35,7 @@ type WelcomeEmailBusinessData = {
   website?: string | null;
   logo?: string | null;
   banner?: string | null;
-} | null;
+};
 
 export const buildWelcomeUserEmailHtml = async ({
   user,
@@ -57,20 +59,20 @@ export const buildWelcomeUserEmailHtml = async ({
   const businessBannerBlock = business?.banner
     ? `<div style="margin:12px 0;"><img src="${business.banner}" alt="${business.name ?? ""}" style="max-width:100%; height:auto; border-radius:6px;" /></div>`
     : "";
-  const templateName = business ? "welcome_user_business.html" : "welcome_user.html";
 
-  return renderTemplate(templateName, {
-    name: user.name ?? "",
+  return renderTemplate("welcome_user_business.html", {
+    name: capitalizeWords(user?.name ?? ""),
     email: user.email,
     password: plainPassword,
     verifyUrl,
-    businessName: business?.name ?? "",
+    businessName: capitalizeWords(business?.name ?? ""),
     businessDescription: business?.description ?? "",
-    businessAddress: business?.address ?? "",
+    businessAddress: capitalizeWords(business?.address ?? ""),
     businessPhone: business?.phone ?? "",
-    businessEmail: business?.email ?? "",
+    businessEmail: normalizeText(business?.email ?? "") ?? "",
     businessWebsite: business?.website ?? "",
     businessLogoBlock,
-    businessBannerBlock
+    businessBannerBlock,
+    currentYear: dayjs().year().toString()
   });
 };

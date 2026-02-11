@@ -51,19 +51,19 @@ model User {
   isVerified Boolean  @default(false)
   status     UserStatus @default(ACTIVE)
   tenantId  String?
-  tenant    Tenant? @relation("TenantUsers", fields: [tenantId], references: [id])
+  tenant    Tenant? @relation("TenantUsers", fields: [tenantId], references: [id], onDelete: Cascade)
   ownedTenants Tenant[] @relation("TenantOwner")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  @@unique([email, tenantId])
+  @@unique([email, tenantId, role])
 }
 
 model Tenant {
   id           String     @id @default(cuid())
   businessId   String     @unique
-  business     BusinessData @relation(fields: [businessId], references: [id])
+  business     BusinessData @relation(fields: [businessId], references: [id], onDelete: Cascade)
   ownerId      String
-  owner        User       @relation("TenantOwner", fields: [ownerId], references: [id])
+  owner        User       @relation("TenantOwner", fields: [ownerId], references: [id], onDelete: Restrict)
   plan         PlanType   @default(FREE)
   planStartsAt DateTime   @default(now())
   planEndsAt   DateTime?

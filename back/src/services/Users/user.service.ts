@@ -15,26 +15,15 @@ class UserService{
     ): Promise<ServiceResponse>{
         let createdUser: { id: string; email: string; name: string | null } | null = null;
         try {
-            let businessForEmail: {
-                name?: string | null;
-                description?: string | null;
-                address?: string | null;
-                phone?: string | null;
-                email?: string | null;
-                website?: string | null;
-                logo?: string | null;
-                banner?: string | null;
-            } | null = null;
-
-            if (tenantId) {
-                const tenant = await prisma.tenant.findUnique({
-                    where: { id: tenantId },
-                    select: { business: true }
-                });
-                if (!tenant) {
-                    return { status: 404, message: "Tenant no encontrado." };
-                }
-                businessForEmail = tenant.business;
+            if (!tenantId) {
+                return { status: 400, message: "Tenant requerido." };
+            }
+            const tenant = await prisma.tenant.findUnique({
+                where: { id: tenantId },
+                select: { business: true }
+            });
+            if (!tenant) {
+                return { status: 404, message: "Tenant no encontrado." };
             }
 
             const secureString = generateSecureString()
@@ -56,12 +45,12 @@ class UserService{
             const html = await buildWelcomeUserEmailHtml({
                 user: createdUser,
                 plainPassword: secureString,
-                business: businessForEmail
+                business: tenant.business
             });
 
             await sendMail({
                 to: createdUser.email,
-                subject: "Bienvenido a Cinnamon",
+                subject: "Bienvenido a PragmaTienda",
                 html
             });
 

@@ -2,12 +2,13 @@ import { Request, Response } from "express";
 import { loginSchema, publicRegisterUserSchema, updateUserSchema } from "../services/Users/user.zod";
 import z from "zod";
 import path from "path";
-import { normalizeText, toE164Argentina } from "../utils/normalization.utils";
+import { capitalizeWords, normalizeText, toE164Argentina } from "../utils/normalization.utils";
 import { userService } from "../services/Users/user.service";
 import { env } from "../config/env";
 import { logger } from "../config/logger";
 import { renderTemplate } from "../utils/template.utils";
 import { prisma } from "../db/prisma";
+import { decryptString } from "../config/security";
 import { generateSecureString } from "../utils/security.utils";
 import { getPublicObjectFromDefaultBucket, uploadPublicObject } from "../storage/minio";
 
@@ -30,7 +31,7 @@ class UserController{
             } = parsed.data
 
             const payload = {
-                name: normalizeText(name),
+                name: capitalizeWords(name),
                 email: email.toLowerCase(),
                 phone: phone ? toE164Argentina(normalizeText(phone)) ?? undefined : undefined
             }
@@ -52,64 +53,57 @@ class UserController{
         try {
             const token = typeof req.query.token === "string" ? req.query.token : "";
             if (!token) {
-                const tenantId = req.tenantId;
-                const tenant = tenantId
-                    ? await prisma.tenant.findUnique({
-                        where: { id: tenantId },
-                        select: { business: true }
-                    })
-                    : null;
-                const business = tenant?.business ?? null;
-                const businessLogoBlock = business?.logo
-                    ? `<div style="margin:12px 0;"><img src="${business.logo}" alt="${business.name}" style="max-width:100%; height:auto; border-radius:6px;" /></div>`
-                    : "";
-                const businessBannerBlock = business?.banner
-                    ? `<div style="margin:12px 0;"><img src="${business.banner}" alt="${business.name}" style="max-width:100%; height:auto; border-radius:6px;" /></div>`
-                    : "";
-                const templateName = business ? "verify_failed_business.html" : "verify_failed.html";
-                const html = await renderTemplate(templateName, {
-                    message: "El token de verificacion es requerido.",
-                    businessName: business?.name ?? "",
-                    businessDescription: business?.description ?? "",
-                    businessAddress: business?.address ?? "",
-                    businessPhone: business?.phone ?? "",
-                    businessEmail: business?.email ?? "",
-                    businessWebsite: business?.website ?? "",
-                    businessLogoBlock,
-                    businessBannerBlock
-                });
-                return res.status(400).type("html").send(html);
+                return res.status(400).type("html").send("Token de verificacion requerido.");
             }
 
-            const tenantId = req.tenantId;
-            const result = await userService.verifyAccount(token, tenantId);
+            const result = await userService.verifyAccount(token);
             if (result.status === 200) {
                 res.redirect(env.FRONTEND_URL);
                 return res;
             }
 
-            const tenant = tenantId
-                ? await prisma.tenant.findUnique({
-                    where: { id: tenantId },
-                    select: { business: true }
-                })
-                : null;
-            const business = tenant?.business ?? null;
-            const businessLogoBlock = business?.logo
+            let payload: { id?: string; email?: string } = {};
+            try {
+                const payloadRaw = decryptString(token);
+                payload = JSON.parse(payloadRaw) as { id?: string; email?: string };
+            } catch {
+                return res.status(400).type("html").send(result.message);
+            }
+
+            if (!payload.id || !payload.email) {
+                return res.status(400).type("html").send(result.message);
+            }
+
+            const user = await prisma.user.findUnique({
+                where: { id: payload.id },
+                select: {
+                    email: true,
+                    tenant: {
+                        select: {
+                            business: true
+                        }
+                    }
+                }
+            });
+            if (!user || user.email !== payload.email || !user.tenant) {
+                return res.status(result.status).type("html").send(result.message);
+            }
+
+            const business = user.tenant.business;
+            const businessLogoBlock = business.logo
                 ? `<div style="margin:12px 0;"><img src="${business.logo}" alt="${business.name}" style="max-width:100%; height:auto; border-radius:6px;" /></div>`
                 : "";
-            const businessBannerBlock = business?.banner
+            const businessBannerBlock = business.banner
                 ? `<div style="margin:12px 0;"><img src="${business.banner}" alt="${business.name}" style="max-width:100%; height:auto; border-radius:6px;" /></div>`
                 : "";
-            const templateName = business ? "verify_failed_business.html" : "verify_failed.html";
-            const html = await renderTemplate(templateName, {
+            const html = await renderTemplate("verify_failed_business.html", {
                 message: result.message,
-                businessName: business?.name ?? "",
-                businessDescription: business?.description ?? "",
-                businessAddress: business?.address ?? "",
-                businessPhone: business?.phone ?? "",
-                businessEmail: business?.email ?? "",
-                businessWebsite: business?.website ?? "",
+                businessName: business.name ?? "",
+                businessDescription: business.description ?? "",
+                businessAddress: business.address ?? "",
+                businessPhone: business.phone ?? "",
+                businessEmail: business.email ?? "",
+                businessWebsite: business.website ?? "",
                 businessLogoBlock,
                 businessBannerBlock
             });
