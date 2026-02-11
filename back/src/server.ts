@@ -1,5 +1,6 @@
 import { app } from "./app";
 import { connectRedis, disconnectRedis } from "./cache/redis";
+import "./config/dayjs";
 import { env } from "./config/env";
 import { logger } from "./config/logger";
 import { disconnectPrisma, prisma } from "./db/prisma";

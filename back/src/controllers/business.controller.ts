@@ -18,10 +18,11 @@ class BusinessController {
 
       const payload = {
         name: normalizeText(parsed.data.name),
-        description: normalizeText(parsed.data.description),
+        description: normalizeText(parsed.data.description ?? ""),
         address: normalizeText(parsed.data.address),
         phone: toE164Argentina(normalizeText(parsed.data.phone)) ?? parsed.data.phone,
-        adminEmail: parsed.data.adminEmail.toLowerCase()
+        adminEmail: parsed.data.adminEmail.toLowerCase(),
+        adminName: parsed.data.adminName
       };
 
       const result = await businessService.createBusinessTenant(payload);

@@ -108,7 +108,7 @@ const router = Router()
 
 router.post("/public/register", requireTenant, userController.publicRegisterUser)
 router.post("/public/login", requireTenant, userController.login)
-router.get("/public/verify", requireTenant, userController.verifyAccount)
+router.get("/public/verify", userController.verifyAccount)
 router.get("/me", requireRole([1,2]), requireTenant, userController.getMe)
 router.put("/me", requireRole([1,2]), requireTenant, userController.updateMe)
 router.put("/me/avatar", requireRole([1,2]), requireTenant, uploadAndConvertImageMiddleware, userController.updateAvatar)
