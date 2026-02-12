@@ -9,6 +9,7 @@ import { buildWelcomeUserEmailHtml } from "../../utils/template.utils";
 import { sendMail } from "../../mail/mailer";
 import { capitalizeWords, normalizeText, toE164Argentina } from "../../utils/normalization.utils";
 import { dayjs } from "../../config/dayjs";
+import { env } from "../../config/env";
 
 class BusinessService {
   async createBusinessTenant(data: z.infer<typeof createBusinessTenantSchema>): Promise<ServiceResponse> {
@@ -110,6 +111,66 @@ class BusinessService {
         message: "Error al crear negocio y tenant.",
         err: err.message
       };
+    }
+  }
+
+  async resolveTenantIdByStoreUrl(rawUrl: string): Promise<ServiceResponse> {
+    try {
+      const normalizedInput = rawUrl.trim();
+      const withProtocol = /^https?:\/\//i.test(normalizedInput) ? normalizedInput : `https://${normalizedInput}`;
+
+      let hostname = "";
+      try {
+        hostname = new URL(withProtocol).hostname.toLowerCase();
+      } catch {
+        return { status: 400, message: "URL invalida." };
+      }
+
+      const parts = hostname.split(".").filter(Boolean);
+      const isPragmatiendaDomain =
+        parts.length >= 3 && parts[parts.length - 2] === "pragmatienda" && parts[parts.length - 1] === "com";
+      const isLocalhostDomain = env.NODE_ENV === "development" && parts.length >= 2 && parts[parts.length - 1] === "localhost";
+
+      if (!isPragmatiendaDomain && !isLocalhostDomain) {
+        return { status: 400, message: "La URL debe pertenecer a pragmatienda.com." };
+      }
+
+      const storeNamePart = parts[0] === "www" ? parts[1] : parts[0];
+      if (!storeNamePart) {
+        return { status: 400, message: "No se pudo resolver el nombre de la tienda desde la URL." };
+      }
+
+      const normalizedStoreName = normalizeText(storeNamePart);
+      const business = await prisma.businessData.findFirst({
+        where: { name: normalizedStoreName },
+        select: {
+          id: true,
+          name: true,
+          tenant: {
+            select: { id: true }
+          }
+        }
+      });
+
+      if (!business?.tenant) {
+        return { status: 404, message: "No se encontro tenant para la tienda indicada." };
+      }
+
+      return {
+        status: 200,
+        message: "Tenant encontrado.",
+        data: {
+          tenantId: business.tenant.id,
+          businessName: business.name
+        }
+      };
+    } catch (error) {
+      const err = error as Error;
+      logger.error("Error catched en resolveTenantIdByStoreUrl service", {
+        message: err?.message,
+        stack: err?.stack
+      });
+      return { status: 500, message: "No se pudo resolver el tenant.", err: err.message };
     }
   }
 }

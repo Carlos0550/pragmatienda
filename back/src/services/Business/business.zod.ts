@@ -12,6 +12,10 @@ export const createBusinessTenantSchema = createBusinessSchema.extend({
     adminName: z.string().min(3).toLowerCase().trim()
 }).strict();
 
+export const resolveTenantByStoreUrlSchema = z.object({
+    url: z.string().min(3).trim()
+}).strict();
+
 export const updateBusinessSchema = z.object({
     name: z.string().min(3).optional(),
     description: z.string().min(3).optional(),

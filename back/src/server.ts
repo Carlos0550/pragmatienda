@@ -4,7 +4,7 @@ import "./config/dayjs";
 import { env } from "./config/env";
 import { logger } from "./config/logger";
 import { disconnectPrisma, prisma } from "./db/prisma";
-import { ensureDefaultBuckets } from "./storage/minio";
+//import { ensureDefaultBuckets } from "./storage/minio";
 
 const bootstrap = async () => {
   try {
@@ -13,7 +13,7 @@ const bootstrap = async () => {
     logger.info("Conectando a Redis...");
     await connectRedis();
     logger.info("Asegurando buckets de MinIO...");
-    await ensureDefaultBuckets();
+    //await ensureDefaultBuckets();
 
     const server = app.listen(env.PORT, () => {
       logger.info(`API lista en http://localhost:${env.PORT}`);

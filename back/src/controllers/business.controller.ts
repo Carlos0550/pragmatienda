@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { logger } from "../config/logger";
 import { businessService } from "../services/Business/business.service";
-import { createBusinessTenantSchema } from "../services/Business/business.zod";
+import { createBusinessTenantSchema, resolveTenantByStoreUrlSchema } from "../services/Business/business.zod";
 import { normalizeText, toE164Argentina } from "../utils/normalization.utils";
 
 class BusinessController {
@@ -30,6 +30,25 @@ class BusinessController {
     } catch (error) {
       const err = error as Error;
       logger.error("Error catched en createBusinessTenant controller: ", err.message);
+      return res.status(500).json({ message: "Error interno del servidor, por favor intente nuevamente." });
+    }
+  }
+
+  async resolveTenantByStoreUrl(req: Request, res: Response): Promise<Response> {
+    try {
+      const parsed = resolveTenantByStoreUrlSchema.safeParse(req.query);
+      if (!parsed.success) {
+        return res.status(400).json({
+          message: "Datos invalidos.",
+          err: parsed.error.flatten().fieldErrors
+        });
+      }
+
+      const result = await businessService.resolveTenantIdByStoreUrl(parsed.data.url);
+      return res.status(result.status).json(result);
+    } catch (error) {
+      const err = error as Error;
+      logger.error("Error catched en resolveTenantByStoreUrl controller: ", err.message);
       return res.status(500).json({ message: "Error interno del servidor, por favor intente nuevamente." });
     }
   }
