@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { loginSchema, publicRegisterUserSchema, updateUserSchema } from "../services/Users/user.zod";
+import { changePasswordSchema, loginSchema, publicRegisterUserSchema, recoverPasswordSchema, updateUserSchema } from "../services/Users/user.zod";
 import z from "zod";
 import path from "path";
 import { capitalizeWords, normalizeText, toE164Argentina } from "../utils/normalization.utils";
@@ -56,9 +56,15 @@ class UserController{
                 return res.status(400).type("html").send("Token de verificacion requerido.");
             }
 
-            const result = await userService.verifyAccount(token);
+            const businessWebsite = await prisma.businessData.findFirst({
+                where:{
+                    tenantId: req.tenantId
+                }
+            })
+
+            const result = await userService.verifyAccount(token, req.tenantId ?? null);
             if (result.status === 200) {
-                res.redirect(env.FRONTEND_URL);
+                res.redirect(businessWebsite?.website ?? "");
                 return res;
             }
 
@@ -74,13 +80,16 @@ class UserController{
                 return res.status(400).type("html").send(result.message);
             }
 
-            const user = await prisma.user.findUnique({
-                where: { id: payload.id },
+            const user = await prisma.user.findFirst({
+                where: {
+                    id: payload.id,
+                    ...(req.tenantId ? { tenantId: req.tenantId } : {})
+                },
                 select: {
                     email: true,
                     tenant: {
                         select: {
-                            business: true
+                            businessData: true
                         }
                     }
                 }
@@ -89,7 +98,10 @@ class UserController{
                 return res.status(result.status).type("html").send(result.message);
             }
 
-            const business = user.tenant.business;
+            const business = user.tenant.businessData;
+            if (!business) {
+                return res.status(result.status).type("html").send(result.message);
+            }
             const businessLogoBlock = business.logo
                 ? `<div style="margin:12px 0;"><img src="${business.logo}" alt="${business.name}" style="max-width:100%; height:auto; border-radius:6px;" /></div>`
                 : "";
@@ -142,8 +154,11 @@ class UserController{
     async getMe(req: Request, res: Response): Promise<Response>{
         try {
             const userId = req.user?.id
-
-            const result = await userService.getMe(userId!)
+            const tenantId = req.tenantId;
+            if (!userId || !tenantId) {
+                return res.status(401).json({ message: "No autorizado." });
+            }
+            const result = await userService.getMe(userId, tenantId)
 
             return res.status(result.status).json({
                 result
@@ -168,6 +183,10 @@ class UserController{
             }
 
             const userId = req.user?.id
+            const tenantId = req.tenantId;
+            if (!userId || !tenantId) {
+                return res.status(401).json({ message: "No autorizado." });
+            }
             const data = parsed.data
             const phoneNormalized = data.phone
                 ? toE164Argentina(normalizeText(data.phone)) ?? undefined
@@ -178,7 +197,7 @@ class UserController{
                 ...(phoneNormalized ? { phone: phoneNormalized } : {})
             }
 
-            const result = await userService.updateMe(userId!, payload)
+            const result = await userService.updateMe(userId, tenantId, payload)
 
             return res.status(result.status).json({
                 result
@@ -193,6 +212,10 @@ class UserController{
     async updateAvatar(req: Request, res: Response): Promise<Response>{
         try {
             const userId = req.user?.id
+            const tenantId = req.tenantId;
+            if (!userId || !tenantId) {
+                return res.status(401).json({ message: "No autorizado." });
+            }
             const file = req.file
             if (!file) {
                 return res.status(400).json({ message: "Archivo de avatar requerido." });
@@ -207,7 +230,7 @@ class UserController{
                 contentType: file.mimetype
             });
             const avatarUrl = getPublicObjectFromDefaultBucket(objectName);
-            const result = await userService.updateAvatar(userId!, avatarUrl)
+            const result = await userService.updateAvatar(userId, tenantId, avatarUrl)
 
             return res.status(result.status).json({
                 result
@@ -215,6 +238,54 @@ class UserController{
         } catch (error) {
             const err = error as Error
             logger.error("Error catched en updateAvatar controller: ", err.message)
+            return res.status(500).json({ message: "Error interno del servidor, por favor intente nuevamente." });
+        }
+    }
+
+    async changePassword(req: Request, res: Response): Promise<Response> {
+        try {
+            const parsed = changePasswordSchema.safeParse(req.body);
+            if (!parsed.success) {
+                return res.status(400).json({
+                    message: "Datos invalidos.",
+                    err: parsed.error.flatten().fieldErrors
+                });
+            }
+
+            const userId = req.user?.id;
+            const tenantId = req.tenantId;
+            if (!userId || !tenantId) {
+                return res.status(401).json({ message: "No autorizado." });
+            }
+            const result = await userService.changePassword(userId, tenantId, parsed.data);
+            return res.status(result.status).json(result);
+        } catch (error) {
+            const err = error as Error;
+            logger.error("Error catched en changePassword controller: ", err.message);
+            return res.status(500).json({ message: "Error interno del servidor, por favor intente nuevamente." });
+        }
+    }
+
+    async recoverPassword(req: Request, res: Response): Promise<Response> {
+        try {
+            const parsed = recoverPasswordSchema.safeParse(req.body);
+            if (!parsed.success) {
+                return res.status(400).json({
+                    message: "Datos invalidos.",
+                    err: parsed.error.flatten().fieldErrors
+                });
+            }
+
+            const tenantId = req.tenantId;
+            if (!tenantId) {
+                return res.status(400).json({ message: "Tenant requerido." });
+            }
+
+            const result = await userService.recoverPassword(tenantId, parsed.data);
+            return res.status(result.status).json(result);
+        } catch (error) {
+            const err = error as Error;
+            logger.error("Error catched en recoverPassword controller: ", err.message);
             return res.status(500).json({ message: "Error interno del servidor, por favor intente nuevamente." });
         }
     }

@@ -37,6 +37,11 @@ type WelcomeEmailBusinessData = {
   banner?: string | null;
 };
 
+type PasswordRecoveryEmailUserData = {
+  email: string;
+  name: string | null;
+};
+
 export const buildWelcomeUserEmailHtml = async ({
   user,
   plainPassword,
@@ -73,6 +78,28 @@ export const buildWelcomeUserEmailHtml = async ({
     businessWebsite: business?.website ?? "",
     businessLogoBlock,
     businessBannerBlock,
+    currentYear: dayjs().year().toString()
+  });
+};
+
+export const buildPasswordRecoveryEmailHtml = async ({
+  user,
+  temporaryPassword,
+  business
+}: {
+  user: PasswordRecoveryEmailUserData;
+  temporaryPassword: string;
+  business: WelcomeEmailBusinessData;
+}): Promise<string> => {
+
+  const loginUrl = `${env.FRONTEND_URL.replace(/\/$/, "")}/login`;
+
+  return renderTemplate("password_recovery_business.html", {
+    name: capitalizeWords(user.name ?? ""),
+    email: user.email,
+    temporaryPassword,
+    loginUrl,
+    businessName: capitalizeWords(business?.name ?? ""),
     currentYear: dayjs().year().toString()
   });
 };

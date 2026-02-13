@@ -29,12 +29,15 @@ export const requireTenant = async (req: Request, res: Response, next: NextFunct
     req.tenantId = tenant.id;
 
     if (req.user?.id) {
-      const user = await prisma.user.findUnique({
-        where: { id: req.user.id },
-        select: { tenantId: true }
+      const user = await prisma.user.findFirst({
+        where: {
+          id: req.user.id,
+          tenantId: tenant.id
+        },
+        select: { id: true }
       });
 
-      if (!user?.tenantId || user.tenantId !== tenant.id) {
+      if (!user) {
         return res.status(403).json({ error: "Usuario no pertenece al tenant." });
       }
     }

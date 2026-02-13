@@ -3,9 +3,9 @@ import { createSessionToken, decryptString, hashString, verifyHash } from "../..
 import { logger } from "../../config/logger";
 import { prisma } from "../../db/prisma";
 import { sendMail } from "../../mail/mailer";
-import { generateSecureString } from "../../utils/security.utils";
-import { buildWelcomeUserEmailHtml } from "../../utils/template.utils";
-import { loginSchema, publicRegisterUserSchema, updateUserSchema } from "./user.zod";
+import { generateSecureString, generateTemporaryPassword } from "../../utils/security.utils";
+import { buildPasswordRecoveryEmailHtml, buildWelcomeUserEmailHtml } from "../../utils/template.utils";
+import { changePasswordSchema, loginSchema, publicRegisterUserSchema, recoverPasswordSchema, updateUserSchema } from "./user.zod";
 import { z } from "zod";
 
 class UserService{
@@ -20,10 +20,13 @@ class UserService{
             }
             const tenant = await prisma.tenant.findUnique({
                 where: { id: tenantId },
-                select: { business: true }
+                select: { businessData: true }
             });
             if (!tenant) {
                 return { status: 404, message: "Tenant no encontrado." };
+            }
+            if (!tenant.businessData) {
+                return { status: 404, message: "Negocio no encontrado para el tenant." };
             }
 
             const secureString = generateSecureString()
@@ -35,6 +38,7 @@ class UserService{
                     email:userData.email,
                     phone: userData.phone ?? "",
                     password: securePassword,
+                    role: 2,
                     isVerified: false,
                     status: UserStatus.PENDING,
                     tenantId
@@ -45,7 +49,7 @@ class UserService{
             const html = await buildWelcomeUserEmailHtml({
                 user: createdUser,
                 plainPassword: secureString,
-                business: tenant.business
+                business: tenant.businessData
             });
 
             await sendMail({
@@ -93,7 +97,12 @@ class UserService{
                 return { status: 400, message: "Token de verificacion invalido." };
             }
 
-            const user = await prisma.user.findUnique({ where: { id: payload.id } });
+            const user = await prisma.user.findFirst({
+                where: {
+                    id: payload.id,
+                    ...(tenantId ? { tenantId } : {})
+                }
+            });
             if (!user || user.email !== payload.email) {
                 return { status: 404, message: "Usuario no encontrado para este token." };
             }
@@ -117,29 +126,45 @@ class UserService{
         }
     }
 
-    async login(data: z.infer<typeof loginSchema>, tenantId?: string | null): Promise<ServiceResponse>{
+    async login(
+        data: z.infer<typeof loginSchema>,
+        tenantId?: string | null,
+        role = 2
+    ): Promise<ServiceResponse>{
         try {
             if (!tenantId) {
                 return { status: 400, message: "Tenant requerido." };
             }
-            const user = await prisma.user.findUnique({ where: { email: data.email } });
-            if(!user){
+            const email = data.email.toLowerCase().trim();
+            const password = data.password.trim();
+            const users = await prisma.user.findMany({
+                where: {
+                    email,
+                    tenantId,
+                    role
+                }
+            });
+            if(users.length === 0){
                 return { status: 404, message: "Usuario no encontrado." };
             }
-            if (user.tenantId !== tenantId) {
-                return { status: 403, message: "Usuario no pertenece al tenant." };
+            let matchedUser: (typeof users)[number] | null = null;
+            for (const candidate of users) {
+                const isPasswordValid = await verifyHash(password, candidate.password);
+                if (isPasswordValid) {
+                    matchedUser = candidate;
+                    break;
+                }
             }
-            const isPasswordValid = await verifyHash(data.password, user.password);
-            if(!isPasswordValid){
+            if(!matchedUser){
                 return { status: 401, message: "Contraseña incorrecta." };
             }
-            if(user.status !== UserStatus.ACTIVE){
+            if(matchedUser.status !== UserStatus.ACTIVE){
                 return { status: 403, message: "Cuenta no activa." };
             }
-            if(!user.isVerified){
+            if(!matchedUser.isVerified){
                 return { status: 403, message: "Cuenta no verificada." };
             }
-            const token = await createSessionToken({ id: user.id, email: user.email, role: user.role });
+            const token = await createSessionToken({ id: matchedUser.id, email: matchedUser.email, role: matchedUser.role });
             return { status: 200, message: "Login exitoso.", data: { token } };
         } catch (error) {
             const err = error as Error
@@ -148,11 +173,12 @@ class UserService{
         }
     }
 
-    async getMe(userId: string): Promise<ServiceResponse>{
+    async getMe(userId: string, tenantId: string): Promise<ServiceResponse>{
         try {
-            const user = await prisma.user.findUnique({
+            const user = await prisma.user.findFirst({
                 where:{
-                    id: userId
+                    id: userId,
+                    tenantId
                 },
                 select:{
                     name: true,
@@ -175,13 +201,24 @@ class UserService{
         }
     }
 
-    async updateMe(userId: string, data: z.infer<typeof updateUserSchema>): Promise<ServiceResponse>{
+    async updateMe(
+        userId: string,
+        tenantId: string,
+        data: z.infer<typeof updateUserSchema>
+    ): Promise<ServiceResponse>{
         try {
             if (!data.name && !data.email && !data.phone) {
                 return { status: 400, message: "No hay datos para actualizar." };
             }
+            const existingUser = await prisma.user.findFirst({
+                where: { id: userId, tenantId },
+                select: { id: true }
+            });
+            if (!existingUser) {
+                return { status: 404, message: "Usuario no encontrado." };
+            }
             const user = await prisma.user.update({
-                where: { id: userId },
+                where: { id: existingUser.id },
                 data: {
                     ...(data.name ? { name: data.name } : {}),
                     ...(data.email ? { email: data.email } : {}),
@@ -205,10 +242,17 @@ class UserService{
         }
     }
 
-    async updateAvatar(userId: string, avatarUrl: string): Promise<ServiceResponse>{
+    async updateAvatar(userId: string, tenantId: string, avatarUrl: string): Promise<ServiceResponse>{
         try {
+            const existingUser = await prisma.user.findFirst({
+                where: { id: userId, tenantId },
+                select: { id: true }
+            });
+            if (!existingUser) {
+                return { status: 404, message: "Usuario no encontrado." };
+            }
             const user = await prisma.user.update({
-                where: { id: userId },
+                where: { id: existingUser.id },
                 data: { avatar: avatarUrl },
                 select: {
                     id: true,
@@ -221,6 +265,120 @@ class UserService{
             const err = error as Error
             logger.error("Error catched en updateAvatar service: ", err.message)
             return { status: 500, message: "Error al actualizar el avatar.", err: err.message };
+        }
+    }
+
+    async changePassword(
+        userId: string,
+        tenantId: string,
+        data: z.infer<typeof changePasswordSchema>,
+        role = 2
+    ): Promise<ServiceResponse> {
+        try {
+            const user = await prisma.user.findFirst({
+                where: {
+                    id: userId,
+                    tenantId,
+                    role
+                },
+                select: { id: true, password: true }
+            });
+            if (!user) {
+                return { status: 404, message: "Usuario no encontrado." };
+            }
+
+            const currentPassword = data.currentPassword.trim();
+            const newPassword = data.newPassword.trim();
+
+            const isCurrentPasswordValid = await verifyHash(currentPassword, user.password);
+            if (!isCurrentPasswordValid) {
+                return { status: 401, message: "Contraseña actual incorrecta." };
+            }
+
+            const isSamePassword = await verifyHash(newPassword, user.password);
+            if (isSamePassword) {
+                return { status: 400, message: "La nueva contraseña no puede ser igual a la actual." };
+            }
+
+            const newPasswordHash = await hashString(newPassword);
+            await prisma.user.update({
+                where: { id: user.id },
+                data: { password: newPasswordHash }
+            });
+
+            return { status: 200, message: "Contraseña actualizada correctamente." };
+        } catch (error) {
+            const err = error as Error
+            logger.error("Error catched en changePassword service: ", err.message)
+            return { status: 500, message: "No se pudo actualizar la contraseña.", err: err.message };
+        }
+    }
+
+    async recoverPassword(
+        tenantId: string,
+        data: z.infer<typeof recoverPasswordSchema>,
+        role = 2
+    ): Promise<ServiceResponse> {
+        try {
+            const tenant = await prisma.tenant.findUnique({
+                where: { id: tenantId },
+                select: { businessData: true }
+            });
+            if (!tenant) {
+                return { status: 404, message: "Tenant no encontrado." };
+            }
+            if (!tenant.businessData) {
+                return { status: 404, message: "Negocio no encontrado para el tenant." };
+            }
+
+            const users = await prisma.user.findMany({
+                where: {
+                    email: data.email.toLowerCase(),
+                    tenantId,
+                    role
+                },
+                select: {
+                    id: true,
+                    email: true,
+                    name: true
+                }
+            });
+
+            if (users.length === 0) {
+                return { status: 200, message: "Si el correo existe, enviaremos instrucciones de recuperación." };
+            }
+
+            const temporaryPassword = generateTemporaryPassword(10);
+            const passwordHash = await hashString(temporaryPassword);
+
+            await prisma.user.updateMany({
+                where: {
+                    tenantId,
+                    role,
+                    id: {
+                        in: users.map((user) => user.id)
+                    }
+                },
+                data: { password: passwordHash }
+            });
+
+            const html = await buildPasswordRecoveryEmailHtml({
+                user: users[0],
+                temporaryPassword,
+                business: tenant.businessData
+            });
+
+            await sendMail({
+                to: users[0].email,
+                subject: "Recuperacion de contraseña",
+                html
+            });
+
+            return { status: 200, message: "Si el correo existe, enviaremos instrucciones de recuperación." };
+        } catch (error) {
+            const err = error as Error
+            logger.error("Error catched en recoverPassword service: ", err.message)
+            return { status: 500, message: "No se pudo procesar la recuperación de contraseña.", err: err.message };
         }
     }
 }

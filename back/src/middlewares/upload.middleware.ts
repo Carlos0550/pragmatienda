@@ -34,3 +34,43 @@ export const uploadAndConvertImageMiddleware = [
     }
   }
 ];
+
+export const uploadBusinessAssetsMiddleware = [
+  upload.fields([
+    { name: "logo", maxCount: 1 },
+    { name: "banner", maxCount: 1 },
+    { name: "favicon", maxCount: 1 }
+  ]),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const uploadedFiles = (req.files as Record<string, Express.Multer.File[]>) ?? {};
+      const fileGroups = ["logo", "banner", "favicon"] as const;
+
+      for (const group of fileGroups) {
+        const file = uploadedFiles[group]?.[0];
+        if (!file) {
+          continue;
+        }
+
+        const optimized = await sharp(file.buffer)
+          .rotate()
+          .resize(512, 512, { fit: "inside", withoutEnlargement: true })
+          .webp({ quality: 85 })
+          .toBuffer();
+
+        uploadedFiles[group][0] = {
+          ...file,
+          buffer: optimized,
+          mimetype: "image/webp",
+          originalname: file.originalname.replace(/\.\w+$/, ".webp")
+        };
+      }
+
+      return next();
+    } catch (error) {
+      const err = error as Error;
+      logger.error("Error catched en uploadBusinessAssetsMiddleware: ", err.message);
+      return res.status(500).json({ message: "Error al procesar la imagen." });
+    }
+  }
+];

@@ -3,8 +3,10 @@ import { z } from "zod";
 import { userController } from "../controllers/user.controller";
 import { openApiRegistry } from "../docs/swagger";
 import {
+  changePasswordSchema,
   loginSchema,
   publicRegisterUserSchema,
+  recoverPasswordSchema,
   updateAvatarSchema,
   updateUserSchema
 } from "../services/Users/user.zod";
@@ -52,13 +54,34 @@ openApiRegistry.registerPath({
 })
 
 openApiRegistry.registerPath({
+  method: "post",
+  path: "/public/password/recovery",
+  tags: ["User"],
+  summary: "Recuperar contraseña por correo",
+  request: {
+    headers: z.object({
+      "x-tenant-id": z.string()
+    }),
+    body: {
+      content: {
+        "application/json": {
+          schema: recoverPasswordSchema
+        }
+      }
+    }
+  },
+  responses: {}
+})
+
+openApiRegistry.registerPath({
   method: "get",
   path: "/me",
   tags: ["User"],
   summary: "Obtener informacion del usuario autenticado",
   request: {
     headers: z.object({
-      "x-tenant-id": z.string()
+      "x-tenant-id": z.string(),
+      "Authorization": z.string()
     })
   },
   responses: {}
@@ -71,7 +94,8 @@ openApiRegistry.registerPath({
   summary: "Actualizar informacion del usuario autenticado",
   request: {
     headers: z.object({
-      "x-tenant-id": z.string()
+      "x-tenant-id": z.string(),
+      "Authorization": z.string()
     }),
     body: {
       content: {
@@ -86,12 +110,34 @@ openApiRegistry.registerPath({
 
 openApiRegistry.registerPath({
   method: "put",
+  path: "/me/password",
+  tags: ["User"],
+  summary: "Cambiar contraseña del usuario autenticado",
+  request: {
+    headers: z.object({
+      "x-tenant-id": z.string(),
+      "Authorization": z.string()
+    }),
+    body: {
+      content: {
+        "application/json": {
+          schema: changePasswordSchema
+        }
+      }
+    }
+  },
+  responses: {}
+})
+
+openApiRegistry.registerPath({
+  method: "put",
   path: "/me/avatar",
   tags: ["User"],
   summary: "Actualizar avatar del usuario autenticado",
   request: {
     headers: z.object({
-      "x-tenant-id": z.string()
+      "x-tenant-id": z.string(),
+      "Authorization": z.string()
     }),
     body: {
       content: {
@@ -108,9 +154,11 @@ const router = Router()
 
 router.post("/public/register", requireTenant, userController.publicRegisterUser)
 router.post("/public/login", requireTenant, userController.login)
+router.post("/public/password/recovery", requireTenant, userController.recoverPassword)
 router.get("/public/verify", userController.verifyAccount)
 router.get("/me", requireRole([1,2]), requireTenant, userController.getMe)
 router.put("/me", requireRole([1,2]), requireTenant, userController.updateMe)
+router.put("/me/password", requireRole([1,2]), requireTenant, userController.changePassword)
 router.put("/me/avatar", requireRole([1,2]), requireTenant, uploadAndConvertImageMiddleware, userController.updateAvatar)
 
 export { router as userRouter };

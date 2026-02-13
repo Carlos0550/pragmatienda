@@ -13,6 +13,30 @@ enum PlanType {
 }
 
 
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  PENDING
+  DELETED
+  BLOCKED
+}
+
+model Tenant {
+  id           String     @id @default(cuid())
+  ownerId      String
+  owner        User       @relation("TenantOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  plan         PlanType   @default(FREE)
+  planStartsAt DateTime   @default(now())
+  planEndsAt   DateTime?
+  trialEndsAt  DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  user               User?             @relation("TenantUsers")
+  productsCategory   ProductsCategory? @relation("TenantProductsCategory")
+  businessData       BusinessData?     @relation("TenantBusiness")
+}
+
+
 model BusinessData {
   id        String   @id @default(cuid())
   name      String
@@ -25,20 +49,20 @@ model BusinessData {
   favicon String?
   banner String?
   socialMedia Json?
-  tenant Tenant?
+  tenantId  String   @unique
+  tenant    Tenant   @relation("TenantBusiness", fields: [tenantId], references: [id], onDelete: Cascade)
+
   
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+
+  @@index([name])
+  @@unique([name])
+  @@unique([phone])
+  @@unique([email])
 }
 
-enum UserStatus {
-  ACTIVE
-  INACTIVE
-  PENDING
-  DELETED
-  BLOCKED
-}
 
 model User {
   id        String   @id @default(cuid())
@@ -50,7 +74,7 @@ model User {
   avatar    String?
   isVerified Boolean  @default(false)
   status     UserStatus @default(ACTIVE)
-  tenantId  String?
+  tenantId  String?   @unique
   tenant    Tenant? @relation("TenantUsers", fields: [tenantId], references: [id], onDelete: Cascade)
   ownedTenants Tenant[] @relation("TenantOwner")
   createdAt DateTime @default(now())
@@ -58,17 +82,19 @@ model User {
   @@unique([email, tenantId, role])
 }
 
-model Tenant {
-  id           String     @id @default(cuid())
-  businessId   String     @unique
-  business     BusinessData @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  ownerId      String
-  owner        User       @relation("TenantOwner", fields: [ownerId], references: [id], onDelete: Restrict)
-  plan         PlanType   @default(FREE)
-  planStartsAt DateTime   @default(now())
-  planEndsAt   DateTime?
-  trialEndsAt  DateTime?
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
-  users        User[]     @relation("TenantUsers")
+
+
+model ProductsCategory {
+  id        String   @id @default(cuid())
+  name      String
+  description String?
+  businessId String
+  tenantId String @unique
+  tenant Tenant @relation("TenantProductsCategory", fields: [tenantId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([name])
+  @@unique([name])
+  @@unique([businessId, name])
 }
