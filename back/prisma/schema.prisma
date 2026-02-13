@@ -21,6 +21,15 @@ enum UserStatus {
   BLOCKED
 }
 
+enum ProductsStatus {
+  PUBLISHED
+  UNPUBLISHED
+  DELETED
+  ARCHIVED
+  LOW_STOCK
+  OUT_OF_STOCK
+}
+
 model Tenant {
   id           String     @id @default(cuid())
   ownerId      String
@@ -34,6 +43,7 @@ model Tenant {
   user               User?             @relation("TenantUsers")
   productsCategory   ProductsCategory? @relation("TenantProductsCategory")
   businessData       BusinessData?     @relation("TenantBusiness")
+  products           Products[]        @relation("TenantProducts")
 }
 
 
@@ -88,13 +98,36 @@ model ProductsCategory {
   id        String   @id @default(cuid())
   name      String
   description String?
-  businessId String
+  image String?
   tenantId String @unique
   tenant Tenant @relation("TenantProductsCategory", fields: [tenantId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  products Products[] @relation("ProductsCategory")
+
   @@index([name])
   @@unique([name])
-  @@unique([businessId, name])
+  @@unique([tenantId, name])
+}
+
+model Products {
+  id        String   @id @default(cuid())
+  name      String
+  description String?
+  metadata Json?
+  price Decimal
+  stock Int
+  status ProductsStatus @default(PUBLISHED)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  tenantId String
+  categoryId String
+
+  tenant Tenant @relation("TenantProducts", fields: [tenantId], references: [id], onDelete: Cascade)
+  category ProductsCategory @relation("ProductsCategory", fields: [categoryId], references: [id], onDelete: NoAction)
+  
+  @@index([name])
+  @@unique([tenantId, name])
 }
