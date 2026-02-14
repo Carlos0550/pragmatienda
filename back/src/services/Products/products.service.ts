@@ -48,6 +48,10 @@ export class ProductsService {
     try {
       // Análisis del nombre antes del flujo (mejoras sugeridas para el usuario)
       const nameAnalysis = await analyzeProductName(data.name);
+      logger.info("Name analysis", { nameAnalysis });
+      if (nameAnalysis?.isGeneric) {
+        return { status: 400, message: nameAnalysis.message };
+      }
 
       const normalizedName = normalizeText(data.name);
 
