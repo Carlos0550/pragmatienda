@@ -40,7 +40,7 @@ model Tenant {
   trialEndsAt  DateTime?
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
-  user               User?             @relation("TenantUsers")
+  users              User[]            @relation("TenantUsers")
   productsCategories ProductsCategory[] @relation("TenantProductsCategory")
   businessData       BusinessData?     @relation("TenantBusiness")
   products           Products[]        @relation("TenantProducts")
@@ -84,7 +84,7 @@ model User {
   avatar    String?
   isVerified Boolean  @default(false)
   status     UserStatus @default(ACTIVE)
-  tenantId  String?   @unique
+  tenantId  String?
   tenant    Tenant? @relation("TenantUsers", fields: [tenantId], references: [id], onDelete: Cascade)
   ownedTenants Tenant[] @relation("TenantOwner")
   createdAt DateTime @default(now())
