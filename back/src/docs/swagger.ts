@@ -4,7 +4,7 @@ import { env } from "../config/env";
 
 extendZodWithOpenApi(z);
 
-const serverUrl = `http://localhost:${env.PORT}`;
+const serverUrl = `http://localhost:${env.PORT}/api`;
 
 export const openApiRegistry = new OpenAPIRegistry();
 

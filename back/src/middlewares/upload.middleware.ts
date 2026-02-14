@@ -35,6 +35,35 @@ export const uploadAndConvertImageMiddleware = [
   }
 ];
 
+/** Imagen opcional: procesa si viene, sigue si no. */
+export const uploadAndConvertImageOptionalMiddleware = [
+  upload.single("image"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!req.file) return next();
+
+      const optimized = await sharp(req.file.buffer)
+        .rotate()
+        .resize(512, 512, { fit: "inside", withoutEnlargement: true })
+        .webp({ quality: 85 })
+        .toBuffer();
+
+      req.file = {
+        ...req.file,
+        buffer: optimized,
+        mimetype: "image/webp",
+        originalname: req.file.originalname.replace(/\.\w+$/, ".webp")
+      };
+
+      return next();
+    } catch (error) {
+      const err = error as Error;
+      logger.error("Error en uploadAndConvertImageOptionalMiddleware: ", err.message);
+      return res.status(500).json({ message: "Error al procesar la imagen." });
+    }
+  }
+];
+
 export const uploadBusinessAssetsMiddleware = [
   upload.fields([
     { name: "logo", maxCount: 1 },

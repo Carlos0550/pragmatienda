@@ -25,6 +25,7 @@
     "dayjs": "^1.11.19",
     "dotenv": "^16.6.1",
     "express": "^4.22.1",
+    "groq-sdk": "^0.37.0",
     "helmet": "^7.2.0",
     "jsonwebtoken": "^9.0.3",
     "minio": "^7.1.3",

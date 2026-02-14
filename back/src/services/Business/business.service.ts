@@ -57,7 +57,7 @@ class BusinessService {
             email: data.adminEmail.toLowerCase().trim(),
             phone: toE164Argentina(normalizeText(data.phone)) ?? "",
             password: securePassword,
-            role: 2,
+            role: 1,
             isVerified: false,
             status: UserStatus.PENDING,
           },
@@ -332,16 +332,18 @@ class BusinessService {
     tenantId: string,
   ): Promise<ServiceResponse> {
     try {
-      const user = await prisma.user.findUniqueOrThrow({
+      const user = await prisma.user.findUnique({
         where: {
-          email: data.email,
-          tenantId: tenantId,
-          role: 1,
+          email_tenantId_role: {
+            email: data.email,
+            tenantId: tenantId,
+            role: 1,
+          },
         },
       });
 
       if (!user) {
-        return { status: 404, message: "Usuario no encontrado." };
+        return { status: 401, message: "Credenciales inválidas." };
       }
       const isPasswordValid = await verifyHash(data.password, user.password);
       if (!isPasswordValid) {

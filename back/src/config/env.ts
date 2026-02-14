@@ -33,7 +33,8 @@ const schema = z.object({
   SECURITY_ENCRYPTION_KEY: z.string().optional(),
   JWT_SECRET: z.string().min(1, "JWT_SECRET es requerido"),
   FRONTEND_URL: z.string().min(1).default("http://localhost:3000"),
-  BACKEND_URL: z.string().optional()
+  BACKEND_URL: z.string().optional(),
+  GROQ_API_KEY: z.string().optional()
 });
 
 const parsed = schema.safeParse(process.env);
