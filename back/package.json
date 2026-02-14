@@ -7,6 +7,7 @@
     "dev": "tsx watch --clear-screen=false --watch=src --watch=prisma --watch=.env src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
+    "postinstall": "prisma generate",
     "prisma": "prisma",
     "migrate": "prisma migrate dev",
     "generate": "prisma generate",
