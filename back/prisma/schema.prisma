@@ -126,7 +126,7 @@ model Products {
   categoryId String?
 
   tenant Tenant @relation("TenantProducts", fields: [tenantId], references: [id], onDelete: Cascade)
-  category ProductsCategory? @relation("ProductsCategory", fields: [categoryId], references: [id], onDelete: NoAction)
+  category ProductsCategory? @relation("ProductsCategory", fields: [categoryId], references: [id], onDelete: SetNull)
   
   @@index([name])
   @@unique([tenantId, name])
