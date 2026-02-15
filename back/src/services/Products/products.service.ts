@@ -9,7 +9,7 @@ import {
 import { PUBLIC_BUCKET } from "../../storage/minio";
 import { env } from "../../config/env";
 import { generateSecureString } from "../../utils/security.utils";
-import { normalizeText } from "../../utils/normalization.utils";
+import { normalizeProductName, normalizeText } from "../../utils/normalization.utils";
 import {
   generateProductMetadata,
   generateProductDescription,
@@ -46,14 +46,13 @@ export class ProductsService {
     file?: Express.Multer.File
   ): Promise<ServiceResponse> {
     try {
-      // Análisis del nombre antes del flujo (mejoras sugeridas para el usuario)
-      const nameAnalysis = await analyzeProductName(data.name);
+      const nameAnalysis = await analyzeProductName(normalizeProductName(data.name));
       logger.info("Name analysis", { nameAnalysis });
       if (nameAnalysis?.isGeneric) {
         return { status: 400, message: nameAnalysis.message };
       }
 
-      const normalizedName = normalizeText(data.name);
+      const normalizedName = normalizeProductName(data.name);
 
       const existing = await prisma.products.findUnique({
         where: { tenantId_name: { tenantId, name: normalizedName } }
@@ -73,23 +72,17 @@ export class ProductsService {
         imageUrl = getPublicObjectFromDefaultBucket(objectName);
       }
 
-      // Descripción: la del usuario o generada por IA si no viene
       let description = data.description?.trim();
       if (!description) {
-        const generated = await generateProductDescription(data.name);
+        const generated = await generateProductDescription(normalizeProductName(data.name));
         description = generated ?? undefined;
       }
 
-      let metadata: Record<string, unknown> | undefined = data.metadata
-        ? (data.metadata as Record<string, unknown>)
-        : undefined;
-      if (!metadata) {
-        // SEO usa la descripción (usuario o IA) para mejorar title/description/keywords
-        const generated = await generateProductMetadata(data.name, description);
+      let metadata: Record<string, unknown> | undefined = undefined
+      const generated = await generateProductMetadata(normalizeProductName(data.name), description);
         if (generated && Object.keys(generated).length > 0) {
           metadata = generated as Record<string, unknown>;
         }
-      }
 
       const product = await prisma.products.create({
         data: {
@@ -136,7 +129,7 @@ export class ProductsService {
       const updatePayload: Record<string, unknown> = {};
 
       if (data.name !== undefined) {
-        const normalizedName = normalizeText(data.name);
+        const normalizedName = normalizeProductName(data.name);
         const conflict = await prisma.products.findFirst({
           where: {
             tenantId,

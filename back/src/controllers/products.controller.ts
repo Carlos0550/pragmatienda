@@ -54,13 +54,13 @@ class ProductsController {
         return res.status(400).json({ message: "Tenant requerido." });
       }
 
-      const metadata = parseMetadata(req.body.metadata);
+      
       const categoryIdRaw = req.body.categoryId;
       const categoryId =
         categoryIdRaw === "" || categoryIdRaw === "null" ? undefined : categoryIdRaw;
       const bodyForSchema = {
         ...req.body,
-        metadata: metadata ?? undefined,
+        
         categoryId
       };
 

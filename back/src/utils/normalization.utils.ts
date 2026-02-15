@@ -1,3 +1,13 @@
+
+export const normalizeProductName = (value: string): string => {
+  return value
+    .toLowerCase()
+    .trim()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ");
+};
+
 export const normalizeText = (value: string): string => {
   return value
     .normalize("NFD")

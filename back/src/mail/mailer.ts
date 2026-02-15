@@ -82,12 +82,22 @@ export const sendMail = async (payload: MailPayload): Promise<MailResult> => {
 
   const renderOptions = buildRenderOptions(payload);
 
-  const result = await resend.emails.send({
+  const { data, error } = await resend.emails.send({
     from,
     to: payload.to,
     subject: payload.subject,
     ...renderOptions
   });
 
-  return { provider: "resend", id: result.data?.id ?? null };
+  if (error) {
+    logger.error("Error al enviar email con Resend", {
+      message: error.message,
+      name: error.name,
+      from,
+      to: payload.to
+    });
+    throw new Error(`Resend: ${error.message}`);
+  }
+
+  return { provider: "resend", id: data?.id ?? null };
 };
