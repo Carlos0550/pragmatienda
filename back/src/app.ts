@@ -5,7 +5,7 @@ import swaggerUi from "swagger-ui-express";
 import { env } from "./config/env";
 import { logger, requestLogger } from "./config/logger";
 import { getSwaggerSpec } from "./docs/swagger";
-import { router } from "./routes";
+import { apiRouter } from "./routes";
 
 const app = express();
 
@@ -19,7 +19,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cors({ origin: corsOrigins, credentials: true }));
 app.use(requestLogger);
 
-app.use("/api", router);
+app.use("/api", apiRouter);
 
 const swaggerSpec = getSwaggerSpec();
 app.use("/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));

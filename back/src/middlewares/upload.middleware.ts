@@ -35,6 +35,37 @@ export const uploadAndConvertImageMiddleware = [
   }
 ];
 
+/** Comprobante de pago requerido (campo "comprobante"). */
+export const uploadComprobanteMiddleware = [
+  upload.single("comprobante"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "Comprobante de pago requerido." });
+      }
+
+      const optimized = await sharp(req.file.buffer)
+        .rotate()
+        .resize(512, 512, { fit: "inside", withoutEnlargement: true })
+        .webp({ quality: 85 })
+        .toBuffer();
+
+      req.file = {
+        ...req.file,
+        buffer: optimized,
+        mimetype: "image/webp",
+        originalname: req.file.originalname.replace(/\.\w+$/, ".webp")
+      };
+
+      return next();
+    } catch (error) {
+      const err = error as Error;
+      logger.error("Error en uploadComprobanteMiddleware: ", err.message);
+      return res.status(500).json({ message: "Error al procesar el comprobante." });
+    }
+  }
+];
+
 /** Imagen opcional: procesa si viene, sigue si no. */
 export const uploadAndConvertImageOptionalMiddleware = [
   upload.single("image"),

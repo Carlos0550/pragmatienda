@@ -4,14 +4,13 @@ import { businessController } from "../controllers/business.controller";
 import { categoriesController } from "../controllers/categories.controller";
 import { productsController } from "../controllers/products.controller";
 import { openApiRegistry } from "../docs/swagger";
-import { loginBusinessSchema } from "../services/Business/business.zod";
 import {
   requireRole,
   requireTenant,
   uploadAndConvertImageOptionalMiddleware,
   uploadBusinessAssetsMiddleware
 } from "../middlewares";
-import { changePasswordSchema, recoverPasswordSchema } from "../services/Users/user.zod";
+import { changePasswordSchema } from "../services/Users/user.zod";
 import {
   createCategorySchema,
   updateCategorySchema,
@@ -70,54 +69,6 @@ openApiRegistry.registerPath({
     },
     "404": {
       description: "Tenant no encontrado"
-    }
-  }
-});
-
-openApiRegistry.registerPath({
-  method: "post",
-  path: "/admin/login",
-  tags: ["Business"],
-  summary: "Inicio de sesión de administrador de negocio",
-  request: {
-    headers: z.object({
-      "x-tenant-id": z.string()
-    }),
-    body: {
-      content: {
-        "application/json": {
-          schema: loginBusinessSchema
-        }
-      }
-    }
-  },
-  responses: {
-    "200": {
-      description: "Inicio de sesión exitoso"
-    }
-  }
-});
-
-openApiRegistry.registerPath({
-  method: "post",
-  path: "/admin/password/recovery",
-  tags: ["Business"],
-  summary: "Recuperar contraseña de administrador de negocio",
-  request: {
-    headers: z.object({
-      "x-tenant-id": z.string()
-    }),
-    body: {
-      content: {
-        "application/json": {
-          schema: recoverPasswordSchema
-        }
-      }
-    }
-  },
-  responses: {
-    "200": {
-      description: "Si el correo existe, se enviaron instrucciones"
     }
   }
 });
@@ -346,34 +297,32 @@ openApiRegistry.registerPath({
 
 const router = Router();
 
-router.post("/admin/login", requireTenant, businessController.loginBusiness);
-router.post("/admin/password/recovery", requireTenant, businessController.recoverPasswordBusiness);
-router.put("/admin/me/password", requireRole([1]), requireTenant, businessController.changePasswordBusiness);
-router.put("/admin/business/manage", requireTenant, requireRole([1]), uploadBusinessAssetsMiddleware, businessController.manageBusiness);
+router.put("/me/password", requireRole([1]), requireTenant, businessController.changePasswordBusiness);
+router.put("/business/manage", requireTenant, requireRole([1]), uploadBusinessAssetsMiddleware, businessController.manageBusiness);
 
 // Categorías
 router.get(
-  "/admin/categories",
+  "/categories",
   requireTenant,
   requireRole([1]),
   categoriesController.getMany
 );
 router.post(
-  "/admin/categories",
+  "/categories",
   requireTenant,
   requireRole([1]),
   uploadAndConvertImageOptionalMiddleware,
   categoriesController.create
 );
 router.put(
-  "/admin/categories/:id",
+  "/categories/:id",
   requireTenant,
   requireRole([1]),
   uploadAndConvertImageOptionalMiddleware,
   categoriesController.update
 );
 router.delete(
-  "/admin/categories/:id",
+  "/categories/:id",
   requireTenant,
   requireRole([1]),
   categoriesController.delete
@@ -381,33 +330,33 @@ router.delete(
 
 // Productos
 router.get(
-  "/admin/products",
+  "/products",
   requireTenant,
   requireRole([1]),
   productsController.getMany
 );
 router.post(
-  "/admin/products",
+  "/products",
   requireTenant,
   requireRole([1]),
   uploadAndConvertImageOptionalMiddleware,
   productsController.create
 );
 router.put(
-  "/admin/products/:id",
+  "/products/:id",
   requireTenant,
   requireRole([1]),
   uploadAndConvertImageOptionalMiddleware,
   productsController.update
 );
 router.delete(
-  "/admin/products/bulk",
+  "/products/bulk",
   requireTenant,
   requireRole([1]),
   productsController.deleteBulk
 );
 router.patch(
-  "/admin/products/bulk/status",
+  "/products/bulk/status",
   requireTenant,
   requireRole([1]),
   productsController.patchBulkStatus

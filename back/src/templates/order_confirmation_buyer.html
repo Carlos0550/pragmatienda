@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Confirmación de compra</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+</head>
+<body style="margin:0; padding:0; background-color:#f2f2f2; font-family: Arial, Helvetica, sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f2f2f2; padding:40px 0;">
+    <tr>
+      <td align="center">
+        <table width="100%" cellpadding="0" cellspacing="0" style="max-width:600px; background-color:#ffffff; border:1px solid #d9d9d9; border-radius:10px; overflow:hidden; box-shadow:0 8px 20px rgba(0,0,0,0.1);">
+          <tr>
+            <td style="padding:24px; background-color:#111111; text-align:center;">
+              <h1 style="margin:0; font-size:22px; color:#ffffff;">¡Gracias por tu compra!</h1>
+              <p style="margin:8px 0 0 0; color:#f5f5f5; font-size:14px;">{{businessName}}</p>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:32px; color:#111111; font-size:16px; line-height:1.6;">
+              <p style="margin:0 0 16px 0;">Hola {{buyerName}},</p>
+              <p style="margin:0 0 20px 0;">Recibimos tu orden correctamente. A continuación el detalle de tu compra:</p>
+
+              <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #d9d9d9; border-radius:8px; margin:20px 0;">
+                <tr style="background-color:#f5f5f5;">
+                  <td style="padding:12px; font-weight:bold; border-bottom:1px solid #d9d9d9;">Producto</td>
+                  <td style="padding:12px; font-weight:bold; border-bottom:1px solid #d9d9d9; text-align:center;">Cantidad</td>
+                  <td style="padding:12px; font-weight:bold; border-bottom:1px solid #d9d9d9; text-align:right;">Subtotal</td>
+                </tr>
+                {{itemsList}}
+                <tr style="background-color:#f9f9f9;">
+                  <td colspan="2" style="padding:12px; font-weight:bold; border-top:1px solid #d9d9d9;">Total</td>
+                  <td style="padding:12px; font-weight:bold; border-top:1px solid #d9d9d9; text-align:right;">{{total}}</td>
+                </tr>
+              </table>
+
+              <p style="margin:16px 0 0 0; color:#3f3f3f; font-size:14px;">
+                Tu comprobante de pago fue recibido. El equipo de {{businessName}} procesará tu orden y te contactará si es necesario.
+              </p>
+
+              <p style="margin:16px 0 0 0; font-size:14px; color:#3f3f3f;">
+                Número de orden: <strong>{{orderId}}</strong>
+              </p>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:20px; background-color:#111111; text-align:center; font-size:12px; color:#ffffff;">
+              © {{currentYear}} {{businessName}} · Todos los derechos reservados
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

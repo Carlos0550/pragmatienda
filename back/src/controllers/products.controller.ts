@@ -30,6 +30,10 @@ class ProductsController {
         return res.status(400).json({ message: "Tenant requerido." });
       }
 
+      const isPublic =
+        (req as { productsRequestIsPublic?: boolean }).productsRequestIsPublic === true ||
+        !req.user?.id;
+
       const parsed = listProductsQuerySchema.safeParse(req.query);
       if (!parsed.success) {
         return res.status(400).json({
@@ -38,7 +42,7 @@ class ProductsController {
         });
       }
 
-      const result = await productsService.getMany(tenantId, parsed.data);
+      const result = await productsService.getMany(tenantId, parsed.data, isPublic);
       return res.status(result.status).json(result);
     } catch (error) {
       const err = error as Error;

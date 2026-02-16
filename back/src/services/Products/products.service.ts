@@ -185,18 +185,20 @@ export class ProductsService {
 
   async getMany(
     tenantId: string,
-    query: z.infer<typeof listProductsQuerySchema>
+    query: z.infer<typeof listProductsQuerySchema>,
+    isPublic: boolean
   ): Promise<ServiceResponse> {
     try {
       const { page, limit, name, categoryId, sortBy, sortOrder } = query;
       const skip = (page - 1) * limit;
 
-      const where = {
+      const where: Prisma.ProductsWhereInput = {
         tenantId,
         ...(name?.trim()
           ? { name: { contains: normalizeText(name), mode: "insensitive" as const } }
           : {}),
-        ...(categoryId ? { categoryId } : {})
+        ...(categoryId ? { categoryId } : {}),
+        ...(isPublic ? {status: ProductsStatus.PUBLISHED, stock: {gt: 0}} : {})
       };
 
       const orderBy =

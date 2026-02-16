@@ -3,5 +3,6 @@ export { requireTenant, getTenantIdFromRequest } from "./tenant.middleware";
 export {
   uploadAndConvertImageMiddleware,
   uploadAndConvertImageOptionalMiddleware,
-  uploadBusinessAssetsMiddleware
+  uploadBusinessAssetsMiddleware,
+  uploadComprobanteMiddleware
 } from "./upload.middleware";

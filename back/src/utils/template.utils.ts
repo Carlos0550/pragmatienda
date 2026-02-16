@@ -103,3 +103,74 @@ export const buildPasswordRecoveryEmailHtml = async ({
     currentYear: dayjs().year().toString()
   });
 };
+
+export type OrderItemForEmail = {
+  productName: string;
+  productImageUrl: string;
+  quantity: number;
+  subtotal: string;
+};
+
+export const buildOrderConfirmationBuyerHtml = async ({
+  buyerName,
+  orderId,
+  items,
+  total,
+  businessName
+}: {
+  buyerName: string;
+  orderId: string;
+  items: OrderItemForEmail[];
+  total: string;
+  businessName: string;
+}): Promise<string> => {
+  const itemsList = items
+    .map(
+      (item) => {
+        const productNameDisplay = capitalizeWords(item.productName).slice(0, 20) + "...";
+        const imgBlock = item.productImageUrl
+          ? `<img src="${item.productImageUrl}" alt="${productNameDisplay.replace(/"/g, "&quot;")}" style="width:48px; height:48px; object-fit:cover; border-radius:6px; vertical-align:middle; margin-right:12px;" />`
+          : "";
+        return (
+          `<tr style="border-bottom:1px solid #d9d9d9;">` +
+          `<td style="padding:12px;">${imgBlock}${productNameDisplay}</td>` +
+          `<td style="padding:12px; text-align:center;">${item.quantity}</td>` +
+          `<td style="padding:12px; text-align:right;">${item.subtotal}</td>` +
+          `</tr>`
+        );
+      }
+    )
+    .join("");
+
+  return renderTemplate("order_confirmation_buyer.html", {
+    buyerName: capitalizeWords(buyerName ?? ""),
+    orderId,
+    itemsList,
+    total,
+    businessName: capitalizeWords(businessName ?? ""),
+    currentYear: dayjs().year().toString()
+  });
+};
+
+export const buildNewOrderAdminHtml = async ({
+  buyerName,
+  buyerEmail,
+  orderId,
+  total,
+  businessName
+}: {
+  buyerName: string;
+  buyerEmail: string;
+  orderId: string;
+  total: string;
+  businessName: string;
+}): Promise<string> => {
+  return renderTemplate("new_order_admin.html", {
+    buyerName: capitalizeWords(buyerName ?? ""),
+    buyerEmail,
+    orderId,
+    total,
+    businessName: capitalizeWords(businessName ?? ""),
+    currentYear: dayjs().year().toString()
+  });
+};

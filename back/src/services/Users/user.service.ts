@@ -32,20 +32,43 @@ class UserService{
             const secureString = generateSecureString()
             const securePassword = await hashString(secureString)
 
-            createdUser = await prisma.user.create({
-                data:{
-                    name: userData.name,
-                    email:userData.email,
-                    phone: userData.phone ?? "",
-                    password: securePassword,
-                    role: 2,
-                    isVerified: false,
-                    status: UserStatus.PENDING,
-                    tenantId
-                },
-                select: { id: true, email: true, name: true }
-            })
+            const transactionResult = await prisma.$transaction(async (tx) => {
+                const existingUser = await tx.user.findFirst({
+                    where: {
+                        email: userData.email,
+                        tenantId
+                    }
+                });
+                if (existingUser) {
+                    return { conflict: true as const };
+                }
+                const createdUser = await tx.user.create({
+                    data:{
+                        name: userData.name,
+                        email:userData.email,
+                        phone: userData.phone ?? "",
+                        password: securePassword,
+                        role: 2,
+                        isVerified: false,
+                        status: UserStatus.PENDING,
+                        tenantId
+                    },
+                    select: { id: true, email: true, name: true }
+                })
 
+                const cart = await tx.cart.create({
+                    data: {
+                        userId: createdUser.id,
+                        tenantId
+                    }
+                });
+
+                return { createdUser, cart } as const;
+            })
+            if (transactionResult.conflict) {
+                return { status: 409, message: "El usuario ya existe." };
+            }
+            createdUser = transactionResult.createdUser;
             const html = await buildWelcomeUserEmailHtml({
                 user: createdUser,
                 plainPassword: secureString,
