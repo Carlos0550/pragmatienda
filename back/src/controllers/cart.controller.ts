@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { logger } from "../config/logger";
+import { persistIdempotencyResponse } from "../middlewares";
 import { cartService } from "../services/Cart/cart.service";
 import { patchCartItemsSchema, deleteCartItemsSchema } from "../services/Cart/cart.zod";
 
@@ -84,6 +85,7 @@ class CartController {
       }
 
       const result = await cartService.checkout(userId, tenantId, req.file);
+      await persistIdempotencyResponse(req, result.status, result);
       return res.status(result.status).json(result);
     } catch (error) {
       const err = error as Error;

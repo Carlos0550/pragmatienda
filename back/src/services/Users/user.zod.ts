@@ -27,5 +27,5 @@ export const updateUserSchema = z.object({
 }).strict();
 
 export const updateAvatarSchema = z.object({
-    avatar: z.any()
+    image: z.any()
 }).strict();

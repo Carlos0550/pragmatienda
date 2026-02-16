@@ -3,7 +3,27 @@ import multer from "multer";
 import sharp from "sharp";
 import { logger } from "../config/logger";
 
-const upload = multer({ storage: multer.memoryStorage() });
+const MAX_UPLOAD_SIZE_BYTES = 5 * 1024 * 1024;
+const ALLOWED_IMAGE_MIMETYPES = new Set([
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+  "image/webp"
+]);
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: MAX_UPLOAD_SIZE_BYTES
+  },
+  fileFilter: (_req, file, cb) => {
+    if (!ALLOWED_IMAGE_MIMETYPES.has(file.mimetype.toLowerCase())) {
+      cb(new Error("Tipo de archivo no permitido. Solo se admiten JPG, PNG o WEBP."));
+      return;
+    }
+    cb(null, true);
+  }
+});
 
 export const uploadAndConvertImageMiddleware = [
   upload.single("image"),

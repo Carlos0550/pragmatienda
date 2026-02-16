@@ -102,7 +102,10 @@ class BusinessService {
       const { adminUser, tenant, business } = transactionResult;
 
       const html = await buildWelcomeUserEmailHtml({
-        user: adminUser,
+        user: {
+          ...adminUser,
+          tenantId: tenant.id
+        },
         plainPassword: secureString,
         business: {
           name: capitalizeWords(data.name),

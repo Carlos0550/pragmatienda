@@ -56,22 +56,36 @@ class UserController{
                 return res.status(400).type("html").send("Token de verificacion requerido.");
             }
 
-            const businessWebsite = await prisma.businessData.findFirst({
-                where:{
-                    tenantId: req.tenantId
-                }
-            })
-
             const result = await userService.verifyAccount(token, req.tenantId ?? null);
+            const resolvedTenantId =
+                (result.data as { tenantId?: string } | undefined)?.tenantId ?? null;
+
             if (result.status === 200) {
-                res.redirect(businessWebsite?.website ?? "");
-                return res;
+                if (resolvedTenantId) {
+                    const businessWebsite = await prisma.businessData.findUnique({
+                        where: {
+                            tenantId: resolvedTenantId
+                        },
+                        select: {
+                            website: true
+                        }
+                    });
+                    if (businessWebsite?.website) {
+                        res.redirect(businessWebsite.website);
+                        return res;
+                    }
+                }
+                return res.status(200).type("html").send(result.message);
             }
 
-            let payload: { id?: string; email?: string } = {};
+            if (result.status === 409) {
+                return res.status(409).type("html").send(result.message);
+            }
+
+            let payload: { id?: string; email?: string; tenantId?: string } = {};
             try {
                 const payloadRaw = decryptString(token);
-                payload = JSON.parse(payloadRaw) as { id?: string; email?: string };
+                payload = JSON.parse(payloadRaw) as { id?: string; email?: string; tenantId?: string };
             } catch {
                 return res.status(400).type("html").send(result.message);
             }
@@ -80,10 +94,12 @@ class UserController{
                 return res.status(400).type("html").send(result.message);
             }
 
+            const tenantScope = resolvedTenantId ?? payload.tenantId ?? req.tenantId ?? null;
+
             const user = await prisma.user.findFirst({
                 where: {
                     id: payload.id,
-                    ...(req.tenantId ? { tenantId: req.tenantId } : {})
+                    ...(tenantScope ? { tenantId: tenantScope } : {})
                 },
                 select: {
                     email: true,

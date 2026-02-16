@@ -4,6 +4,11 @@ declare module "express-serve-static-core" {
   interface Request {
     user?: SessionUserPayload;
     tenantId?: string;
+    idempotency?: {
+      id: string;
+      scope: string;
+      key: string;
+    };
   }
 }
 

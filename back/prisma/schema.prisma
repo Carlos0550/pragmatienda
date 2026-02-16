@@ -46,6 +46,27 @@ enum OrderStatus {
   REFUND_FAILED
 }
 
+enum PaymentStatus {
+  PENDING
+  REQUIRES_ACTION
+  AUTHORIZED
+  PAID
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
+  CANCELED
+  EXPIRED
+}
+
+enum FulfillmentStatus {
+  UNFULFILLED
+  PREPARING
+  SHIPPED
+  DELIVERED
+  RETURNED
+  CANCELED
+}
+
 model Tenant {
   id           String     @id @default(cuid())
   ownerId      String
@@ -62,6 +83,8 @@ model Tenant {
   products           Products[]        @relation("TenantProducts")
   cart               Cart[]            @relation("TenantCart")
   order              Order[]           @relation("TenantOrder")
+  paymentEvents      PaymentEvent[]    @relation("TenantPaymentEvents")
+  idempotencyKeys    IdempotencyKey[]  @relation("TenantIdempotencyKeys")
 }
 
 
@@ -188,15 +211,40 @@ model Order{
   userId String
   paymentProofImage String
   status OrderStatus @default(PENDING)
+  paymentStatus PaymentStatus @default(PENDING)
+  fulfillmentStatus FulfillmentStatus @default(UNFULFILLED)
+  subtotal Decimal @default(0)
+  shippingCost Decimal @default(0)
+  tax Decimal @default(0)
+  discount Decimal @default(0)
+  total Decimal @default(0)
+  currency String @default("ARS")
+  paymentProvider String?
+  paymentReference String?
+  paymentMethod String?
+  shippingProvider String?
+  shippingService String?
+  trackingCode String?
+  shippingAddress Json?
+  billingAddress Json?
+  customerNote String?
+  paidAt DateTime?
+  shippedAt DateTime?
+  deliveredAt DateTime?
   items OrderItem[] @relation("OrderItems")
   user User @relation("UserOrder", fields: [userId], references: [id], onDelete: Cascade)
   tenant Tenant @relation("TenantOrder", fields: [tenantId], references: [id], onDelete: Cascade)
+  paymentEvents PaymentEvent[] @relation("OrderPaymentEvents")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([tenantId])
   @@index([userId])
   @@index([status])
+  @@index([paymentStatus])
+  @@index([fulfillmentStatus])
+  @@index([paymentProvider])
+  @@index([trackingCode])
 }
 
 model OrderItem{
@@ -206,10 +254,50 @@ model OrderItem{
   productId String
   product Products @relation("ProductOrderItems", fields: [productId], references: [id], onDelete: Cascade)
   quantity Int
+  unitPrice Decimal @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([orderId])
   @@index([productId])
   @@unique([orderId, productId])
+}
+
+model PaymentEvent {
+  id String @id @default(cuid())
+  tenantId String
+  orderId String?
+  provider String
+  eventId String
+  eventType String
+  payload Json
+  processedAt DateTime @default(now())
+  createdAt DateTime @default(now())
+
+  tenant Tenant @relation("TenantPaymentEvents", fields: [tenantId], references: [id], onDelete: Cascade)
+  order Order? @relation("OrderPaymentEvents", fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+  @@index([orderId])
+  @@index([provider])
+  @@index([eventType])
+  @@unique([provider, eventId])
+}
+
+model IdempotencyKey {
+  id String @id @default(cuid())
+  tenantId String
+  scope String
+  key String
+  requestHash String
+  responseStatus Int?
+  responseBody Json?
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  tenant Tenant @relation("TenantIdempotencyKeys", fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([expiresAt])
+  @@unique([tenantId, scope, key])
 }

@@ -70,7 +70,10 @@ class UserService{
             }
             createdUser = transactionResult.createdUser;
             const html = await buildWelcomeUserEmailHtml({
-                user: createdUser,
+                user: {
+                    ...createdUser,
+                    tenantId
+                },
                 plainPassword: secureString,
                 business: tenant.businessData
             });
@@ -110,9 +113,9 @@ class UserService{
                 return { status: 400, message: "Token de verificacion invalido." };
             }
 
-            let payload: { id?: string; email?: string } = {};
+            let payload: { id?: string; email?: string; tenantId?: string } = {};
             try {
-                payload = JSON.parse(payloadRaw) as { id?: string; email?: string };
+                payload = JSON.parse(payloadRaw) as { id?: string; email?: string; tenantId?: string };
             } catch {
                 return { status: 400, message: "Token de verificacion invalido." };
             }
@@ -120,20 +123,27 @@ class UserService{
                 return { status: 400, message: "Token de verificacion invalido." };
             }
 
+            if (tenantId && payload.tenantId && tenantId !== payload.tenantId) {
+                return { status: 403, message: "Token no corresponde al tenant indicado." };
+            }
+
+            const effectiveTenantId = tenantId ?? payload.tenantId ?? undefined;
+
             const user = await prisma.user.findFirst({
                 where: {
                     id: payload.id,
-                    ...(tenantId ? { tenantId } : {})
+                    ...(effectiveTenantId ? { tenantId: effectiveTenantId } : {})
                 }
             });
             if (!user || user.email !== payload.email) {
                 return { status: 404, message: "Usuario no encontrado para este token." };
             }
-            if (tenantId && user.tenantId !== tenantId) {
+            if (effectiveTenantId && user.tenantId !== effectiveTenantId) {
                 return { status: 403, message: "Usuario no pertenece al tenant." };
             }
+            const resolvedTenantId = user.tenantId ?? effectiveTenantId ?? null;
             if (user.isVerified) {
-                return { status: 409, message: "La cuenta ya fue verificada." };
+                return { status: 409, message: "La cuenta ya fue verificada.", data: { tenantId: resolvedTenantId } };
             }
 
             await prisma.user.update({
@@ -141,7 +151,7 @@ class UserService{
                 data: { isVerified: true, status: UserStatus.ACTIVE }
             });
 
-            return { status: 200, message: "Cuenta verificada correctamente." };
+            return { status: 200, message: "Cuenta verificada correctamente.", data: { tenantId: resolvedTenantId } };
         } catch (error) {
             const err = error as Error
             logger.error("Error catched en verifyAccount service: ", err.message)

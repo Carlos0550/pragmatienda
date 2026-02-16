@@ -13,6 +13,30 @@ import type { patchCartItemsSchema, deleteCartItemsSchema } from "./cart.zod";
 
 type ServiceResponse = { status: number; message: string; data?: unknown; err?: string };
 
+class CheckoutError extends Error {
+  status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+  }
+}
+
+const decimalToNumber = (value: unknown) => {
+  if (typeof value === "number") {
+    return value;
+  }
+  if (
+    typeof value === "object" &&
+    value !== null &&
+    "toString" in value &&
+    typeof value.toString === "function"
+  ) {
+    return Number(value.toString());
+  }
+  return Number(value ?? 0);
+};
+
 export class CartService {
   async getCart(userId: string, tenantId: string): Promise<ServiceResponse> {
     try {
@@ -174,36 +198,6 @@ export class CartService {
     file: Express.Multer.File
   ): Promise<ServiceResponse> {
     try {
-      const cart = await prisma.cart.findUnique({
-        where: { tenantId_userId: { tenantId, userId } },
-        select: {
-          id: true,
-          items: {
-            select: { productId: true, quantity: true }
-          }
-        }
-      });
-
-      if (!cart || cart.items.length === 0) {
-        return { status: 400, message: "El carrito debe tener al menos un item para finalizar la orden." };
-      }
-
-      for (const item of cart.items) {
-        const product = await prisma.products.findFirst({
-          where: { id: item.productId, tenantId },
-          select: { stock: true, name: true }
-        });
-        if (!product) {
-          return { status: 404, message: `Producto no encontrado: ${item.productId}` };
-        }
-        if (product.stock < item.quantity) {
-          return {
-            status: 400,
-            message: `Stock insuficiente para "${product.name}". Disponible: ${product.stock}, solicitado: ${item.quantity}.`
-          };
-        }
-      }
-
       const objectName = `comprobantes/${tenantId}/${Date.now()}_${generateSecureString()}.webp`;
       await uploadPrivateObject({
         objectName,
@@ -212,11 +206,72 @@ export class CartService {
       });
 
       const transaction = await prisma.$transaction(async (tx) => {
+        const cart = await tx.cart.findUnique({
+          where: { tenantId_userId: { tenantId, userId } },
+          select: {
+            id: true,
+            items: {
+              select: {
+                productId: true,
+                quantity: true,
+                product: {
+                  select: { id: true, name: true, price: true, stock: true }
+                }
+              }
+            }
+          }
+        });
+
+        if (!cart || cart.items.length === 0) {
+          throw new CheckoutError(
+            400,
+            "El carrito debe tener al menos un item para finalizar la orden."
+          );
+        }
+
+        let subtotal = 0;
+        for (const item of cart.items) {
+          if (!item.product) {
+            throw new CheckoutError(404, `Producto no encontrado: ${item.productId}`);
+          }
+          if (item.quantity <= 0) {
+            throw new CheckoutError(400, "Cantidad de item invalida para checkout.");
+          }
+
+          const updated = await tx.products.updateMany({
+            where: {
+              id: item.productId,
+              tenantId,
+              stock: {
+                gte: item.quantity
+              }
+            },
+            data: {
+              stock: {
+                decrement: item.quantity
+              }
+            }
+          });
+
+          if (updated.count !== 1) {
+            throw new CheckoutError(
+              409,
+              `Stock insuficiente para "${item.product.name}".`
+            );
+          }
+
+          subtotal += decimalToNumber(item.product.price) * item.quantity;
+        }
+
         const order = await tx.order.create({
           data: {
             tenantId,
             userId,
-            paymentProofImage: objectName
+            paymentProofImage: objectName,
+            paymentProvider: "manual_upload",
+            subtotal,
+            total: subtotal,
+            currency: "ARS"
           },
           select: { id: true }
         });
@@ -225,16 +280,10 @@ export class CartService {
           data: cart.items.map((item) => ({
             orderId: order.id,
             productId: item.productId,
-            quantity: item.quantity
+            quantity: item.quantity,
+            unitPrice: item.product.price
           }))
         });
-
-        for (const item of cart.items) {
-          await tx.products.update({
-            where: { id: item.productId },
-            data: { stock: { decrement: item.quantity } }
-          });
-        }
 
         await tx.cartItem.deleteMany({
           where: { cartId: cart.id }
@@ -252,8 +301,9 @@ export class CartService {
           items: {
             select: {
               quantity: true,
+              unitPrice: true,
               product: {
-                select: { name: true, price: true, image: true }
+                select: { name: true, image: true }
               }
             }
           },
@@ -276,11 +326,9 @@ export class CartService {
       if (orderWithDetails) {
         setImmediate(async() => {
           const itemsForEmail: OrderItemForEmail[] = orderWithDetails.items.map((item) => {
-            const price = item.product.price;
+            const price = item.unitPrice;
             const qty = item.quantity;
-            const subtotal = (typeof price === "object" && price !== null && "toString" in price
-              ? parseFloat((price as { toString: () => string }).toString())
-              : Number(price)) * qty;
+            const subtotal = decimalToNumber(price) * qty;
             return {
               productName: item.product.name,
               productImageUrl: item.product.image ?? "",
@@ -348,6 +396,9 @@ export class CartService {
         data: { order: orderId }
       };
     } catch (error) {
+      if (error instanceof CheckoutError) {
+        return { status: error.status, message: error.message };
+      }
       const err = error as Error;
       logger.error("Error en checkout: ", err.message);
       return { status: 500, message: "Error al procesar el checkout.", err: err.message };

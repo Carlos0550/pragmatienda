@@ -2,12 +2,20 @@ import { Router } from "express";
 import { z } from "zod";
 import { cartController } from "../controllers/cart.controller";
 import { openApiRegistry } from "../docs/swagger";
-import { requireRole, requireTenant, uploadComprobanteMiddleware } from "../middlewares";
+import {
+  requireIdempotencyKey,
+  requireRole,
+  requireTenant,
+  uploadComprobanteMiddleware
+} from "../middlewares";
 import { patchCartItemsSchema, deleteCartItemsSchema } from "../services/Cart/cart.zod";
 
 const cartHeaders = z.object({
   "x-tenant-id": z.string(),
   Authorization: z.string()
+});
+const checkoutHeaders = cartHeaders.extend({
+  "idempotency-key": z.string().min(8)
 });
 
 openApiRegistry.registerPath({
@@ -29,7 +37,7 @@ openApiRegistry.registerPath({
   tags: ["Cart"],
   summary: "Eliminar items del carrito",
   request: {
-    headers: cartHeaders,
+    headers: checkoutHeaders,
     body: {
       content: {
         "application/json": {
@@ -99,6 +107,7 @@ router.patch("/items", requireRole([2]), cartController.patchItems);
 router.post(
   "/checkout",
   requireRole([2]),
+  requireIdempotencyKey("cart.checkout"),
   uploadComprobanteMiddleware,
   cartController.checkout
 );

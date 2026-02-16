@@ -1,6 +1,7 @@
 import cors from "cors";
 import express, { type NextFunction, type Request, type Response } from "express";
 import helmet from "helmet";
+import multer from "multer";
 import swaggerUi from "swagger-ui-express";
 import { env } from "./config/env";
 import { logger, requestLogger } from "./config/logger";
@@ -30,6 +31,15 @@ app.use((req, res) => {
 });
 
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
+  if (err instanceof multer.MulterError) {
+    if (err.code === "LIMIT_FILE_SIZE") {
+      return res.status(400).json({ message: "Archivo demasiado grande. Máximo permitido: 5MB." });
+    }
+    return res.status(400).json({ message: "Error al procesar el archivo subido." });
+  }
+  if (err.message.includes("Tipo de archivo no permitido")) {
+    return res.status(400).json({ message: err.message });
+  }
   logger.error("Unhandled error", { err });
   res.status(500).json({ message: "Internal server error", err: err.message });
   void next;

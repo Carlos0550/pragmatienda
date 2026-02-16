@@ -24,6 +24,7 @@ type WelcomeEmailUserData = {
   id: string;
   email: string;
   name: string | null;
+  tenantId?: string | null;
 };
 
 type WelcomeEmailBusinessData = {
@@ -53,7 +54,8 @@ export const buildWelcomeUserEmailHtml = async ({
 }): Promise<string> => {
   const tokenPayload = JSON.stringify({
     id: user.id,
-    email: user.email
+    email: user.email,
+    tenantId: user.tenantId ?? undefined
   });
   const token = encryptString(tokenPayload);
   const backendUrl = (env.BACKEND_URL ?? `http://localhost:${env.PORT}`).replace(/\/$/, "");
