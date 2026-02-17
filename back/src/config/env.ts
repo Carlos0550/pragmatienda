@@ -13,6 +13,13 @@ const booleanFromString = z.preprocess((value) => {
   return value;
 }, z.boolean());
 
+const numberOptionalFromString = z.preprocess((value) => {
+  if (value === undefined || value === null || value === "") {
+    return undefined;
+  }
+  return value;
+}, z.coerce.number().nonnegative().optional());
+
 const schema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().int().positive().default(3001),
@@ -34,7 +41,17 @@ const schema = z.object({
   JWT_SECRET: z.string().min(1, "JWT_SECRET es requerido"),
   FRONTEND_URL: z.string().min(1).default("http://localhost:3000"),
   BACKEND_URL: z.string().optional(),
-  GROQ_API_KEY: z.string().optional()
+  GROQ_API_KEY: z.string().optional(),
+  MP_CLIENT_ID: z.string().optional(),
+  MP_CLIENT_SECRET: z.string().optional(),
+  MP_REDIRECT_URI: z.string().url().optional(),
+  MP_MARKETPLACE_FEE: numberOptionalFromString,
+  MP_ENV: z.enum(["sandbox", "production"]).default("sandbox"),
+  MP_BILLING_ACCESS_TOKEN: z.string().optional(),
+  MP_BILLING_SUCCESS_URL: z.string().url().optional(),
+  MP_BILLING_REASON_PREFIX: z.string().default("Pragmatienda"),
+  MP_WEBHOOK_SECRET: z.string().optional(),
+  BILLING_ALLOW_PAST_DUE: booleanFromString.default(false)
 });
 
 const parsed = schema.safeParse(process.env);

@@ -67,6 +67,19 @@ enum FulfillmentStatus {
   CANCELED
 }
 
+enum PaymentProvider {
+  MERCADOPAGO
+}
+
+enum BillingStatus {
+  INACTIVE
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  EXPIRED
+}
+
 model Tenant {
   id           String     @id @default(cuid())
   ownerId      String
@@ -75,6 +88,8 @@ model Tenant {
   planStartsAt DateTime   @default(now())
   planEndsAt   DateTime?
   trialEndsAt  DateTime?
+  billingStatus BillingStatus @default(INACTIVE)
+  currentSubscriptionId String? @unique
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
   users              User[]            @relation("TenantUsers")
@@ -85,6 +100,10 @@ model Tenant {
   order              Order[]           @relation("TenantOrder")
   paymentEvents      PaymentEvent[]    @relation("TenantPaymentEvents")
   idempotencyKeys    IdempotencyKey[]  @relation("TenantIdempotencyKeys")
+  paymentAccounts    StorePaymentAccount[] @relation("TenantPaymentAccounts")
+  payments           Payment[]         @relation("TenantPayments")
+  subscriptions      Subscription[]    @relation("TenantSubscriptions")
+  currentSubscription Subscription?    @relation("TenantCurrentSubscription", fields: [currentSubscriptionId], references: [id])
 }
 
 
@@ -235,6 +254,7 @@ model Order{
   user User @relation("UserOrder", fields: [userId], references: [id], onDelete: Cascade)
   tenant Tenant @relation("TenantOrder", fields: [tenantId], references: [id], onDelete: Cascade)
   paymentEvents PaymentEvent[] @relation("OrderPaymentEvents")
+  payments Payment[] @relation("OrderPayments")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -300,4 +320,108 @@ model IdempotencyKey {
   @@index([tenantId])
   @@index([expiresAt])
   @@unique([tenantId, scope, key])
+}
+
+model StorePaymentAccount {
+  id String @id @default(cuid())
+  storeId String @map("store_id")
+  provider PaymentProvider
+  mpUserId String? @map("mp_user_id")
+  accessToken String @map("access_token")
+  refreshToken String? @map("refresh_token")
+  publicKey String? @map("public_key")
+  expiresAt DateTime? @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  store Tenant @relation("TenantPaymentAccounts", fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([storeId])
+  @@index([provider])
+  @@index([mpUserId])
+  @@unique([storeId, provider])
+  @@map("store_payment_accounts")
+}
+
+model Payment {
+  id String @id @default(cuid())
+  storeId String @map("store_id")
+  orderId String @map("order_id")
+  provider PaymentProvider
+  externalPaymentId String @map("external_payment_id")
+  status String
+  statusDetail String? @map("status_detail")
+  amount Decimal
+  currency String
+  rawResponse Json @map("raw_response")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  store Tenant @relation("TenantPayments", fields: [storeId], references: [id], onDelete: Cascade)
+  order Order @relation("OrderPayments", fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([storeId])
+  @@index([externalPaymentId])
+  @@unique([provider, externalPaymentId])
+  @@map("payments")
+}
+
+model Plan {
+  id String @id @default(cuid())
+  code PlanType @unique
+  name String
+  description String?
+  price Decimal
+  currency String @default("ARS")
+  interval String @default("month")
+  trialDays Int @default(0)
+  mpPreapprovalPlanId String?
+  active Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  subscriptions Subscription[] @relation("PlanSubscriptions")
+}
+
+model Subscription {
+  id String @id @default(cuid())
+
+  tenantId String
+  tenant Tenant @relation("TenantSubscriptions", fields: [tenantId], references: [id], onDelete: Cascade)
+
+  planId String
+  plan Plan @relation("PlanSubscriptions", fields: [planId], references: [id])
+
+  externalSubscriptionId String @unique
+
+  status BillingStatus
+
+  currentPeriodStart DateTime?
+  currentPeriodEnd DateTime?
+
+  cancelAtPeriodEnd Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  events SubscriptionEvent[] @relation("SubscriptionEvents")
+  currentTenants Tenant[] @relation("TenantCurrentSubscription")
+
+  @@index([tenantId])
+  @@index([status])
+}
+
+model SubscriptionEvent {
+  id String @id @default(cuid())
+
+  subscriptionId String
+  subscription Subscription @relation("SubscriptionEvents", fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  type String
+  payload Json
+
+  createdAt DateTime @default(now())
+
+  @@index([subscriptionId])
 }

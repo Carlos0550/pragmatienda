@@ -11,8 +11,11 @@
     "prisma": "prisma",
     "migrate": "prisma migrate dev",
     "generate": "prisma generate",
+    "seed": "prisma db seed",
+    "billing:sync-plans": "tsx src/scripts/sync-mp-preapproval-plans.ts",
+    "billing:sync-subscriptions": "tsx src/scripts/billing-subscription-sync.ts",
     "studio": "prisma studio",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "vitest run"
   },
   "keywords": [],
   "author": "",
@@ -29,6 +32,7 @@
     "groq-sdk": "^0.37.0",
     "helmet": "^7.2.0",
     "jsonwebtoken": "^9.0.3",
+    "mercadopago": "^2.12.0",
     "minio": "^7.1.3",
     "multer": "^2.0.2",
     "nodemailer": "^8.0.1",
@@ -39,6 +43,9 @@
     "swagger-ui-express": "^5.0.1",
     "winston": "^3.19.0",
     "zod": "^3.25.76"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
@@ -52,6 +59,7 @@
     "@types/swagger-ui-express": "^4.1.8",
     "prisma": "^7.3.0",
     "tsx": "^4.21.0",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
   }
 }

@@ -1,6 +1,7 @@
 import { NextFunction, Request, Response } from "express";
 import { prisma } from "../db/prisma";
 import { logger } from "../config/logger";
+import { ensureTenantHasActiveSubscription } from "./subscription.middleware";
 
 const TENANT_HEADER = "x-tenant-id";
 
@@ -19,7 +20,7 @@ export const requireTenant = async (req: Request, res: Response, next: NextFunct
   try {
     const tenant = await prisma.tenant.findUnique({
       where: { id: tenantId },
-      select: { id: true }
+      select: { id: true, billingStatus: true, planEndsAt: true }
     });
 
     if (!tenant) {
@@ -27,6 +28,16 @@ export const requireTenant = async (req: Request, res: Response, next: NextFunct
     }
 
     req.tenantId = tenant.id;
+
+    if (req.user?.id) {
+      const enforcement = ensureTenantHasActiveSubscription(req, res, {
+        billingStatus: tenant.billingStatus,
+        planEndsAt: tenant.planEndsAt
+      });
+      if (enforcement !== true) {
+        return enforcement;
+      }
+    }
 
     if (req.user?.id) {
       const user = await prisma.user.findFirst({

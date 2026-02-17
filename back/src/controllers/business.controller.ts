@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import { logger } from "../config/logger";
 import { businessService } from "../services/Business/business.service";
 import { createBusinessTenantSchema, loginBusinessSchema, resolveTenantByStoreUrlSchema, updateBusinessSchema } from "../services/Business/business.zod";
-import { normalizeText, toE164Argentina } from "../utils/normalization.utils";
+import { normalizeText, removeSpaces, toE164Argentina } from "../utils/normalization.utils";
 import { changePasswordSchema, recoverPasswordSchema } from "../services/Users/user.zod";
 import { userService } from "../services/Users/user.service";
 
@@ -19,7 +19,7 @@ class BusinessController {
       }
 
       const payload = {
-        name: normalizeText(parsed.data.name),
+        name: removeSpaces(normalizeText(parsed.data.name)),
         address: normalizeText(parsed.data.address),
         phone: toE164Argentina(normalizeText(parsed.data.phone)) ?? parsed.data.phone,
         adminEmail: parsed.data.adminEmail.toLowerCase(),

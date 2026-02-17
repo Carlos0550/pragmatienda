@@ -1,4 +1,4 @@
-import { PlanType, UserStatus } from "@prisma/client";
+import { BillingStatus, PlanType, UserStatus } from "@prisma/client";
 import { logger } from "../../config/logger";
 import {
   createSessionToken,
@@ -64,11 +64,14 @@ class BusinessService {
           select: { id: true, email: true, name: true },
         });
 
+        const trialEndsAt = dayjs().add(7, "day").toDate();
         const tenant = await tx.tenant.create({
           data: {
             ownerId: adminUser.id,
             plan: PlanType.PRO,
-            planEndsAt: dayjs().add(7, "day").toDate(),
+            billingStatus: BillingStatus.TRIALING,
+            trialEndsAt,
+            planEndsAt: trialEndsAt
           },
           select: { id: true, plan: true },
         });

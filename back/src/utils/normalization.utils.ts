@@ -1,4 +1,8 @@
 
+export const removeSpaces = (value: string): string => {
+  return value.replace(/\s+/g, "");
+};
+
 export const normalizeProductName = (value: string): string => {
   return value
     .toLowerCase()
