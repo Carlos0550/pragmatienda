@@ -82,6 +82,34 @@ export class MercadoPagoBillingProvider implements BillingProvider {
     return { preapprovalPlanId: created.id };
   }
 
+  async updatePreapprovalPlan(
+    preapprovalPlanId: string,
+    plan: BillingPlanInput
+  ): Promise<void> {
+    if (plan.amount <= 0) {
+      return;
+    }
+    const preApprovalPlan = new PreApprovalPlan(this.getConfig());
+    const interval = plan.interval.toLowerCase();
+    const frequencyType = interval === "year" ? "months" : "months";
+    const frequency = interval === "year" ? 12 : 1;
+    const reasonPrefix = env.MP_BILLING_REASON_PREFIX || "Pragmatienda";
+    const reason = `${reasonPrefix} - ${plan.name}`;
+    await preApprovalPlan.update({
+      id: preapprovalPlanId,
+      updatePreApprovalPlanRequest: {
+        reason,
+        auto_recurring: {
+          frequency,
+          frequency_type: frequencyType,
+          transaction_amount: plan.amount,
+          currency_id: plan.currency
+        },
+        back_url: env.MP_BILLING_SUCCESS_URL ?? env.FRONTEND_URL
+      }
+    });
+  }
+
   async createSubscription(input: BillingSubscriptionInput): Promise<BillingSubscriptionResponse> {
     if (input.preapprovalPlanId) {
       return this.createSubscriptionFromPlan(input);

@@ -50,6 +50,7 @@ export type BillingSubscriptionSnapshot = {
 
 export interface BillingProvider {
   ensurePreapprovalPlan(plan: BillingPlanInput): Promise<{ preapprovalPlanId: string | null }>;
+  updatePreapprovalPlan(preapprovalPlanId: string, plan: BillingPlanInput): Promise<void>;
   createSubscription(input: BillingSubscriptionInput): Promise<BillingSubscriptionResponse>;
   getSubscription(externalSubscriptionId: string): Promise<BillingSubscriptionSnapshot>;
   changeSubscriptionPlanAmount(

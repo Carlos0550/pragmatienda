@@ -8,6 +8,7 @@ describe("BillingService.createSubscriptionForTenant", () => {
   it("creates a subscription using tenant owner email and selected plan", async () => {
     const provider: BillingProvider = {
       ensurePreapprovalPlan: vi.fn(),
+      updatePreapprovalPlan: vi.fn(),
       createSubscription: vi.fn(async () => ({
         externalSubscriptionId: "sub_mp_1",
         status: "pending",

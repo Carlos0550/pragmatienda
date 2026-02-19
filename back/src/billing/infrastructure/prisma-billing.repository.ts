@@ -62,6 +62,79 @@ export class PrismaBillingRepository {
     });
   }
 
+  async getAllPlansForAdmin() {
+    return prisma.plan.findMany({
+      orderBy: { code: "asc" }
+    });
+  }
+
+  async getPlanById(id: string) {
+    return prisma.plan.findUnique({
+      where: { id }
+    });
+  }
+
+  async createPlan(data: {
+    code: PlanType;
+    name: string;
+    description?: string | null;
+    price: number;
+    currency: string;
+    interval: string;
+    trialDays: number;
+    active?: boolean;
+  }) {
+    return prisma.plan.create({
+      data: {
+        code: data.code,
+        name: data.name,
+        description: data.description ?? null,
+        price: data.price,
+        currency: data.currency,
+        interval: data.interval,
+        trialDays: data.trialDays,
+        active: data.active ?? true
+      }
+    });
+  }
+
+  async updatePlan(
+    id: string,
+    data: {
+      name?: string;
+      description?: string | null;
+      price?: number;
+      currency?: string;
+      interval?: string;
+      trialDays?: number;
+      active?: boolean;
+    }
+  ) {
+    return prisma.plan.update({
+      where: { id },
+      data: {
+        ...(data.name !== undefined && { name: data.name }),
+        ...(data.description !== undefined && { description: data.description }),
+        ...(data.price !== undefined && { price: data.price }),
+        ...(data.currency !== undefined && { currency: data.currency }),
+        ...(data.interval !== undefined && { interval: data.interval }),
+        ...(data.trialDays !== undefined && { trialDays: data.trialDays }),
+        ...(data.active !== undefined && { active: data.active })
+      }
+    });
+  }
+
+  async countActiveSubscriptionsByPlanId(planId: string) {
+    return prisma.subscription.count({
+      where: {
+        planId,
+        status: {
+          in: [BillingStatus.ACTIVE, BillingStatus.TRIALING, BillingStatus.PAST_DUE]
+        }
+      }
+    });
+  }
+
   async updatePlanMpPreapprovalId(planId: string, mpPreapprovalPlanId: string) {
     return prisma.plan.update({
       where: { id: planId },

@@ -6,7 +6,8 @@ const BILLING_BYPASS_PREFIXES = [
   "/api/public",
   "/api/payments/mercadopago/callback",
   "/api/payments/webhooks/mercadopago",
-  "/api/payments/billing"
+  "/api/payments/billing",
+  "/api/superadmin"
 ];
 
 const isBypassPath = (path: string) => {

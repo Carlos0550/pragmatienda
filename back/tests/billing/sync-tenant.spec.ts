@@ -27,6 +27,7 @@ describe("BillingService.syncTenantWithSubscription", () => {
 
     const provider = {
       ensurePreapprovalPlan: vi.fn(),
+      updatePreapprovalPlan: vi.fn(),
       createSubscription: vi.fn(),
       getSubscription: vi.fn(),
       changeSubscriptionPlanAmount: vi.fn(),

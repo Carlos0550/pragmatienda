@@ -8,6 +8,7 @@ describe("BillingService.handlePreapprovalWebhook", () => {
   it("updates subscription and tenant snapshot from preapproval webhook", async () => {
     const provider: BillingProvider = {
       ensurePreapprovalPlan: vi.fn(),
+      updatePreapprovalPlan: vi.fn(),
       createSubscription: vi.fn(),
       getSubscription: vi.fn(async () => ({
         externalSubscriptionId: "sub_mp_1",
