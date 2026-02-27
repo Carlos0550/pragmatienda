@@ -15,7 +15,7 @@ export function StorefrontLayout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { tenant, loading, isLandingDomain, storeNotFound } = useTenant();
   const { itemCount } = useCart();
-  const { user, isCustomer, logout } = useAuth();
+  const { user } = useAuth();
   const location = useLocation();
 
   if (isLandingDomain) {
@@ -30,6 +30,12 @@ export function StorefrontLayout() {
   if (loading) {
     return <StorefrontLoader />;
   }
+
+  const accountCta = user?.type === 'admin'
+    ? { to: '/admin', label: 'Panel de Gestión' }
+    : user?.type === 'customer'
+      ? { to: '/profile', label: 'Ir a mi perfil' }
+      : { to: '/login', label: 'Ingresar' };
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -71,21 +77,12 @@ export function StorefrontLayout() {
                 </span>
               )}
             </Link>
-            {user && isCustomer ? (
-              <div className="flex items-center gap-2">
-                <span className="hidden sm:inline text-sm text-muted-foreground">{capitalizeName(user.name)}</span>
-                <Button variant="ghost" size="sm" onClick={logout}>
-                  Salir
-                </Button>
-              </div>
-            ) : (
-              <Link to="/login">
-                <Button variant="ghost" size="sm" className="gap-2">
-                  <User className="h-4 w-4" />
-                  <span className="hidden sm:inline">Ingresar</span>
-                </Button>
-              </Link>
-            )}
+            <Link to={accountCta.to}>
+              <Button variant="ghost" size="sm" className="gap-2">
+                <User className="h-4 w-4" />
+                <span className="hidden sm:inline">{accountCta.label}</span>
+              </Button>
+            </Link>
           </div>
         </div>
 

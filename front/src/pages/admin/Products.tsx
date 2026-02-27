@@ -22,6 +22,7 @@ import { sileo } from 'sileo';
 import { Eye, Plus, Pencil, Trash2, ShoppingBag, Search } from 'lucide-react';
 import { toFormErrors } from '@/lib/api-utils';
 import type { ApiError, Category, FormErrors, Product, ProductFormState } from '@/types';
+import { capitalizeName } from '@/lib/utils';
 
 const PAGE_SIZE = 10;
 
@@ -340,10 +341,10 @@ export default function AdminProductsPage() {
                               </div>
                             )}
                           </div>
-                          <span className="text-sm font-medium truncate">{p.name}</span>
+                          <span className="text-sm font-medium truncate">{capitalizeName(p.name)}</span>
                         </div>
                       </TableCell>
-                      <TableCell>{p.category.name ?? 'Sin categoría'}</TableCell>
+                      <TableCell>{capitalizeName(p.category.name) ?? 'Sin categoría'}</TableCell>
                       <TableCell className="text-right">${p.price.toLocaleString()}</TableCell>
                       <TableCell className="text-right">{p.stock}</TableCell>
                       <TableCell>

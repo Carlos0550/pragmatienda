@@ -46,21 +46,28 @@ class ApiService {
         }
         const status = error.response.status;
         const data = error.response.data ?? {};
+        const payload = data as {
+          message?: string;
+          err?: Record<string, string[]>;
+          result?: { message?: string; err?: Record<string, string[]> };
+        };
+        const backendMessage = payload.message || payload.result?.message || 'Error del servidor';
+        const backendErrors = payload.err || payload.result?.err;
         if (status === 401) {
           this.onUnauthorized?.();
-          return Promise.reject({ status: 401, message: 'Sesión expirada' } as ApiError);
+          return Promise.reject({ status: 401, message: backendMessage || 'Sesión expirada', errors: backendErrors } as ApiError);
         }
         if (status === 402) {
           this.onBillingRequired?.();
-          return Promise.reject({ status: 402, message: 'Suscripción requerida' } as ApiError);
+          return Promise.reject({ status: 402, message: backendMessage || 'Suscripción requerida', errors: backendErrors } as ApiError);
         }
         if (status === 403) {
-          return Promise.reject({ status: 403, message: 'Acceso denegado' } as ApiError);
+          return Promise.reject({ status: 403, message: backendMessage || 'Acceso denegado', errors: backendErrors } as ApiError);
         }
         return Promise.reject({
           status,
-          message: data.message || 'Error del servidor',
-          errors: data.err,
+          message: backendMessage,
+          errors: backendErrors,
         } as ApiError);
       }
     );

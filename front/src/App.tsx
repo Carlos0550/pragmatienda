@@ -18,6 +18,7 @@ import ProductsPage from "@/pages/storefront/Products";
 import ProductDetailPage from "@/pages/storefront/ProductDetail";
 import CartPage from "@/pages/storefront/Cart";
 import CheckoutPage from "@/pages/storefront/Checkout";
+import CustomerProfilePage from "@/pages/storefront/Profile";
 import CustomerLoginPage from "@/pages/storefront/CustomerLogin";
 import CustomerRegisterPage from "@/pages/storefront/CustomerRegister";
 
@@ -56,6 +57,9 @@ function AppRoutes() {
         <Route path="/cart" element={<CartPage />} />
         <Route path="/checkout" element={
           <ProtectedRoute requiredRole="customer"><CheckoutPage /></ProtectedRoute>
+        } />
+        <Route path="/profile" element={
+          <ProtectedRoute requiredRole="customer"><CustomerProfilePage /></ProtectedRoute>
         } />
         <Route path="/login" element={<CustomerLoginPage />} />
         <Route path="/register" element={<CustomerRegisterPage />} />
