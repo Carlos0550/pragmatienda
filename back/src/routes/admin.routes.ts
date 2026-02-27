@@ -47,6 +47,9 @@ openApiRegistry.registerPath({
             socialMedia: z.string().optional().openapi({
               description: "JSON serializado de redes sociales"
             }),
+            bankOptions: z.string().optional().openapi({
+              description: "JSON serializado de formas de pago por transferencia bancaria"
+            }),
             logo: z.any().optional().openapi({ type: "string", format: "binary" }),
             banner: z.any().optional().openapi({ type: "string", format: "binary" }),
             favicon: z.any().optional().openapi({ type: "string", format: "binary" })

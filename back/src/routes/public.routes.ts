@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { billingController } from "../controllers/billing.controller";
 import { businessController } from "../controllers/business.controller";
+import { categoriesController } from "../controllers/categories.controller";
 import { productsController } from "../controllers/products.controller";
 import { userController } from "../controllers/user.controller";
 import { openApiRegistry } from "../docs/swagger";
@@ -211,6 +212,7 @@ router.get("/health", (req, res) => {
 // Platform / Business
 router.get("/tenant/resolve", businessController.resolveTenantByStoreUrl);
 router.get("/plans", billingController.listPublicPlans);
+router.get("/categories", requireTenant, categoriesController.getMany);
 router.get(
   "/products",
   requireTenant,
@@ -219,6 +221,15 @@ router.get(
     next();
   },
   productsController.getMany
+);
+router.get(
+  "/products/:id",
+  requireTenant,
+  (req, _res, next) => {
+    (req as { productsRequestIsPublic?: boolean }).productsRequestIsPublic = true;
+    next();
+  },
+  productsController.getOne
 );
 router.post("/platform/businesses", businessController.createBusinessTenant);
 

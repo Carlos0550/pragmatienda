@@ -239,6 +239,28 @@ export class ProductsService {
     }
   }
 
+  async getOne(tenantId: string, productId: string, isPublic: boolean): Promise<ServiceResponse> {
+    try {
+      const where: Prisma.ProductsWhereInput = {
+        id: productId,
+        tenantId,
+        ...(isPublic ? { status: ProductsStatus.PUBLISHED, stock: { gt: 0 } } : {})
+      };
+      const product = await prisma.products.findFirst({
+        where,
+        include: { category: { select: { id: true, name: true } } }
+      });
+      if (!product) {
+        return { status: 404, message: "Producto no encontrado." };
+      }
+      return { status: 200, message: "Producto obtenido.", data: product };
+    } catch (error) {
+      const err = error as Error;
+      logger.error("Error en products getOne", { message: err.message });
+      return { status: 500, message: "Error al obtener producto.", err: err.message };
+    }
+  }
+
   async deleteBulk(
     ids: string[],
     tenantId: string

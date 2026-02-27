@@ -95,9 +95,26 @@ class BusinessController {
         }
       }
 
+      let bankOptions: unknown = req.body.bankOptions;
+      if (typeof bankOptions === "string") {
+        if (bankOptions.trim().length === 0) {
+          bankOptions = [];
+        } else {
+          try {
+            bankOptions = JSON.parse(bankOptions);
+          } catch {
+            return res.status(400).json({
+              message: "Datos invalidos.",
+              err: { bankOptions: ["bankOptions debe ser JSON valido."] }
+            });
+          }
+        }
+      }
+
       const parsed = updateBusinessSchema.safeParse({
         ...req.body,
         socialMedia,
+        bankOptions,
         logo,
         banner,
         favicon

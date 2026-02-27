@@ -119,6 +119,7 @@ model BusinessData {
   favicon String?
   banner String?
   socialMedia Json?
+  bankOptions Json?
   tenantId  String   @unique
   tenant    Tenant   @relation("TenantBusiness", fields: [tenantId], references: [id], onDelete: Cascade)
 

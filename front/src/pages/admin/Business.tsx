@@ -6,6 +6,13 @@ import { Label } from '@/components/ui/label';
 import { sileo } from 'sileo';
 import type { Tenant } from '@/types';
 import type { ApiError } from '@/services/api';
+import { Landmark, Plus, Trash2 } from 'lucide-react';
+
+type BankOptionForm = {
+  bankName: string;
+  recipientName: string;
+  aliasCvuCbu: string;
+};
 
 function toSocialMediaArray(facebook: string, instagram: string, whatsapp: string): { name: string; url: string }[] {
   const arr: { name: string; url: string }[] = [];
@@ -18,10 +25,32 @@ function toSocialMediaArray(facebook: string, instagram: string, whatsapp: strin
   return arr;
 }
 
+function normalizeBankOptions(bankOptions: BankOptionForm[]) {
+  let hasPartial = false;
+  const items = bankOptions.reduce<BankOptionForm[]>((acc, option) => {
+    const bankName = option.bankName.trim();
+    const recipientName = option.recipientName.trim();
+    const aliasCvuCbu = option.aliasCvuCbu.trim();
+    const isEmpty = !bankName && !recipientName && !aliasCvuCbu;
+
+    if (isEmpty) return acc;
+    if (!bankName || !recipientName || !aliasCvuCbu) {
+      hasPartial = true;
+      return acc;
+    }
+
+    acc.push({ bankName, recipientName, aliasCvuCbu });
+    return acc;
+  }, []);
+
+  return { items, hasPartial };
+}
+
 export default function BusinessPage() {
   const [form, setForm] = useState({
     logo: '', banner: '', favicon: '',
     facebook: '', instagram: '', whatsapp: '',
+    bankOptions: [] as BankOptionForm[],
   });
   const [previews, setPreviews] = useState({ logo: '', banner: '', favicon: '' });
   const [initial, setInitial] = useState<typeof form | null>(null);
@@ -41,6 +70,7 @@ export default function BusinessPage() {
         facebook: data.socialLinks?.facebook || '',
         instagram: data.socialLinks?.instagram || '',
         whatsapp: data.socialLinks?.whatsapp || '',
+        bankOptions: Array.isArray(data.bankOptions) ? data.bankOptions : [],
       };
       setForm(next);
       setInitial(next);
@@ -66,13 +96,30 @@ export default function BusinessPage() {
     try {
       const formData = new FormData();
       const socialArr = toSocialMediaArray(form.facebook, form.instagram, form.whatsapp);
+      const normalizedBankOptions = normalizeBankOptions(form.bankOptions);
       const logoFile = logoRef.current?.files?.[0];
       const bannerFile = bannerRef.current?.files?.[0];
       const faviconFile = faviconRef.current?.files?.[0];
 
+      if (normalizedBankOptions.hasPartial) {
+        sileo.error({ title: 'Completá todos los campos de la transferencia o eliminá la fila incompleta.' });
+        setLoading(false);
+        return;
+      }
+
       let hasChanges = false;
-      if (initial && JSON.stringify(socialArr) !== JSON.stringify(toSocialMediaArray(initial.facebook, initial.instagram, initial.whatsapp))) {
+      const initialSocial = toSocialMediaArray(
+        initial?.facebook ?? '',
+        initial?.instagram ?? '',
+        initial?.whatsapp ?? ''
+      );
+      if (JSON.stringify(socialArr) !== JSON.stringify(initialSocial)) {
         formData.append('socialMedia', JSON.stringify(socialArr));
+        hasChanges = true;
+      }
+      const initialNormalized = normalizeBankOptions(initial?.bankOptions ?? []).items;
+      if (JSON.stringify(normalizedBankOptions.items) !== JSON.stringify(initialNormalized)) {
+        formData.append('bankOptions', JSON.stringify(normalizedBankOptions.items));
         hasChanges = true;
       }
       if (logoFile) {
@@ -104,6 +151,7 @@ export default function BusinessPage() {
         facebook: data.socialLinks?.facebook || '',
         instagram: data.socialLinks?.instagram || '',
         whatsapp: data.socialLinks?.whatsapp || '',
+        bankOptions: Array.isArray(data.bankOptions) ? data.bankOptions : [],
       };
       setForm(next);
       setInitial(next);
@@ -129,6 +177,27 @@ export default function BusinessPage() {
     setForm((prev) => ({ ...prev, [field]: e.target.value }));
   };
 
+  const addBankOption = () => {
+    setForm((prev) => ({
+      ...prev,
+      bankOptions: [...prev.bankOptions, { bankName: '', recipientName: '', aliasCvuCbu: '' }],
+    }));
+  };
+
+  const removeBankOption = (index: number) => {
+    setForm((prev) => ({
+      ...prev,
+      bankOptions: prev.bankOptions.filter((_, i) => i !== index),
+    }));
+  };
+
+  const updateBankOption = (index: number, field: keyof BankOptionForm, value: string) => {
+    setForm((prev) => ({
+      ...prev,
+      bankOptions: prev.bankOptions.map((item, i) => (i === index ? { ...item, [field]: value } : item)),
+    }));
+  };
+
   const handleFileChange = (field: 'logo' | 'banner' | 'favicon') => (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     setPreviews((prev) => {
@@ -144,81 +213,144 @@ export default function BusinessPage() {
   const faviconSrc = previews.favicon || form.favicon;
 
   return (
-    <div className="max-w-2xl space-y-6">
+    <div className="w-full max-w-7xl space-y-6">
       <div>
         <h2 className="text-2xl font-bold">Mi Negocio</h2>
         <p className="text-muted-foreground text-sm mt-1">Configurá la información de tu tienda</p>
       </div>
 
-      <form onSubmit={handleSubmit} className="rounded-xl border bg-card p-6 space-y-5">
-        <div className="space-y-2">
-          <Label>Logo</Label>
-          <div className="mb-2 rounded-lg border bg-muted/30 p-3">
-            {logoSrc ? (
-              <img src={logoSrc} alt="Logo actual" className="h-16 w-16 object-contain rounded bg-white" />
-            ) : (
-              <p className="text-xs text-muted-foreground">Sin logo cargado</p>
-            )}
-            {previews.logo && <p className="mt-2 text-[11px] text-muted-foreground">Previsualización</p>}
+      <form onSubmit={handleSubmit} className="rounded-xl border bg-card p-6 space-y-6">
+        <div className="grid gap-6 xl:grid-cols-2">
+          <div className="space-y-5">
+            <div className="space-y-2">
+              <Label>Logo</Label>
+              <div className="mb-2 rounded-lg border bg-muted/30 p-3 min-h-[92px]">
+                {logoSrc ? (
+                  <img src={logoSrc} alt="Logo actual" className="h-16 w-16 object-contain rounded bg-white" />
+                ) : (
+                  <p className="text-xs text-muted-foreground">Sin logo cargado</p>
+                )}
+                {previews.logo && <p className="mt-2 text-[11px] text-muted-foreground">Previsualización</p>}
+              </div>
+              <Input
+                ref={logoRef}
+                type="file"
+                accept="image/*"
+                className="cursor-pointer"
+                onChange={handleFileChange('logo')}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Banner</Label>
+              <div className="mb-2 rounded-lg border bg-muted/30 p-3 min-h-[160px]">
+                {bannerSrc ? (
+                  <img src={bannerSrc} alt="Banner actual" className="h-28 w-full object-cover rounded" />
+                ) : (
+                  <p className="text-xs text-muted-foreground">Sin banner cargado</p>
+                )}
+                {previews.banner && <p className="mt-2 text-[11px] text-muted-foreground">Previsualización</p>}
+              </div>
+              <Input
+                ref={bannerRef}
+                type="file"
+                accept="image/*"
+                className="cursor-pointer"
+                onChange={handleFileChange('banner')}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Favicon</Label>
+              <div className="mb-2 rounded-lg border bg-muted/30 p-3 min-h-[72px]">
+                {faviconSrc ? (
+                  <img src={faviconSrc} alt="Favicon actual" className="h-10 w-10 object-contain rounded bg-white" />
+                ) : (
+                  <p className="text-xs text-muted-foreground">Sin favicon cargado</p>
+                )}
+                {previews.favicon && <p className="mt-2 text-[11px] text-muted-foreground">Previsualización</p>}
+              </div>
+              <Input
+                ref={faviconRef}
+                type="file"
+                accept="image/*"
+                className="cursor-pointer"
+                onChange={handleFileChange('favicon')}
+              />
+            </div>
           </div>
-          <Input
-            ref={logoRef}
-            type="file"
-            accept="image/*"
-            className="cursor-pointer"
-            onChange={handleFileChange('logo')}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label>Banner</Label>
-          <div className="mb-2 rounded-lg border bg-muted/30 p-3">
-            {bannerSrc ? (
-              <img src={bannerSrc} alt="Banner actual" className="h-28 w-full object-cover rounded" />
-            ) : (
-              <p className="text-xs text-muted-foreground">Sin banner cargado</p>
-            )}
-            {previews.banner && <p className="mt-2 text-[11px] text-muted-foreground">Previsualización</p>}
-          </div>
-          <Input
-            ref={bannerRef}
-            type="file"
-            accept="image/*"
-            className="cursor-pointer"
-            onChange={handleFileChange('banner')}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label>Favicon</Label>
-          <div className="mb-2 rounded-lg border bg-muted/30 p-3">
-            {faviconSrc ? (
-              <img src={faviconSrc} alt="Favicon actual" className="h-10 w-10 object-contain rounded bg-white" />
-            ) : (
-              <p className="text-xs text-muted-foreground">Sin favicon cargado</p>
-            )}
-            {previews.favicon && <p className="mt-2 text-[11px] text-muted-foreground">Previsualización</p>}
-          </div>
-          <Input
-            ref={faviconRef}
-            type="file"
-            accept="image/*"
-            className="cursor-pointer"
-            onChange={handleFileChange('favicon')}
-          />
-        </div>
 
-        <div className="border-t pt-5 space-y-4">
-          <h3 className="font-semibold text-sm">Redes sociales</h3>
-          <div className="space-y-2">
-            <Label>Facebook</Label>
-            <Input value={form.facebook} onChange={handleChange('facebook')} placeholder="https://facebook.com/..." />
-          </div>
-          <div className="space-y-2">
-            <Label>Instagram</Label>
-            <Input value={form.instagram} onChange={handleChange('instagram')} placeholder="https://instagram.com/..." />
-          </div>
-          <div className="space-y-2">
-            <Label>WhatsApp</Label>
-            <Input value={form.whatsapp} onChange={handleChange('whatsapp')} placeholder="+54 9 11 ..." />
+          <div className="space-y-5">
+            <div className="space-y-4">
+              <h3 className="font-semibold text-sm">Redes sociales</h3>
+              <div className="space-y-2">
+                <Label>Facebook</Label>
+                <Input value={form.facebook} onChange={handleChange('facebook')} placeholder="https://facebook.com/..." />
+              </div>
+              <div className="space-y-2">
+                <Label>Instagram</Label>
+                <Input value={form.instagram} onChange={handleChange('instagram')} placeholder="https://instagram.com/..." />
+              </div>
+              <div className="space-y-2">
+                <Label>WhatsApp</Label>
+                <Input value={form.whatsapp} onChange={handleChange('whatsapp')} placeholder="+54 9 11 ..." />
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <h3 className="font-semibold text-sm">Formas de pago</h3>
+
+              <div className="rounded-lg border bg-muted/20 p-4 space-y-4">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="font-medium text-sm">Transferencia bancaria</p>
+                    <p className="text-xs text-muted-foreground">Configurá las cuentas para recibir pagos por transferencia.</p>
+                  </div>
+                  <Button type="button" variant="outline" size="sm" onClick={addBankOption} className="gap-2">
+                    <Plus className="h-4 w-4" /> Agregar cuenta
+                  </Button>
+                </div>
+
+                {form.bankOptions.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">No hay cuentas bancarias cargadas.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {form.bankOptions.map((option, index) => (
+                      <div key={index} className="rounded-md border bg-background p-3 space-y-3">
+                        <div className="grid gap-3 md:grid-cols-3">
+                          <Input
+                            value={option.bankName}
+                            onChange={(e) => updateBankOption(index, 'bankName', e.target.value)}
+                            placeholder="Nombre del banco"
+                          />
+                          <Input
+                            value={option.recipientName}
+                            onChange={(e) => updateBankOption(index, 'recipientName', e.target.value)}
+                            placeholder="Nombre del destinatario"
+                          />
+                          <Input
+                            value={option.aliasCvuCbu}
+                            onChange={(e) => updateBankOption(index, 'aliasCvuCbu', e.target.value)}
+                            placeholder="Alias / CVU / CBU"
+                          />
+                        </div>
+                        <Button type="button" variant="ghost" size="sm" onClick={() => removeBankOption(index)} className="gap-2">
+                          <Trash2 className="h-4 w-4" /> Eliminar
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-lg border bg-muted/20 p-4 flex items-start gap-3">
+                <div className="rounded-md bg-background p-2">
+                  <Landmark className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <div>
+                  <p className="font-medium text-sm">Mercado Pago</p>
+                  <p className="text-xs text-muted-foreground">Próximamente.</p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -226,7 +358,7 @@ export default function BusinessPage() {
           <p className="text-xs text-primary">Revisá los campos con error.</p>
         )}
 
-        <Button type="submit" disabled={loading} className="w-full">
+        <Button type="submit" disabled={loading} className="w-full md:w-auto">
           {loading ? 'Guardando...' : 'Guardar Cambios'}
         </Button>
       </form>

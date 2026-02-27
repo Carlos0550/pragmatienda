@@ -10,6 +10,11 @@ export interface Tenant {
     instagram?: string;
     whatsapp?: string;
   };
+  bankOptions?: Array<{
+    bankName: string;
+    recipientName: string;
+    aliasCvuCbu: string;
+  }>;
 }
 
 export interface User {

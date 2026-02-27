@@ -28,6 +28,12 @@ import {
 import path from "path";
 import { updateBusinessSchema } from "./business.zod";
 
+type BankOption = {
+  bankName: string;
+  recipientName: string;
+  aliasCvuCbu: string;
+};
+
 class BusinessService {
   async createBusinessTenant(
     data: z.infer<typeof createBusinessTenantSchema>,
@@ -243,6 +249,7 @@ class BusinessService {
               banner: true,
               favicon: true,
               socialMedia: true,
+              bankOptions: true,
             },
           },
         },
@@ -255,6 +262,7 @@ class BusinessService {
       }
       const b = tenant.businessData;
       const socialMedia = b.socialMedia as Record<string, string> | Array<{ name: string; url: string }> | null;
+      const rawBankOptions = b.bankOptions as BankOption[] | null;
       const slug = b.name
         .toLowerCase()
         .replace(/\s+/g, "-")
@@ -279,6 +287,22 @@ class BusinessService {
           whatsapp: (socialMedia as Record<string, string>).whatsapp ?? undefined,
         };
       }
+      const bankOptions = Array.isArray(rawBankOptions)
+        ? rawBankOptions
+            .filter((item) =>
+              Boolean(
+                item &&
+                typeof item.bankName === "string" &&
+                typeof item.recipientName === "string" &&
+                typeof item.aliasCvuCbu === "string"
+              )
+            )
+            .map((item) => ({
+              bankName: item.bankName,
+              recipientName: item.recipientName,
+              aliasCvuCbu: item.aliasCvuCbu,
+            }))
+        : [];
 
       return {
         status: 200,
@@ -291,6 +315,7 @@ class BusinessService {
           banner: b.banner ?? undefined,
           favicon: b.favicon ?? undefined,
           socialLinks,
+          bankOptions,
         },
       };
     } catch (error) {
@@ -350,6 +375,13 @@ class BusinessService {
             return acc;
           }, {})
         : undefined;
+      const bankOptionsPayload = Array.isArray(data.bankOptions)
+        ? data.bankOptions.map((option) => ({
+            bankName: option.bankName.trim(),
+            recipientName: option.recipientName.trim(),
+            aliasCvuCbu: option.aliasCvuCbu.trim(),
+          }))
+        : undefined;
 
       const updatePayload = {
         ...(data.description ? { description: data.description.trim() } : {}),
@@ -357,6 +389,7 @@ class BusinessService {
         ...(data.phone ? { phone: data.phone.trim() } : {}),
         ...(data.email ? { email: data.email.toLowerCase().trim() } : {}),
         ...(socialMediaPayload ? { socialMedia: socialMediaPayload } : {}),
+        ...(bankOptionsPayload !== undefined ? { bankOptions: bankOptionsPayload } : {}),
         ...(logoUrl ? { logo: logoUrl } : {}),
         ...(bannerUrl ? { banner: bannerUrl } : {}),
         ...(faviconUrl ? { favicon: faviconUrl } : {}),

@@ -8,6 +8,29 @@ import type { Product, Category } from '@/types';
 import { motion } from 'framer-motion';
 import { capitalizeName } from '@/lib/utils';
 
+/** Respuesta del backend: { data: { items, pagination } } */
+function parseProductsResponse(res: unknown): Product[] {
+  if (!res || typeof res !== 'object' || !('data' in res)) return [];
+  const data = (res as { data?: { items?: unknown[] } }).data;
+  const items = data?.items;
+  if (!Array.isArray(items)) return [];
+  return items.map((p: Record<string, unknown>) => ({
+    id: String(p.id ?? ''),
+    name: String(p.name ?? ''),
+    slug: String((p as { slug?: string }).slug ?? p.id ?? ''),
+    description: String(p.description ?? ''),
+    price: Number(typeof p.price === 'number' ? p.price : (p.price as { toString?: () => string })?.toString?.() ?? p.price ?? 0),
+    compareAtPrice: p.compareAtPrice != null ? Number(p.compareAtPrice) : undefined,
+    image: p.image != null ? String(p.image) : undefined,
+    images: p.image ? [String(p.image)] : [],
+    categoryId: String(p.categoryId ?? ''),
+    categoryName: (p.category as { name?: string })?.name,
+    stock: Number(p.stock ?? 0),
+    active: (p.status as string) === 'PUBLISHED',
+    status: p.status as Product['status'],
+  })) as Product[];
+}
+
 export default function StorefrontHome() {
   const { tenant } = useTenant();
   const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);
@@ -17,12 +40,14 @@ export default function StorefrontHome() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [prods, cats] = await Promise.all([
-          api.get<Product[]>('/public/products').catch(() => []),
-          api.get<Category[]>('/public/categories').catch(() => []),
+        const [prodsRes, catsRes] = await Promise.all([
+          api.get<unknown>('/public/products').catch(() => null),
+          api.get<Category[] | { data?: { items?: Category[] } }>('/public/categories').catch(() => null),
         ]);
-        setFeaturedProducts(Array.isArray(prods) ? prods.slice(0, 8) : []);
-        setCategories(Array.isArray(cats) ? cats : []);
+        const products = prodsRes ? parseProductsResponse(prodsRes) : [];
+        setFeaturedProducts(products.slice(0, 8));
+        const cats = catsRes && Array.isArray(catsRes) ? catsRes : (catsRes && typeof catsRes === 'object' && 'data' in catsRes && Array.isArray((catsRes as { data?: { items?: Category[] } }).data?.items)) ? (catsRes as { data: { items: Category[] } }).data.items : [];
+        setCategories(cats);
       } finally {
         setLoading(false);
       }

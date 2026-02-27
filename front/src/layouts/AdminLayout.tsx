@@ -1,7 +1,7 @@
 import React from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import {
-  LayoutDashboard, Store, Tag, Package, CreditCard, Settings, LogOut, Menu, X, ChevronLeft,
+  LayoutDashboard, Store, Tag, Package, Settings, LogOut, Menu, X, ChevronLeft,
 } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -13,7 +13,6 @@ const adminNavItems = [
   { title: 'Mi Negocio', path: '/admin/business', icon: Store },
   { title: 'Categorías', path: '/admin/categories', icon: Tag },
   { title: 'Productos', path: '/admin/products', icon: Package },
-  { title: 'Mercado Pago', path: '/admin/mercadopago', icon: CreditCard },
   { title: 'Suscripción', path: '/admin/billing', icon: Settings },
 ];
 

@@ -8,6 +8,32 @@ import { Button } from '@/components/ui/button';
 import type { Product } from '@/types';
 import { motion } from 'framer-motion';
 import { sileo } from 'sileo';
+import { capitalizeName } from '@/lib/utils';
+
+/** Backend devuelve { status, data: product }. Normaliza al tipo Product del front. */
+function parseProductFromApi(res: unknown): Product | null {
+  if (!res || typeof res !== 'object' || !('data' in res)) return null;
+  const p = (res as { data?: Record<string, unknown> }).data;
+  if (!p || typeof p !== 'object') return null;
+  const priceVal = p.price;
+  const price = typeof priceVal === 'number' ? priceVal : Number((priceVal as { toString?: () => string })?.toString?.() ?? priceVal ?? 0);
+  const category = p.category as { name?: string } | undefined;
+  return {
+    id: String(p.id ?? ''),
+    name: capitalizeName(String(p.name ?? '')),
+    slug: String((p as { slug?: string }).slug ?? p.id ?? ''),
+    description: String(p.description ?? ''),
+    price,
+    compareAtPrice: p.compareAtPrice != null ? Number(p.compareAtPrice) : undefined,
+    image: p.image != null ? String(p.image) : undefined,
+    images: p.image ? [String(p.image)] : [],
+    categoryId: String(p.categoryId ?? ''),
+    categoryName: capitalizeName(category?.name),
+    stock: Number(p.stock ?? 0),
+    active: (p.status as string) === 'PUBLISHED',
+    status: p.status as Product['status'],
+  };
+}
 
 export default function ProductDetailPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -21,10 +47,11 @@ export default function ProductDetailPage() {
   useEffect(() => {
     const fetchProduct = async () => {
       try {
-        const data = await api.get<Product>(`/public/products/${slug}`);
-        setProduct(data);
+        const res = await api.get<unknown>(`/public/products/${slug}`);
+        const normalized = parseProductFromApi(res);
+        setProduct(normalized ?? null);
       } catch {
-        // handled
+        setProduct(null);
       } finally {
         setLoading(false);
       }

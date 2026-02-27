@@ -8,6 +8,12 @@ const uploadedFileSchema = z.object({
     buffer: z.any()
 }).passthrough();
 
+const bankOptionSchema = z.object({
+    bankName: z.string().trim().min(2).max(120),
+    recipientName: z.string().trim().min(2).max(120),
+    aliasCvuCbu: z.string().trim().min(3).max(64)
+}).strict();
+
 export const createBusinessSchema = z.object({
     name: z.string().min(3).toLowerCase().trim(),
     address: z.string().min(3).toLowerCase().trim(),
@@ -35,6 +41,7 @@ export const updateBusinessSchema = z.object({
         name: z.string().min(3),
         url: z.string().url()
     })).optional(),
+    bankOptions: z.array(bankOptionSchema).max(20).optional(),
 }).strict();
 
 export const loginBusinessSchema = z.object({

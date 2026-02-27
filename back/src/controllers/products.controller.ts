@@ -51,6 +51,25 @@ class ProductsController {
     }
   }
 
+  async getOne(req: Request, res: Response): Promise<Response> {
+    try {
+      const tenantId = req.tenantId;
+      const productId = req.params.id;
+      if (!tenantId || !productId) {
+        return res.status(400).json({ message: "Tenant e id requeridos." });
+      }
+      const isPublic =
+        (req as { productsRequestIsPublic?: boolean }).productsRequestIsPublic === true ||
+        !req.user?.id;
+      const result = await productsService.getOne(tenantId, productId, isPublic);
+      return res.status(result.status).json(result);
+    } catch (error) {
+      const err = error as Error;
+      logger.error("Error en getOne products controller:", err.message);
+      return res.status(500).json({ message: "Error interno del servidor." });
+    }
+  }
+
   async create(req: Request, res: Response): Promise<Response> {
     try {
       const tenantId = req.tenantId;

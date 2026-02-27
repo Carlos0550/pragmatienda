@@ -87,14 +87,21 @@ export const buildWelcomeUserEmailHtml = async ({
 export const buildPasswordRecoveryEmailHtml = async ({
   user,
   temporaryPassword,
-  business
+  business,
+  isAdminRecovery = true
 }: {
   user: PasswordRecoveryEmailUserData;
   temporaryPassword: string;
   business: WelcomeEmailBusinessData;
+  isAdminRecovery?: boolean;
 }): Promise<string> => {
-
-  const loginUrl = `${env.FRONTEND_URL.replace(/\/$/, "")}/login`;
+  const baseUrl = business?.website
+    ? business.website.replace(/\/$/, "")
+    : business?.name
+      ? `https://${business.name}.pragmatienda.com`
+      : env.FRONTEND_URL.replace(/\/$/, "");
+  const loginPath = isAdminRecovery ? "/admin/login" : "/login";
+  const loginUrl = `${baseUrl}${loginPath}`;
 
   return renderTemplate("password_recovery_business.html", {
     name: capitalizeWords(user.name ?? ""),

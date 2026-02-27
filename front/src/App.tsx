@@ -27,7 +27,6 @@ import AdminDashboard from "@/pages/admin/Dashboard";
 import BusinessPage from "@/pages/admin/Business";
 import CategoriesPage from "@/pages/admin/Categories";
 import AdminProductsPage from "@/pages/admin/Products";
-import MercadoPagoPage from "@/pages/admin/MercadoPago";
 import BillingPage from "@/pages/admin/Billing";
 
 // SuperAdmin
@@ -71,7 +70,6 @@ function AppRoutes() {
         <Route path="business" element={<BusinessPage />} />
         <Route path="categories" element={<CategoriesPage />} />
         <Route path="products" element={<AdminProductsPage />} />
-        <Route path="mercadopago" element={<MercadoPagoPage />} />
         <Route path="billing" element={<BillingPage />} />
       </Route>
 

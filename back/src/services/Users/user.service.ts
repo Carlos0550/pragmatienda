@@ -399,7 +399,8 @@ class UserService{
             const html = await buildPasswordRecoveryEmailHtml({
                 user: users[0],
                 temporaryPassword,
-                business: tenant.businessData
+                business: tenant.businessData,
+                isAdminRecovery: role === 1
             });
 
             await sendMail({
