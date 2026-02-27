@@ -1,20 +1,10 @@
 import { create } from 'zustand';
 import { api } from '@/services/api';
+import { http } from '@/services/http';
 import { capitalizeName } from '@/lib/utils';
-import type { User, Customer } from '@/types';
+import type { AuthState, AuthUser, User } from '@/types';
 
-export type AuthUser = (User | Customer) & { type: 'admin' | 'customer' };
-
-type UserMeData = {
-  id: string;
-  name: string;
-  email: string;
-  phone?: string;
-  avatar?: string;
-  role: number;
-};
-
-function toAuthUser(data: UserMeData): AuthUser {
+function toAuthUser(data: User): AuthUser {
   const type: 'admin' | 'customer' = data.role === 2 ? 'customer' : 'admin';
   const base = {
     id: data.id,
@@ -29,21 +19,10 @@ function toAuthUser(data: UserMeData): AuthUser {
 }
 
 async function fetchUserFromMe(): Promise<AuthUser | null> {
-  const res = await api.get<{ result?: { data?: UserMeData } }>('/user/me');
+  const res = await http.auth.getMe();
   const data = res.result?.data;
   if (!data) return null;
   return toAuthUser(data);
-}
-
-interface AuthState {
-  user: AuthUser | null;
-  loading: boolean;
-  billingRequired: boolean;
-  setBillingRequired: (v: boolean) => void;
-  loginAdmin: (email: string, password: string) => Promise<void>;
-  loginCustomer: (email: string, password: string) => Promise<void>;
-  logout: () => void;
-  hydrate: () => void;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -74,8 +53,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   loginAdmin: async (email: string, password: string) => {
-    const res = await api.post<{ data?: { token?: string }; token?: string }>('/public/admin/login', { email, password });
-    const token = res.data?.token ?? res.token;
+    const res = await http.auth.loginAdmin({ email, password });
+    const token = res.data?.token;
     if (!token) throw new Error('No se recibió token');
     api.setToken(token);
     const user = await fetchUserFromMe();
@@ -84,7 +63,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   loginCustomer: async (email: string, password: string) => {
-    const res = await api.post<{ result?: { data?: { token?: string } } }>('/public/login', { email, password });
+    const res = await http.auth.loginCustomer({ email, password });
     const token = res.result?.data?.token;
     if (!token) throw new Error('No se recibió token');
     api.setToken(token);
@@ -96,12 +75,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
 export function useIsAdmin() {
   const user = useAuthStore((s) => s.user);
-  return user?.type === 'admin' && (user as User).role >= 1;
+  return user?.type === 'admin' && typeof user.role === 'number' && user.role >= 1;
 }
 
 export function useIsSuperAdmin() {
   const user = useAuthStore((s) => s.user);
-  return user?.type === 'admin' && (user as User).role === 9;
+  return user?.type === 'admin' && typeof user.role === 'number' && user.role === 9;
 }
 
 export function useIsCustomer() {

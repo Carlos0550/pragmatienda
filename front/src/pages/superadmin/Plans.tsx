@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { api } from '@/services/api';
+import { http } from '@/services/http';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,10 +8,10 @@ import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { sileo } from 'sileo';
 import { Plus, Pencil, CreditCard } from 'lucide-react';
-import type { Plan } from '@/types';
-import type { ApiError } from '@/services/api';
+import { toFormErrors } from '@/lib/api-utils';
+import type { ApiError, FormErrors, Plan, PlanFormState } from '@/types';
 
-const emptyForm = { name: '', price: '', interval: 'month', features: '', active: true, productLimit: '' };
+const emptyForm: PlanFormState = { name: '', price: '', interval: 'month', features: '', active: true, productLimit: '' };
 
 export default function PlansPage() {
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -19,12 +19,12 @@ export default function PlansPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Plan | null>(null);
   const [form, setForm] = useState(emptyForm);
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [errors, setErrors] = useState<FormErrors>({});
   const [saving, setSaving] = useState(false);
 
   const fetchPlans = async () => {
     try {
-      const data = await api.get<Plan[]>('/admin/plans');
+      const data = await http.superadmin.listPlans();
       setPlans(Array.isArray(data) ? data : []);
     } catch {
       // Intencional: si falla, se muestra la lista vacía.
@@ -56,10 +56,10 @@ export default function PlansPage() {
     };
     try {
       if (editing) {
-        await api.patch(`/admin/plans/${editing.id}`, payload);
+        await http.superadmin.updatePlan(editing.id, payload);
         sileo.success({ title: 'Plan actualizado' });
       } else {
-        await api.post('/admin/plans', payload);
+        await http.superadmin.createPlan(payload);
         sileo.success({ title: 'Plan creado' });
       }
       setDialogOpen(false);
@@ -67,22 +67,20 @@ export default function PlansPage() {
     } catch (err) {
       const apiErr = err as ApiError;
       if (apiErr.errors) {
-        const fieldErrors: Record<string, string> = {};
-        Object.entries(apiErr.errors).forEach(([k, v]) => { fieldErrors[k] = Array.isArray(v) ? v[0] : v; });
-        setErrors(fieldErrors);
+        setErrors(toFormErrors(apiErr.errors));
       } else { sileo.error({ title: 'Error al guardar' }); }
     } finally { setSaving(false); }
   };
 
   const handleToggle = async (plan: Plan) => {
     try {
-      await api.patch(`/admin/plans/${plan.id}`, { active: !plan.active });
+      await http.superadmin.updatePlan(plan.id, { active: !plan.active });
       sileo.success({ title: plan.active ? 'Plan desactivado' : 'Plan activado' });
       fetchPlans();
     } catch { sileo.error({ title: 'Error' }); }
   };
 
-  const handleChange = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleChange = (field: keyof PlanFormState) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setForm((p) => ({ ...p, [field]: e.target.value }));
   };
 

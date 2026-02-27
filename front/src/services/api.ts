@@ -4,14 +4,10 @@
 
 import axios from 'axios';
 import { getTokenCookie, removeTokenCookie, setTokenCookie } from '@/lib/cookies';
+import type { ApiError, ApiRequestBody, QueryParams } from '@/types';
+export type { ApiError } from '@/types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
-
-export interface ApiError {
-  status: number;
-  message: string;
-  errors?: Record<string, string[]>;
-}
 
 class ApiService {
   private tenantId: string | null = null;
@@ -98,22 +94,22 @@ class ApiService {
     this.onBillingRequired = callback;
   }
 
-  async get<T>(path: string, params?: Record<string, string>): Promise<T> {
+  async get<T>(path: string, params?: QueryParams): Promise<T> {
     const res = await this.client.get<T>(path, { params });
     return res.data;
   }
 
-  async post<T>(path: string, body?: unknown): Promise<T> {
+  async post<T>(path: string, body?: ApiRequestBody): Promise<T> {
     const res = await this.client.post<T>(path, body);
     return res.data;
   }
 
-  async patch<T>(path: string, body?: unknown): Promise<T> {
+  async patch<T>(path: string, body?: ApiRequestBody): Promise<T> {
     const res = await this.client.patch<T>(path, body);
     return res.data;
   }
 
-  async put<T>(path: string, body?: unknown): Promise<T> {
+  async put<T>(path: string, body?: ApiRequestBody): Promise<T> {
     const res = await this.client.put<T>(path, body);
     return res.data;
   }

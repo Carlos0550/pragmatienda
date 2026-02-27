@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { api } from '@/services/api';
+import { http } from '@/services/http';
 import { Button } from '@/components/ui/button';
 import { CreditCard, CheckCircle, XCircle, ExternalLink, Package } from 'lucide-react';
 import { useTenant } from '@/contexts/TenantContext';
@@ -17,8 +17,8 @@ export default function MercadoPagoPage() {
     const fetchData = async () => {
       try {
         const [statusRes, sub] = await Promise.all([
-          api.get<{ connected: boolean }>('/admin/mercadopago/status').catch(() => ({ connected: false })),
-          api.get<Subscription>('/payments/billing/subscriptions/current').catch(() => null),
+          http.payments.getMercadoPagoStatus().catch(() => ({ connected: false })),
+          http.billing.getCurrentSubscription().catch(() => null),
         ]);
         setConnected(statusRes.connected);
         setSubscription(sub);
@@ -35,7 +35,7 @@ export default function MercadoPagoPage() {
     if (!tenant?.id || connecting) return;
     setConnecting(true);
     try {
-      const res = await api.get<{ authorizationUrl: string }>('/admin/mercadopago/connect-url');
+      const res = await http.payments.getMercadoPagoConnectUrl();
       if (res.authorizationUrl) {
         window.location.href = res.authorizationUrl;
         return;

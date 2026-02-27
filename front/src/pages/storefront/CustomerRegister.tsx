@@ -1,20 +1,21 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { api } from '@/services/api';
+import { http } from '@/services/http';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { sileo } from 'sileo';
-import type { ApiError } from '@/services/api';
+import { toFormErrors } from '@/lib/api-utils';
+import type { ApiError, CustomerRegisterFormState, FormErrors } from '@/types';
 import { capitalizeName } from '@/lib/utils';
 
 export default function CustomerRegisterPage() {
-  const [form, setForm] = useState({ name: '', email: '', phone: '', password: '', passwordConfirmation: '' });
+  const [form, setForm] = useState<CustomerRegisterFormState>({ name: '', email: '', phone: '', password: '', passwordConfirmation: '' });
   const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [errors, setErrors] = useState<FormErrors>({});
   const navigate = useNavigate();
 
-  const handleChange = (field: string) => (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (field: keyof CustomerRegisterFormState) => (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm((prev) => ({ ...prev, [field]: e.target.value }));
   };
 
@@ -27,20 +28,17 @@ export default function CustomerRegisterPage() {
     }
     setLoading(true);
     try {
-      await api.post('/public/register', {
+      await http.auth.registerCustomer({
         name: capitalizeName(form.name),
         email: form.email,
         phone: form.phone,
-        password: form.password,
       });
       sileo.success({ title: '¡Cuenta creada! Iniciá sesión.' });
       navigate('/login');
     } catch (err) {
       const apiErr = err as ApiError;
       if (apiErr.errors) {
-        const fieldErrors: Record<string, string> = {};
-        Object.entries(apiErr.errors).forEach(([k, v]) => { fieldErrors[k] = Array.isArray(v) ? v[0] : v; });
-        setErrors(fieldErrors);
+        setErrors(toFormErrors(apiErr.errors));
       } else {
         sileo.error({ title: apiErr.message || 'Error al registrarse' });
       }

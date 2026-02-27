@@ -5,8 +5,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { sileo } from 'sileo';
-import { api } from '@/services/api';
-import type { ApiError } from '@/services/api';
+import { http } from '@/services/http';
+import { toFormErrors } from '@/lib/api-utils';
+import type { ApiError, FormErrors } from '@/types';
 import { useTenant } from '@/contexts/TenantContext';
 import { capitalizeName } from '@/lib/utils';
 
@@ -14,7 +15,7 @@ export default function AdminLoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [errors, setErrors] = useState<FormErrors>({});
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotLoading, setForgotLoading] = useState(false);
@@ -34,9 +35,7 @@ export default function AdminLoginPage() {
     } catch (err) {
       const apiErr = err as ApiError;
       if (apiErr.errors) {
-        const fieldErrors: Record<string, string> = {};
-        Object.entries(apiErr.errors).forEach(([k, v]) => { fieldErrors[k] = Array.isArray(v) ? v[0] : v; });
-        setErrors(fieldErrors);
+        setErrors(toFormErrors(apiErr.errors));
       } else {
         sileo.error({ title: apiErr.message || 'Credenciales inválidas' });
       }
@@ -49,7 +48,7 @@ export default function AdminLoginPage() {
     e.preventDefault();
     setForgotLoading(true);
     try {
-      await api.post('/public/admin/password/recovery', { email: forgotEmail });
+      await http.auth.recoverAdminPassword({ email: forgotEmail });
       sileo.success({
         title: 'Correo enviado',
         description: 'Revisá tu bandeja de entrada. Si el email está registrado, recibirás un enlace para restablecer tu contraseña.',

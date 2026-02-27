@@ -1,28 +1,19 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { api } from '@/services/api';
+import { http } from '@/services/http';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Store, Zap, Shield } from 'lucide-react';
 import { capitalizeName } from '@/lib/utils';
-
-export interface PublicPlan {
-  id: string;
-  name: string;
-  price: number;
-  currency: string;
-  interval: string;
-  description?: string;
-  trialDays: number;
-}
+import type { PublicPlan } from '@/types';
 
 export function LandingPage() {
   const [plans, setPlans] = useState<PublicPlan[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api
-      .get<PublicPlan[]>('/public/plans')
+    http.billing
+      .listPublicPlans()
       .then((data) => setPlans(Array.isArray(data) ? data : []))
       .catch(() => setPlans([]))
       .finally(() => setLoading(false));

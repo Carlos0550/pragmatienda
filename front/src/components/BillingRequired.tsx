@@ -2,16 +2,19 @@ import React from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { AlertTriangle } from 'lucide-react';
-import { api } from '@/services/api';
+import { http } from '@/services/http';
 
 export function BillingRequiredScreen() {
   const { setBillingRequired } = useAuth();
 
   const handleCreateSubscription = async () => {
     try {
-      const res = await api.post<{ checkoutUrl?: string }>('/payments/billing/subscriptions');
-      if (res.checkoutUrl) {
-        window.location.href = res.checkoutUrl;
+      const plans = await http.billing.listPlansForBilling();
+      const selectedPlan = plans.find((plan) => plan.active && plan.price > 0);
+      if (!selectedPlan) return;
+      const response = await http.billing.createSubscription({ planId: selectedPlan.id });
+      if (response.data?.initPoint) {
+        window.location.href = response.data.initPoint;
       }
     } catch {
       // handled by global error

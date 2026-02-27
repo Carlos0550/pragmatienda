@@ -1,18 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { api } from '@/services/api';
+import { http } from '@/services/http';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { sileo } from 'sileo';
-import type { Tenant } from '@/types';
-import type { ApiError } from '@/services/api';
+import { toFormErrors } from '@/lib/api-utils';
+import type { ApiError, BankOption, BusinessFormState, BusinessPreviewsState, FormErrors } from '@/types';
 import { Landmark, Plus, Trash2 } from 'lucide-react';
-
-type BankOptionForm = {
-  bankName: string;
-  recipientName: string;
-  aliasCvuCbu: string;
-};
 
 function toSocialMediaArray(facebook: string, instagram: string, whatsapp: string): { name: string; url: string }[] {
   const arr: { name: string; url: string }[] = [];
@@ -25,9 +19,9 @@ function toSocialMediaArray(facebook: string, instagram: string, whatsapp: strin
   return arr;
 }
 
-function normalizeBankOptions(bankOptions: BankOptionForm[]) {
+function normalizeBankOptions(bankOptions: BankOption[]) {
   let hasPartial = false;
-  const items = bankOptions.reduce<BankOptionForm[]>((acc, option) => {
+  const items = bankOptions.reduce<BankOption[]>((acc, option) => {
     const bankName = option.bankName.trim();
     const recipientName = option.recipientName.trim();
     const aliasCvuCbu = option.aliasCvuCbu.trim();
@@ -47,22 +41,22 @@ function normalizeBankOptions(bankOptions: BankOptionForm[]) {
 }
 
 export default function BusinessPage() {
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<BusinessFormState>({
     logo: '', banner: '', favicon: '',
     facebook: '', instagram: '', whatsapp: '',
-    bankOptions: [] as BankOptionForm[],
+    bankOptions: [],
   });
-  const [previews, setPreviews] = useState({ logo: '', banner: '', favicon: '' });
+  const [previews, setPreviews] = useState<BusinessPreviewsState>({ logo: '', banner: '', favicon: '' });
   const [initial, setInitial] = useState<typeof form | null>(null);
   const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [errors, setErrors] = useState<FormErrors>({});
   const logoRef = useRef<HTMLInputElement>(null);
   const bannerRef = useRef<HTMLInputElement>(null);
   const faviconRef = useRef<HTMLInputElement>(null);
   const previewsRef = useRef(previews);
 
   useEffect(() => {
-    api.get<Tenant>('/admin/business').then((data) => {
+    http.business.getAdminBusiness().then((data) => {
       const next = {
         logo: data.logo || '',
         banner: data.banner || '',
@@ -141,9 +135,9 @@ export default function BusinessPage() {
         return;
       }
 
-      await api.putMultipart('/admin/business/manage', formData);
+      await http.business.updateAdminBusiness(formData);
       sileo.success({ title: 'Negocio actualizado' });
-      const data = await api.get<Tenant>('/admin/business');
+      const data = await http.business.getAdminBusiness();
       const next = {
         logo: data.logo || '',
         banner: data.banner || '',
@@ -162,9 +156,7 @@ export default function BusinessPage() {
     } catch (err) {
       const apiErr = err as ApiError;
       if (apiErr.errors) {
-        const fieldErrors: Record<string, string> = {};
-        Object.entries(apiErr.errors).forEach(([k, v]) => { fieldErrors[k] = Array.isArray(v) ? v[0] : v; });
-        setErrors(fieldErrors);
+        setErrors(toFormErrors(apiErr.errors));
       } else {
         sileo.error({ title: 'Error al guardar' });
       }
@@ -173,7 +165,7 @@ export default function BusinessPage() {
     }
   };
 
-  const handleChange = (field: string) => (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (field: keyof Pick<BusinessFormState, 'facebook' | 'instagram' | 'whatsapp'>) => (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm((prev) => ({ ...prev, [field]: e.target.value }));
   };
 
@@ -191,7 +183,7 @@ export default function BusinessPage() {
     }));
   };
 
-  const updateBankOption = (index: number, field: keyof BankOptionForm, value: string) => {
+  const updateBankOption = (index: number, field: keyof BankOption, value: string) => {
     setForm((prev) => ({
       ...prev,
       bankOptions: prev.bankOptions.map((item, i) => (i === index ? { ...item, [field]: value } : item)),

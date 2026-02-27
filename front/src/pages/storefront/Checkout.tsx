@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Upload, CheckCircle, ImageIcon, X } from 'lucide-react';
 import { useCart } from '@/contexts/CartContext';
-import { api } from '@/services/api';
+import { http } from '@/services/http';
 import { Button } from '@/components/ui/button';
 import { sileo } from 'sileo';
 import { motion } from 'framer-motion';
@@ -45,9 +45,9 @@ export default function CheckoutPage() {
 
   const handleMPCheckout = async (orderId: string) => {
     try {
-      const res = await api.post<{ checkoutUrl: string }>(`/payments/checkout/${orderId}`);
-      if (res.checkoutUrl) {
-        window.location.href = res.checkoutUrl;
+      const result = await http.payments.createCheckout(orderId);
+      if (result.checkoutUrl) {
+        window.location.href = result.checkoutUrl;
       }
     } catch {
       sileo.error({ title: 'Error al iniciar pago con Mercado Pago' });

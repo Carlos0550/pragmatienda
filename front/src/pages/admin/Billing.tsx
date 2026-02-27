@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { api } from '@/services/api';
+import { http } from '@/services/http';
 import { Button } from '@/components/ui/button';
 import { sileo } from 'sileo';
 import { CheckCircle, ArrowRight, Loader2 } from 'lucide-react';
-import type { Subscription, Plan } from '@/types';
-import type { ApiError } from '@/services/api';
+import type { ApiError, Plan, Subscription } from '@/types';
 
 export default function BillingPage() {
   const [subscription, setSubscription] = useState<Subscription | null>(null);
@@ -15,8 +14,8 @@ export default function BillingPage() {
   const fetchData = async () => {
     try {
       const [sub, pls] = await Promise.all([
-        api.get<Subscription>('/payments/billing/subscriptions/current').catch(() => null),
-        api.get<Plan[]>('/payments/billing/plans').catch(() => []),
+        http.billing.getCurrentSubscription().catch(() => null),
+        http.billing.listPlansForBilling().catch(() => []),
       ]);
       setSubscription(sub);
       setPlans(Array.isArray(pls) ? pls.filter((p) => p.active) : []);
@@ -29,13 +28,13 @@ export default function BillingPage() {
     setActionPlanId(planId);
     try {
       if (subscription) {
-        await api.patch('/payments/billing/subscriptions/current/plan', { planId });
+        await http.billing.changeCurrentPlan({ planId });
         sileo.success({ title: 'Plan actualizado' });
         await fetchData();
       } else {
-        const res = await api.post<{ data?: { initPoint?: string } }>('/payments/billing/subscriptions', { planId });
-        if (res.data?.initPoint) {
-          window.location.href = res.data.initPoint;
+        const response = await http.billing.createSubscription({ planId });
+        if (response.data?.initPoint) {
+          window.location.href = response.data.initPoint;
           return;
         }
         sileo.success({ title: 'Suscripción creada' });

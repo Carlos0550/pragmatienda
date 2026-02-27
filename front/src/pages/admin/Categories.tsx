@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { api } from '@/services/api';
+import { http } from '@/services/http';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -16,8 +16,8 @@ import {
 } from '@/components/ui/alert-dialog';
 import { sileo } from 'sileo';
 import { Plus, Pencil, Trash2, Loader2 } from 'lucide-react';
-import type { Category } from '@/types';
-import type { ApiError } from '@/services/api';
+import { toFormErrors } from '@/lib/api-utils';
+import type { ApiError, Category, CategoryFormState, FormErrors } from '@/types';
 import { capitalizeName } from '@/lib/utils';
 
 export default function CategoriesPage() {
@@ -25,9 +25,9 @@ export default function CategoriesPage() {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Category | null>(null);
-  const [form, setForm] = useState({ name: '', image: '' });
+  const [form, setForm] = useState<CategoryFormState>({ name: '', image: '' });
   const [imageFile, setImageFile] = useState<File | null>(null);
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [errors, setErrors] = useState<FormErrors>({});
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -36,8 +36,8 @@ export default function CategoriesPage() {
   const fetchCategories = async () => {
     setLoading(true);
     try {
-      const data = await api.get<{ data: { items: Category[] } }>('/admin/categories');
-      setCategories(data?.data?.items || []);
+      const items = await http.categories.listAdmin();
+      setCategories(items);
     } catch {
       // Intencional: la vista ya maneja estado vacío sin romper la UI.
     } finally { setLoading(false); }
@@ -72,10 +72,10 @@ export default function CategoriesPage() {
       }
 
       if (editing) {
-        await api.putMultipart(`/admin/categories/${editing.id}`, formData);
+        await http.categories.updateAdmin(editing.id, formData);
         sileo.success({ title: 'Categoría actualizada' });
       } else {
-        await api.postMultipart('/admin/categories', formData);
+        await http.categories.createAdmin(formData);
         sileo.success({ title: 'Categoría creada' });
       }
       setDialogOpen(false);
@@ -84,9 +84,7 @@ export default function CategoriesPage() {
     } catch (err) {
       const apiErr = err as ApiError;
       if (apiErr.errors) {
-        const fieldErrors: Record<string, string> = {};
-        Object.entries(apiErr.errors).forEach(([k, v]) => { fieldErrors[k] = Array.isArray(v) ? v[0] : v; });
-        setErrors(fieldErrors);
+        setErrors(toFormErrors(apiErr.errors));
       } else { sileo.error({ title: 'Error al guardar' }); }
     } finally { setSaving(false); }
   };
@@ -94,7 +92,7 @@ export default function CategoriesPage() {
   const handleDelete = async (id: string) => {
     setDeletingId(id);
     try {
-      await api.delete(`/admin/categories/${id}`);
+      await http.categories.deleteAdmin(id);
       sileo.success({ title: 'Categoría eliminada' });
       await fetchCategories();
     } catch { sileo.error({ title: 'Error al eliminar' }); }

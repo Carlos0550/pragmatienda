@@ -1,11 +1,7 @@
 import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-
-interface ProtectedRouteProps {
-  children: React.ReactNode;
-  requiredRole?: 'admin' | 'superadmin' | 'customer';
-}
+import type { ProtectedRouteProps } from '@/types';
 
 export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) {
   const { user, loading, isAdmin, isSuperAdmin, isCustomer } = useAuth();
