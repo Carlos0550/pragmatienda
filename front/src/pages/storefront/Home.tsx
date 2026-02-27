@@ -6,7 +6,7 @@ import { useTenant } from '@/contexts/TenantContext';
 import { Button } from '@/components/ui/button';
 import type { Product, Category } from '@/types';
 import { motion } from 'framer-motion';
-import { sileo } from 'sileo';
+import { capitalizeName } from '@/lib/utils';
 
 export default function StorefrontHome() {
   const { tenant } = useTenant();
@@ -30,9 +30,6 @@ export default function StorefrontHome() {
     fetchData();
   }, []);
 
-  useEffect(() => {
-    sileo.success({ title: '¡Bienvenido!', description: '¡Gracias por registrarte en nuestra tienda!'});
-  }, []);
 
   return (
     <div>
@@ -46,7 +43,7 @@ export default function StorefrontHome() {
           >
             <h1 className="text-4xl lg:text-6xl font-bold tracking-tight leading-tight">
               Bienvenido a{' '}
-              <span className="text-primary">{tenant?.name || 'nuestra tienda'}</span>
+              <span className="text-primary">{capitalizeName(tenant?.name) || 'Nuestra Tienda'}</span>
             </h1>
             <p className="text-lg text-muted-foreground max-w-lg">
               Descubrí los mejores productos con la calidad que merecés. Comprá de forma simple y segura.

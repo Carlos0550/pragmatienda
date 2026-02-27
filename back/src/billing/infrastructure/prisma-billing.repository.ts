@@ -38,10 +38,32 @@ export class PrismaBillingRepository {
   }
 
   async getTenantByOwnerEmail(ownerEmail: string) {
-    return prisma.tenant.findFirst({
+    const result = await prisma.tenant.findFirst({
       where: {
-        owner: { email: ownerEmail }
+        owner: { email: { equals: ownerEmail, mode: "insensitive" } }
       },
+      select: {
+        id: true,
+        owner: {
+          select: { id: true, email: true }
+        },
+        planStartsAt: true,
+        planEndsAt: true,
+        billingStatus: true,
+        plan: true,
+        trialEndsAt: true
+      }
+    });
+    if (result) return result;
+
+    const user = await prisma.user.findFirst({
+      where: { email: { equals: ownerEmail, mode: "insensitive" }, role: 1 },
+      select: { tenantId: true }
+    });
+    if (!user?.tenantId) return null;
+
+    return prisma.tenant.findUnique({
+      where: { id: user.tenantId },
       select: {
         id: true,
         owner: {

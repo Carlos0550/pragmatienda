@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
+import { billingController } from "../controllers/billing.controller";
 import { businessController } from "../controllers/business.controller";
 import { productsController } from "../controllers/products.controller";
 import { userController } from "../controllers/user.controller";
@@ -209,6 +210,7 @@ router.get("/health", (req, res) => {
 
 // Platform / Business
 router.get("/tenant/resolve", businessController.resolveTenantByStoreUrl);
+router.get("/plans", billingController.listPublicPlans);
 router.get(
   "/products",
   requireTenant,

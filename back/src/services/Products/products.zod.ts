@@ -17,7 +17,8 @@ export const createProductSchema = z.object({
   price: z.coerce.number().positive("Precio debe ser positivo"),
   stock: z.coerce.number().int().min(0, "Stock no puede ser negativo"),
   categoryId: z.string().cuid().optional().nullable(),
-  metadata: metadataSchema.optional()
+  metadata: metadataSchema.optional(),
+  status: z.nativeEnum(ProductsStatus).optional()
 }).strict();
 
 export const updateProductSchema = z.object({
@@ -26,7 +27,8 @@ export const updateProductSchema = z.object({
   price: z.coerce.number().positive().optional(),
   stock: z.coerce.number().int().min(0).optional(),
   categoryId: z.string().cuid().optional().nullable(),
-  metadata: metadataSchema.optional()
+  metadata: metadataSchema.optional(),
+  status: z.nativeEnum(ProductsStatus).optional()
 }).strict();
 
 export const patchBulkStatusSchema = z.object({

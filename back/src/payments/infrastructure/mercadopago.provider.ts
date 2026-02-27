@@ -78,6 +78,8 @@ export class MercadoPagoProvider implements PaymentProvider {
       response_type: "code",
       client_id: env.MP_CLIENT_ID as string,
       redirect_uri: env.MP_REDIRECT_URI as string,
+      platform_id: "mp",
+      site_id: env.MP_SITE_ID,
       state: input.state
     });
 

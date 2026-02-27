@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { businessController } from "../controllers/business.controller";
 import { categoriesController } from "../controllers/categories.controller";
+import { paymentsController } from "../controllers/payments.controller";
 import { productsController } from "../controllers/products.controller";
 import { openApiRegistry } from "../docs/swagger";
 import {
@@ -298,6 +299,9 @@ openApiRegistry.registerPath({
 const router = Router();
 
 router.put("/me/password", requireRole([1]), requireTenant, businessController.changePasswordBusiness);
+router.get("/business", requireTenant, requireRole([1]), businessController.getBusiness);
+router.get("/mercadopago/status", requireTenant, requireRole([1]), paymentsController.getMercadoPagoStatus);
+router.get("/mercadopago/connect-url", requireTenant, requireRole([1]), paymentsController.getMercadoPagoConnectUrl);
 router.put("/business/manage", requireTenant, requireRole([1]), uploadBusinessAssetsMiddleware, businessController.manageBusiness);
 
 // Categorías

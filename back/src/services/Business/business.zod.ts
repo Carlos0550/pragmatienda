@@ -24,7 +24,6 @@ export const resolveTenantByStoreUrlSchema = z.object({
 }).strict();
 
 export const updateBusinessSchema = z.object({
-    name: z.string().min(3).optional(),
     description: z.string().min(3).optional(),
     address: z.string().min(3).optional(),
     phone: z.string().min(10).max(15).optional(),

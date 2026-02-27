@@ -60,12 +60,21 @@ class ProductsController {
 
       
       const categoryIdRaw = req.body.categoryId;
+      const statusRaw = req.body.status ?? req.body.active;
+      const status =
+        statusRaw == null
+          ? undefined
+          : statusRaw === true || statusRaw === "true"
+            ? "PUBLISHED"
+            : statusRaw === false || statusRaw === "false"
+              ? "UNPUBLISHED"
+              : statusRaw;
       const categoryId =
         categoryIdRaw === "" || categoryIdRaw === "null" ? undefined : categoryIdRaw;
       const bodyForSchema = {
         ...req.body,
-        
-        categoryId
+        categoryId,
+        status
       };
 
       const parsed = createProductSchema.safeParse(bodyForSchema);
@@ -99,12 +108,22 @@ class ProductsController {
 
       const metadata = parseMetadata(req.body.metadata);
       const categoryIdRaw = req.body.categoryId;
+      const statusRaw = req.body.status ?? req.body.active;
+      const status =
+        statusRaw == null
+          ? undefined
+          : statusRaw === true || statusRaw === "true"
+            ? "PUBLISHED"
+            : statusRaw === false || statusRaw === "false"
+              ? "UNPUBLISHED"
+              : statusRaw;
       const categoryId =
         categoryIdRaw === "" || categoryIdRaw === "null" ? null : categoryIdRaw;
       const bodyForSchema = {
         ...req.body,
         metadata: metadata ?? undefined,
-        categoryId
+        categoryId,
+        status
       };
 
       const parsed = updateProductSchema.safeParse(bodyForSchema);

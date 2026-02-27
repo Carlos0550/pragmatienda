@@ -20,6 +20,14 @@ export class BillingService {
     private readonly provider: BillingProvider
   ) {}
 
+  async createSubscriptionByPlanId(tenantId: string, planId: string) {
+    const plan = await this.repository.getPlanById(planId);
+    if (!plan) {
+      throw new BillingError(404, "PLAN_NOT_FOUND", "Plan no encontrado.");
+    }
+    return this.createSubscriptionForTenant(tenantId, plan.code);
+  }
+
   async createSubscriptionForTenant(tenantId: string, planCode: PlanType) {
     const tenant = await this.repository.getTenantWithOwner(tenantId);
     if (!tenant) {
@@ -59,12 +67,20 @@ export class BillingService {
       storeSuccessUrl
     });
 
-    if (!billing.externalSubscriptionId && billing.initPoint) {
-      return {
-        subscriptionId: null,
-        externalSubscriptionId: null,
-        initPoint: billing.initPoint
-      };
+    if (!billing.externalSubscriptionId) {
+      logger.warn("Billing: provider no devolvió externalSubscriptionId", {
+        tenantId: tenant.id,
+        planId: plan.id,
+        hasInitPoint: !!billing.initPoint
+      });
+      if (billing.initPoint) {
+        return {
+          subscriptionId: null,
+          externalSubscriptionId: null,
+          initPoint: billing.initPoint
+        };
+      }
+      throw new BillingError(502, "PROVIDER_ERROR", "El proveedor no devolvió un ID de suscripción.");
     }
 
     const subscription = await this.repository.createSubscription({
@@ -96,7 +112,7 @@ export class BillingService {
     const dataIdRaw =
       typeof payload.data === "object" && payload.data !== null && "id" in payload.data
         ? (payload.data as { id?: unknown }).id
-        : payload["id"];
+        : payload["data.id"] ?? payload["id"];
     const externalSubscriptionId =
       typeof dataIdRaw === "string" || typeof dataIdRaw === "number"
         ? String(dataIdRaw)
@@ -111,16 +127,38 @@ export class BillingService {
         : `mp-billing-${Date.now()}`;
 
     const snapshot = await this.provider.getSubscription(externalSubscriptionId);
+    logger.info("Billing webhook: snapshot de MP", {
+      externalSubscriptionId,
+      externalReference: snapshot.externalReference,
+      payerEmail: snapshot.payerEmail,
+      status: snapshot.status,
+      preapprovalPlanId: snapshot.preapprovalPlanId
+    });
+
     let tenantId = snapshot.externalReference;
+
+    if (!tenantId) {
+      const existingSub = await this.repository.getSubscriptionByExternalId(externalSubscriptionId);
+      if (existingSub) {
+        tenantId = existingSub.tenantId;
+        logger.info("Billing webhook: tenant encontrado por subscription existente", { tenantId });
+      }
+    }
 
     if (!tenantId && snapshot.payerEmail) {
       const tenantByEmail = await this.repository.getTenantByOwnerEmail(snapshot.payerEmail);
       if (tenantByEmail) {
         tenantId = tenantByEmail.id;
+        logger.info("Billing webhook: tenant encontrado por email", { tenantId, email: snapshot.payerEmail });
       }
     }
 
     if (!tenantId) {
+      logger.warn("Billing webhook: no se pudo encontrar tenant", {
+        externalSubscriptionId,
+        externalReference: snapshot.externalReference,
+        payerEmail: snapshot.payerEmail
+      });
       throw new BillingError(
         400,
         "INVALID_WEBHOOK",
@@ -221,6 +259,14 @@ export class BillingService {
     });
   }
 
+  async changeSubscriptionPlanByPlanId(tenantId: string, planId: string) {
+    const plan = await this.repository.getPlanById(planId);
+    if (!plan) {
+      throw new BillingError(404, "PLAN_NOT_FOUND", "Plan no encontrado.");
+    }
+    return this.changeSubscriptionPlan(tenantId, plan.code);
+  }
+
   async changeSubscriptionPlan(tenantId: string, planCode: PlanType) {
     const plan = await this.repository.getPlanByCode(planCode);
     if (!plan) {
@@ -317,26 +363,101 @@ export class BillingService {
     return { processed };
   }
 
+  /** Lista planes activos para la landing pública (sin auth ni tenant). */
+  async listPublicPlans() {
+    const plans = await this.repository.getAllPlans();
+    return plans.map((p) => ({
+      id: p.id,
+      name: p.name,
+      price: Number(p.price),
+      currency: p.currency,
+      interval: p.interval,
+      description: p.description ?? undefined,
+      trialDays: p.trialDays,
+    }));
+  }
+
+  /** Suscripción actual del tenant (para admin billing). */
+  async getCurrentSubscription(tenantId: string) {
+    const sub = await this.repository.getCurrentSubscriptionForTenant(tenantId);
+    if (!sub) return null;
+    return {
+      id: sub.id,
+      planId: sub.planId,
+      plan: this.mapPlanToResponse(sub.plan),
+      status: sub.status,
+      currentPeriodEnd: sub.currentPeriodEnd?.toISOString() ?? new Date().toISOString(),
+    };
+  }
+
+  /** Lista planes para la UI de billing (admin). */
+  async listPlansForBilling() {
+    const plans = await this.repository.getAllPlans();
+    return plans.map((p) => this.mapPlanToResponse(p));
+  }
+
+  private mapPlanToResponse(p: { id: string; name: string; price: unknown; interval: string; description: string | null; active: boolean }) {
+    const features = p.description?.split(/\n/).map((s) => s.trim()).filter(Boolean) ?? [];
+    return {
+      id: p.id,
+      name: p.name,
+      price: Number(p.price),
+      interval: p.interval,
+      features,
+      active: p.active,
+    };
+  }
+
   async syncPreapprovalPlans() {
     const plans = await this.repository.getAllPlans();
-    let synced = 0;
+    return this.syncPreapprovalPlansFromList(plans);
+  }
+
+  /**
+   * Sincroniza todos los planes de la DB (activos e inactivos) con Mercado Pago:
+   * crea el preapproval plan en MP si no existe y actualiza mpPreapprovalPlanId en la DB.
+   * No crea nuevos planes en la DB.
+   */
+  async syncAllPreapprovalPlans() {
+    const plans = await this.repository.getAllPlansForAdmin();
+    return this.syncPreapprovalPlansFromList(plans);
+  }
+
+  private async syncPreapprovalPlansFromList(
+    plans: Array<{
+      id: string;
+      code: PlanType;
+      name: string;
+      description: string | null;
+      price: unknown;
+      currency: string;
+      interval: string;
+      trialDays: number;
+      mpPreapprovalPlanId: string | null;
+    }>
+  ) {
+    let created = 0;
+    let updated = 0;
     for (const plan of plans) {
+      const amount = Number(plan.price);
       const result = await this.provider.ensurePreapprovalPlan({
         code: plan.code,
         name: plan.name,
         description: plan.description,
-        amount: Number(plan.price),
+        amount,
         currency: plan.currency,
         interval: plan.interval,
         trialDays: plan.trialDays,
         mpPreapprovalPlanId: plan.mpPreapprovalPlanId
       });
-      if (result.preapprovalPlanId && plan.mpPreapprovalPlanId !== result.preapprovalPlanId) {
+      if (!result.preapprovalPlanId) continue;
+      if (plan.mpPreapprovalPlanId !== result.preapprovalPlanId) {
         await this.repository.updatePlanMpPreapprovalId(plan.id, result.preapprovalPlanId);
-        synced += 1;
+        if (plan.mpPreapprovalPlanId) updated += 1;
+        else created += 1;
       }
     }
-    return { synced };
+    return { created, updated, total: plans.length };
   }
 }
 

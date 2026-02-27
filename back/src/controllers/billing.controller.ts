@@ -1,16 +1,11 @@
-import { PlanType } from "@prisma/client";
 import type { Request, Response } from "express";
 import { z } from "zod";
 import { logger } from "../config/logger";
 import { BillingError } from "../billing/domain/billing-errors";
 import { billingService } from "../billing/application/billing.service";
 
-const createSubscriptionSchema = z.object({
-  planCode: z.nativeEnum(PlanType)
-}).strict();
-
-const changePlanSchema = z.object({
-  planCode: z.nativeEnum(PlanType)
+const planIdSchema = z.object({
+  planId: z.string().cuid()
 }).strict();
 
 class BillingController {
@@ -21,7 +16,7 @@ class BillingController {
         return res.status(400).json({ message: "Tenant requerido." });
       }
 
-      const parsed = createSubscriptionSchema.safeParse(req.body);
+      const parsed = planIdSchema.safeParse(req.body);
       if (!parsed.success) {
         return res.status(400).json({
           message: "Datos inválidos.",
@@ -29,7 +24,7 @@ class BillingController {
         });
       }
 
-      const result = await billingService.createSubscriptionForTenant(tenantId, parsed.data.planCode);
+      const result = await billingService.createSubscriptionByPlanId(tenantId, parsed.data.planId);
       return res.status(201).json({
         message: "Suscripción creada.",
         data: result
@@ -54,14 +49,14 @@ class BillingController {
       if (!tenantId) {
         return res.status(400).json({ message: "Tenant requerido." });
       }
-      const parsed = changePlanSchema.safeParse(req.body);
+      const parsed = planIdSchema.safeParse(req.body);
       if (!parsed.success) {
         return res.status(400).json({
           message: "Datos inválidos.",
           err: parsed.error.flatten().fieldErrors
         });
       }
-      const result = await billingService.changeSubscriptionPlan(tenantId, parsed.data.planCode);
+      const result = await billingService.changeSubscriptionPlanByPlanId(tenantId, parsed.data.planId);
       return res.status(200).json({
         message: "Plan de suscripción actualizado.",
         data: result
@@ -75,6 +70,43 @@ class BillingController {
       }
       const err = error as Error;
       logger.error("Error en changeSubscriptionPlan controller", { message: err.message });
+      return res.status(500).json({ message: "Error interno del servidor." });
+    }
+  }
+
+  async listPublicPlans(_req: Request, res: Response): Promise<Response> {
+    try {
+      const plans = await billingService.listPublicPlans();
+      return res.status(200).json(plans);
+    } catch (error) {
+      const err = error as Error;
+      logger.error("Error en listPublicPlans controller", { message: err.message });
+      return res.status(500).json({ message: "Error interno del servidor." });
+    }
+  }
+
+  async getCurrentSubscription(req: Request, res: Response): Promise<Response> {
+    try {
+      const tenantId = req.tenantId;
+      if (!tenantId) {
+        return res.status(400).json({ message: "Tenant requerido." });
+      }
+      const subscription = await billingService.getCurrentSubscription(tenantId);
+      return res.status(200).json(subscription);
+    } catch (error) {
+      const err = error as Error;
+      logger.error("Error en getCurrentSubscription controller", { message: err.message });
+      return res.status(500).json({ message: "Error interno del servidor." });
+    }
+  }
+
+  async listPlansForBilling(req: Request, res: Response): Promise<Response> {
+    try {
+      const plans = await billingService.listPlansForBilling();
+      return res.status(200).json(plans);
+    } catch (error) {
+      const err = error as Error;
+      logger.error("Error en listPlansForBilling controller", { message: err.message });
       return res.status(500).json({ message: "Error interno del servidor." });
     }
   }

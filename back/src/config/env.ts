@@ -45,6 +45,7 @@ const schema = z.object({
   MP_CLIENT_ID: z.string().optional(),
   MP_CLIENT_SECRET: z.string().optional(),
   MP_REDIRECT_URI: z.string().url().optional(),
+  MP_SITE_ID: z.string().default("MLA"),
   MP_MARKETPLACE_FEE: numberOptionalFromString,
   MP_ENV: z.enum(["sandbox", "production"]).default("sandbox"),
   MP_BILLING_ACCESS_TOKEN: z.string().optional(),

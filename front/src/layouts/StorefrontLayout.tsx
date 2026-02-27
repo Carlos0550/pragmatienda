@@ -1,18 +1,35 @@
 import React from 'react';
-import { Outlet, Link, useLocation } from 'react-router-dom';
-import { ShoppingCart, User, Search, Menu, X } from 'lucide-react';
+import { Outlet, Link, useLocation, Navigate } from 'react-router-dom';
+import { ShoppingCart, User, Menu, X } from 'lucide-react';
 import { useState } from 'react';
 import { useCart } from '@/contexts/CartContext';
 import { useTenant } from '@/contexts/TenantContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
+import { LandingPage } from '@/pages/landing/LandingPage';
+import { StoreNotFoundFallback } from '@/pages/storefront/StoreNotFoundFallback';
+import { StorefrontLoader } from '@/components/StorefrontLoader';
+import { capitalizeName } from '@/lib/utils';
 
 export function StorefrontLayout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { tenant } = useTenant();
+  const { tenant, loading, isLandingDomain, storeNotFound } = useTenant();
   const { itemCount } = useCart();
   const { user, isCustomer, logout } = useAuth();
   const location = useLocation();
+
+  if (isLandingDomain) {
+    if (location.pathname !== '/') return <Navigate to="/" replace />;
+    return <LandingPage />;
+  }
+
+  if (storeNotFound) {
+    return <StoreNotFoundFallback />;
+  }
+
+  if (loading) {
+    return <StorefrontLoader />;
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -28,9 +45,9 @@ export function StorefrontLayout() {
             </button>
             <Link to="/" className="flex items-center gap-2">
               {tenant?.logo ? (
-                <img src={tenant.logo} alt={tenant.name} className="h-8" />
+                <img src={tenant.logo} alt={capitalizeName(tenant.name)} className="h-8" />
               ) : (
-                <span className="text-xl font-bold tracking-tight">{tenant?.name || 'PRAGMATIENDA'}</span>
+                <span className="text-xl font-bold tracking-tight">{capitalizeName(tenant?.name) || 'PRAGMATIENDA'}</span>
               )}
             </Link>
             <nav className="hidden lg:flex items-center gap-6">
@@ -56,7 +73,7 @@ export function StorefrontLayout() {
             </Link>
             {user && isCustomer ? (
               <div className="flex items-center gap-2">
-                <span className="hidden sm:inline text-sm text-muted-foreground">{user.name}</span>
+                <span className="hidden sm:inline text-sm text-muted-foreground">{capitalizeName(user.name)}</span>
                 <Button variant="ghost" size="sm" onClick={logout}>
                   Salir
                 </Button>
@@ -97,7 +114,7 @@ export function StorefrontLayout() {
       <footer className="border-t bg-secondary/30">
         <div className="container mx-auto px-4 py-8">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-            <span className="text-sm font-semibold">{tenant?.name || 'PRAGMATIENDA'}</span>
+            <span className="text-sm font-semibold">{capitalizeName(tenant?.name) || 'PRAGMATIENDA'}</span>
             <div className="flex items-center gap-4">
               {tenant?.socialLinks?.instagram && (
                 <a href={tenant.socialLinks.instagram} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground text-sm">

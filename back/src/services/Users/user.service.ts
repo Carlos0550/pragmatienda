@@ -214,6 +214,7 @@ class UserService{
                     tenantId
                 },
                 select:{
+                    id: true,
                     name: true,
                     email: true,
                     phone: true,

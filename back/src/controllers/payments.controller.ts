@@ -8,6 +8,21 @@ import { paymentsService } from "../payments/application/payments.service";
 import { verifyMercadoPagoWebhookSignature } from "../payments/infrastructure/mercadopago-webhook.security";
 
 class PaymentsController {
+  async getMercadoPagoStatus(req: Request, res: Response): Promise<Response> {
+    try {
+      const tenantId = req.tenantId;
+      if (!tenantId) {
+        return res.status(400).json({ message: "Tenant requerido." });
+      }
+      const result = await paymentsService.getMercadoPagoStatus(tenantId);
+      return res.status(200).json(result);
+    } catch (error) {
+      const err = error as Error;
+      logger.error("Error en getMercadoPagoStatus controller", { message: err?.message });
+      return res.status(500).json({ message: "Error interno del servidor." });
+    }
+  }
+
   async connectMercadoPago(req: Request, res: Response): Promise<Response> {
     try {
       const storeId = req.params.storeId;
@@ -32,6 +47,32 @@ class PaymentsController {
       }
       const err = error as Error;
       logger.error("Error en connectMercadoPago controller", {
+        message: err.message
+      });
+      return res.status(500).json({ message: "Error interno del servidor." });
+    }
+  }
+
+  async getMercadoPagoConnectUrl(req: Request, res: Response): Promise<Response> {
+    try {
+      const storeId = req.tenantId;
+      const actorUserId = req.user?.id;
+      if (!storeId || !actorUserId) {
+        return res.status(400).json({ message: "Contexto inválido para conectar cuenta." });
+      }
+
+      const result = await paymentsService.getMercadoPagoConnectUrl(storeId, actorUserId);
+      return res.status(200).json({ authorizationUrl: result.authorizationUrl });
+    } catch (error) {
+      if (error instanceof PaymentError) {
+        return res.status(error.status).json({
+          message: error.message,
+          code: error.code,
+          details: error.details
+        });
+      }
+      const err = error as Error;
+      logger.error("Error en getMercadoPagoConnectUrl controller", {
         message: err.message
       });
       return res.status(500).json({ message: "Error interno del servidor." });
@@ -125,12 +166,16 @@ class PaymentsController {
             ? payload.topic
             : "";
 
-      if (typeRaw.toLowerCase() === "preapproval") {
+      const typeLower = typeRaw.toLowerCase();
+      if (typeLower.includes("preapproval")) {
         const result = await billingService.handlePreapprovalWebhook(payload);
         return res.status(200).json({
           message: "Webhook billing procesado.",
           data: result
         });
+      }
+      if (typeLower === "subscription_authorized_payment") {
+        return res.status(200).json({ message: "Webhook billing ignorado (authorized_payment)." });
       }
 
       const result = await paymentsService.handleMercadoPagoWebhook(payload);
@@ -142,8 +187,17 @@ class PaymentsController {
     } catch (error) {
       if (error instanceof BillingError) {
         if (error.code === "INVALID_WEBHOOK") {
+          logger.warn("Webhook billing ignorado (INVALID_WEBHOOK)", {
+            message: error.message,
+            query: req.query,
+            body: req.body
+          });
           return res.status(200).json({ message: "Webhook billing ignorado." });
         }
+        logger.error("BillingError en webhookMercadoPago", {
+          code: error.code,
+          message: error.message
+        });
         return res.status(error.status).json({
           message: error.message,
           code: error.code

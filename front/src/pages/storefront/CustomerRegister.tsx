@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { sileo } from 'sileo';
 import type { ApiError } from '@/services/api';
+import { capitalizeName } from '@/lib/utils';
 
 export default function CustomerRegisterPage() {
   const [form, setForm] = useState({ name: '', email: '', phone: '', password: '', passwordConfirmation: '' });
@@ -26,7 +27,12 @@ export default function CustomerRegisterPage() {
     }
     setLoading(true);
     try {
-      await api.post('/public/register', { name: form.name, email: form.email, phone: form.phone, password: form.password });
+      await api.post('/public/register', {
+        name: capitalizeName(form.name),
+        email: form.email,
+        phone: form.phone,
+        password: form.password,
+      });
       sileo.success({ title: '¡Cuenta creada! Iniciá sesión.' });
       navigate('/login');
     } catch (err) {

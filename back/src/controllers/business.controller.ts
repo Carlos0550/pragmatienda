@@ -54,6 +54,24 @@ class BusinessController {
     }
   }
 
+  async getBusiness(req: Request, res: Response): Promise<Response> {
+    try {
+      const tenantId = req.tenantId;
+      if (!tenantId) {
+        return res.status(400).json({ message: "Tenant requerido." });
+      }
+      const result = await businessService.getBusinessForTenant(tenantId);
+      if (result.status !== 200 || !result.data) {
+        return res.status(result.status).json({ message: result.message });
+      }
+      return res.status(200).json(result.data);
+    } catch (error) {
+      const err = error as Error;
+      logger.error("Error en getBusiness controller", { message: err?.message });
+      return res.status(500).json({ message: "Error interno del servidor." });
+    }
+  }
+
   async manageBusiness(req: Request, res: Response): Promise<Response> {
     try {
       if (!req.tenantId) {

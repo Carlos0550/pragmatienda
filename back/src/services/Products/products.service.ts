@@ -93,6 +93,7 @@ export class ProductsService {
           price: data.price,
           stock: data.stock,
           categoryId: data.categoryId || null,
+          status: data.status,
           metadata: (metadata ?? undefined) as Prisma.InputJsonValue | undefined
         }
       });
@@ -146,6 +147,7 @@ export class ProductsService {
       if (data.price !== undefined) updatePayload.price = data.price;
       if (data.stock !== undefined) updatePayload.stock = data.stock;
       if (data.categoryId !== undefined) updatePayload.categoryId = data.categoryId || null;
+      if (data.status !== undefined) updatePayload.status = data.status;
       if (data.metadata !== undefined) {
         updatePayload.metadata = data.metadata as Prisma.InputJsonValue;
       }

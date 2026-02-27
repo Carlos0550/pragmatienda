@@ -1,20 +1,29 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { api } from '@/services/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { sileo } from 'sileo';
 import { Plus, Pencil, Trash2, ShoppingBag } from 'lucide-react';
 import type { Product, Category } from '@/types';
 import type { ApiError } from '@/services/api';
 
 const emptyForm = {
-  name: '', description: '', price: '', compareAtPrice: '', categoryId: '',
-  images: '', stock: '', active: true, seoTitle: '', seoDescription: '',
+  name: '', price: '', categoryId: '',
+  stock: '', active: true,
 };
 
 export default function AdminProductsPage() {
@@ -26,6 +35,11 @@ export default function AdminProductsPage() {
   const [form, setForm] = useState(emptyForm);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [imagePreview, setImagePreview] = useState('');
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const imagePreviewRef = useRef(imagePreview);
 
   const fetchData = async () => {
     try {
@@ -33,24 +47,54 @@ export default function AdminProductsPage() {
         api.get<Product[]>('/admin/products').catch(() => []),
         api.get<Category[]>('/admin/categories').catch(() => []),
       ]);
-      setProducts(Array.isArray(prods) ? prods : []);
-      setCategories(Array.isArray(cats) ? cats : []);
+      const extractItems = <T,>(data: unknown): T[] => {
+        if (Array.isArray(data)) return data;
+        if (data && typeof data === 'object') {
+          const d = data as { data?: { items?: T[] }; items?: T[] };
+          if (Array.isArray(d.data?.items)) return d.data.items;
+          if (Array.isArray(d.items)) return d.items;
+        }
+        return [];
+      };
+      setProducts(extractItems<Product>(prods));
+      setCategories(extractItems<Category>(cats));
     } finally { setLoading(false); }
   };
 
   useEffect(() => { fetchData(); }, []);
 
-  const openCreate = () => { setEditing(null); setForm(emptyForm); setErrors({}); setDialogOpen(true); };
+  useEffect(() => {
+    imagePreviewRef.current = imagePreview;
+  }, [imagePreview]);
+
+  useEffect(() => {
+    return () => {
+      if (imagePreviewRef.current?.startsWith('blob:')) {
+        URL.revokeObjectURL(imagePreviewRef.current);
+      }
+    };
+  }, []);
+
+  const openCreate = () => {
+    setEditing(null);
+    setForm(emptyForm);
+    setErrors({});
+    setImageFile(null);
+    setImagePreview('');
+    setDialogOpen(true);
+  };
   const openEdit = (p: Product) => {
+    const existingImage = p.image || p.images?.[0] || '';
     setEditing(p);
     setForm({
-      name: p.name, description: p.description, price: String(p.price),
-      compareAtPrice: p.compareAtPrice ? String(p.compareAtPrice) : '',
-      categoryId: p.categoryId, images: p.images?.join(', ') || '',
-      stock: String(p.stock), active: p.active,
-      seoTitle: p.seoTitle || '', seoDescription: p.seoDescription || '',
+      name: p.name, price: String(p.price),
+      categoryId: p.categoryId || '',
+      stock: String(p.stock),
+      active: p.status ? p.status === 'PUBLISHED' : p.active,
     });
     setErrors({});
+    setImageFile(null);
+    setImagePreview(existingImage);
     setDialogOpen(true);
   };
 
@@ -58,19 +102,19 @@ export default function AdminProductsPage() {
     e.preventDefault();
     setErrors({});
     setSaving(true);
-    const payload = {
-      name: form.name, description: form.description,
-      price: parseFloat(form.price), compareAtPrice: form.compareAtPrice ? parseFloat(form.compareAtPrice) : undefined,
-      categoryId: form.categoryId, images: form.images.split(',').map((s) => s.trim()).filter(Boolean),
-      stock: parseInt(form.stock), active: form.active,
-      seoTitle: form.seoTitle || undefined, seoDescription: form.seoDescription || undefined,
-    };
+    const formData = new FormData();
+    formData.append('name', form.name);
+    formData.append('price', form.price);
+    formData.append('stock', form.stock);
+    formData.append('status', form.active ? 'PUBLISHED' : 'UNPUBLISHED');
+    if (form.categoryId) formData.append('categoryId', form.categoryId);
+    if (imageFile) formData.append('image', imageFile);
     try {
       if (editing) {
-        await api.patch(`/admin/products/${editing.id}`, payload);
+        await api.putMultipart(`/admin/products/${editing.id}`, formData);
         sileo.success({ title: 'Producto actualizado' });
       } else {
-        await api.post('/admin/products', payload);
+        await api.postMultipart('/admin/products', formData);
         sileo.success({ title: 'Producto creado' });
       }
       setDialogOpen(false);
@@ -86,12 +130,32 @@ export default function AdminProductsPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('¿Eliminar este producto?')) return;
     try { await api.delete(`/admin/products/${id}`); sileo.success({ title: 'Eliminado' }); fetchData(); } catch { sileo.error({ title: 'Error' }); }
+  };
+
+  const openDeleteDialog = (id: string) => {
+    setPendingDeleteId(id);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!pendingDeleteId) return;
+    setDeleteDialogOpen(false);
+    await handleDelete(pendingDeleteId);
+    setPendingDeleteId(null);
   };
 
   const handleChange = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setForm((p) => ({ ...p, [field]: e.target.value }));
+  };
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] || null;
+    setImageFile(file);
+    setImagePreview((prev) => {
+      if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev);
+      return file ? URL.createObjectURL(file) : '';
+    });
   };
 
   return (
@@ -105,7 +169,7 @@ export default function AdminProductsPage() {
           <DialogTrigger asChild>
             <Button onClick={openCreate} className="gap-2"><Plus className="h-4 w-4" /> Nuevo</Button>
           </DialogTrigger>
-          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
             <DialogHeader><DialogTitle>{editing ? 'Editar' : 'Nuevo'} Producto</DialogTitle></DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
@@ -113,22 +177,18 @@ export default function AdminProductsPage() {
                 <Input value={form.name} onChange={handleChange('name')} required />
                 {errors.name && <p className="text-xs text-primary">{errors.name}</p>}
               </div>
-              <div className="space-y-2">
-                <Label>Descripción</Label>
-                <Textarea value={form.description} onChange={handleChange('description')} rows={3} />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Precio</Label>
                   <Input type="number" step="0.01" value={form.price} onChange={handleChange('price')} required />
                   {errors.price && <p className="text-xs text-primary">{errors.price}</p>}
                 </div>
                 <div className="space-y-2">
-                  <Label>Precio anterior</Label>
-                  <Input type="number" step="0.01" value={form.compareAtPrice} onChange={handleChange('compareAtPrice')} />
+                  <Label>Stock</Label>
+                  <Input type="number" value={form.stock} onChange={handleChange('stock')} required />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Categoría</Label>
                   <Select value={form.categoryId} onValueChange={(v) => setForm((p) => ({ ...p, categoryId: v }))}>
@@ -139,28 +199,23 @@ export default function AdminProductsPage() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Stock</Label>
-                  <Input type="number" value={form.stock} onChange={handleChange('stock')} required />
+                  <Label>Estado</Label>
+                  <div className="flex items-center gap-3 h-10">
+                    <Switch checked={form.active} onCheckedChange={(v) => setForm((p) => ({ ...p, active: v }))} />
+                    <Label>Activo</Label>
+                  </div>
                 </div>
               </div>
               <div className="space-y-2">
-                <Label>URLs de imágenes (separadas por coma)</Label>
-                <Input value={form.images} onChange={handleChange('images')} placeholder="https://img1.jpg, https://img2.jpg" />
-              </div>
-              <div className="flex items-center gap-3">
-                <Switch checked={form.active} onCheckedChange={(v) => setForm((p) => ({ ...p, active: v }))} />
-                <Label>Activo</Label>
-              </div>
-              <div className="border-t pt-4 space-y-3">
-                <h4 className="text-sm font-semibold">SEO</h4>
-                <div className="space-y-2">
-                  <Label>Título SEO</Label>
-                  <Input value={form.seoTitle} onChange={handleChange('seoTitle')} maxLength={60} />
+                <Label>Imagen</Label>
+                <div className="rounded-lg border bg-muted/30 p-3">
+                  {imagePreview ? (
+                    <img src={imagePreview} alt="Imagen del producto" className="h-36 w-full object-cover rounded" />
+                  ) : (
+                    <p className="text-xs text-muted-foreground">Sin imagen cargada</p>
+                  )}
                 </div>
-                <div className="space-y-2">
-                  <Label>Descripción SEO</Label>
-                  <Textarea value={form.seoDescription} onChange={handleChange('seoDescription')} maxLength={160} rows={2} />
-                </div>
+                <Input type="file" accept="image/*" onChange={handleImageChange} />
               </div>
               <Button type="submit" className="w-full" disabled={saving}>{saving ? 'Guardando...' : 'Guardar'}</Button>
             </form>
@@ -177,26 +232,47 @@ export default function AdminProductsPage() {
         </div>
       ) : (
         <div className="space-y-2">
-          {products.map((p) => (
+          {products.map((p) => {
+            const isActive = p.status ? p.status === 'PUBLISHED' : p.active;
+            return (
             <div key={p.id} className="flex items-center gap-4 p-4 rounded-xl border bg-card">
               <div className="w-12 h-12 rounded-lg overflow-hidden bg-muted shrink-0">
-                {p.images?.[0] ? <img src={p.images[0]} alt={p.name} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><ShoppingBag className="h-4 w-4 text-muted-foreground/30" /></div>}
+                {(p.image || p.images?.[0]) ? (
+                  <img src={p.image || p.images?.[0]} alt={p.name} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center"><ShoppingBag className="h-4 w-4 text-muted-foreground/30" /></div>
+                )}
               </div>
               <div className="flex-1 min-w-0">
                 <h3 className="font-medium text-sm truncate">{p.name}</h3>
                 <p className="text-xs text-muted-foreground">${p.price.toLocaleString()} · Stock: {p.stock}</p>
               </div>
-              <span className={`text-xs px-2 py-1 rounded-full ${p.active ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'}`}>
-                {p.active ? 'Activo' : 'Inactivo'}
+              <span className={`text-xs px-2 py-1 rounded-full ${isActive ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'}`}>
+                {isActive ? 'Activo' : 'Inactivo'}
               </span>
               <div className="flex gap-1">
                 <Button variant="ghost" size="sm" onClick={() => openEdit(p)}><Pencil className="h-4 w-4" /></Button>
-                <Button variant="ghost" size="sm" onClick={() => handleDelete(p.id)}><Trash2 className="h-4 w-4" /></Button>
+                <Button variant="ghost" size="sm" onClick={() => openDeleteDialog(p.id)}><Trash2 className="h-4 w-4" /></Button>
               </div>
             </div>
-          ))}
+          );})}
         </div>
       )}
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminar producto</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción no se puede deshacer. ¿Querés eliminar este producto?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setPendingDeleteId(null)}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete}>Eliminar</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { PlanType } from "@prisma/client";
+
 import { billingController } from "../controllers/billing.controller";
 import { paymentsController } from "../controllers/payments.controller";
 import { openApiRegistry } from "../docs/swagger";
@@ -75,7 +75,7 @@ openApiRegistry.registerPath({
       content: {
         "application/json": {
           schema: z.object({
-            planCode: z.nativeEnum(PlanType)
+            planId: z.string().cuid()
           })
         }
       }
@@ -100,7 +100,7 @@ openApiRegistry.registerPath({
       content: {
         "application/json": {
           schema: z.object({
-            planCode: z.nativeEnum(PlanType)
+            planId: z.string().cuid()
           })
         }
       }
@@ -146,6 +146,18 @@ router.get(
   paymentsController.connectMercadoPago
 );
 router.get("/mercadopago/callback", paymentsController.callbackMercadoPago);
+router.get(
+  "/billing/subscriptions/current",
+  requireTenant,
+  requireRole([1]),
+  billingController.getCurrentSubscription
+);
+router.get(
+  "/billing/plans",
+  requireTenant,
+  requireRole([1]),
+  billingController.listPlansForBilling
+);
 router.post(
   "/checkout/:orderId",
   requireTenant,

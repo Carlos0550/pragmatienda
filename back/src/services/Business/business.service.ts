@@ -230,6 +230,76 @@ class BusinessService {
     }
   }
 
+  async getBusinessForTenant(tenantId: string): Promise<ServiceResponse> {
+    try {
+      const tenant = await prisma.tenant.findUnique({
+        where: { id: tenantId },
+        select: {
+          id: true,
+          businessData: {
+            select: {
+              name: true,
+              logo: true,
+              banner: true,
+              favicon: true,
+              socialMedia: true,
+            },
+          },
+        },
+      });
+      if (!tenant) {
+        return { status: 404, message: "Tenant no encontrado." };
+      }
+      if (!tenant.businessData) {
+        return { status: 404, message: "Negocio no encontrado para el tenant." };
+      }
+      const b = tenant.businessData;
+      const socialMedia = b.socialMedia as Record<string, string> | Array<{ name: string; url: string }> | null;
+      const slug = b.name
+        .toLowerCase()
+        .replace(/\s+/g, "-")
+        .replace(/[^a-z0-9-]/g, "");
+      let socialLinks: { facebook?: string; instagram?: string; whatsapp?: string } | undefined;
+      if (Array.isArray(socialMedia)) {
+        const mapped = socialMedia.reduce<Record<string, string>>((acc, item) => {
+          if (item && typeof item.name === "string" && typeof item.url === "string") {
+            acc[item.name] = item.url;
+          }
+          return acc;
+        }, {});
+        socialLinks = {
+          facebook: mapped.facebook ?? undefined,
+          instagram: mapped.instagram ?? undefined,
+          whatsapp: mapped.whatsapp ?? undefined,
+        };
+      } else if (socialMedia && typeof socialMedia === "object") {
+        socialLinks = {
+          facebook: (socialMedia as Record<string, string>).facebook ?? undefined,
+          instagram: (socialMedia as Record<string, string>).instagram ?? undefined,
+          whatsapp: (socialMedia as Record<string, string>).whatsapp ?? undefined,
+        };
+      }
+
+      return {
+        status: 200,
+        message: "OK",
+        data: {
+          id: tenant.id,
+          name: b.name,
+          slug,
+          logo: b.logo ?? undefined,
+          banner: b.banner ?? undefined,
+          favicon: b.favicon ?? undefined,
+          socialLinks,
+        },
+      };
+    } catch (error) {
+      const err = error as Error;
+      logger.error("Error en getBusinessForTenant", { message: err?.message });
+      return { status: 500, message: "Error interno del servidor." };
+    }
+  }
+
   async manageBusiness(
     tenantId: string,
     data: z.infer<typeof updateBusinessSchema>,
@@ -271,35 +341,22 @@ class BusinessService {
       const logoUrl = await uploadAsset("logos", data.logo);
       const bannerUrl = await uploadAsset("banners", data.banner);
       const faviconUrl = await uploadAsset("favicons", data.favicon);
-      const normalizedBusinessName = data.name
-        ? normalizeText(data.name)
-        : undefined;
-      if (normalizedBusinessName) {
-        const existingBusiness = await prisma.businessData.findFirst({
-          where: {
-            name: normalizedBusinessName,
-            NOT: { id: tenant.businessData.id },
-          },
-          select: { id: true, name: true },
-        });
-        if (existingBusiness) {
-          return { status: 409, message: "El nombre del negocio ya existe." };
-        }
-      }
 
-      const businessNameForWebsite = normalizedBusinessName ?? tenant.businessData.name;
-      const website = businessNameForWebsite
-        ? `https://${businessNameForWebsite}.pragmatienda.com`
+      const socialMediaPayload = Array.isArray(data.socialMedia)
+        ? data.socialMedia.reduce<Record<string, string>>((acc, item) => {
+            if (item && typeof item.name === "string" && typeof item.url === "string") {
+              acc[item.name] = item.url;
+            }
+            return acc;
+          }, {})
         : undefined;
 
       const updatePayload = {
-        ...(normalizedBusinessName ? { name: normalizedBusinessName } : {}),
         ...(data.description ? { description: data.description.trim() } : {}),
         ...(data.address ? { address: data.address.trim() } : {}),
         ...(data.phone ? { phone: data.phone.trim() } : {}),
         ...(data.email ? { email: data.email.toLowerCase().trim() } : {}),
-        ...(website ? { website: website } : {}),
-        ...(data.socialMedia ? { socialMedia: data.socialMedia } : {}),
+        ...(socialMediaPayload ? { socialMedia: socialMediaPayload } : {}),
         ...(logoUrl ? { logo: logoUrl } : {}),
         ...(bannerUrl ? { banner: bannerUrl } : {}),
         ...(faviconUrl ? { favicon: faviconUrl } : {}),

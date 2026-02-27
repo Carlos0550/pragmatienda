@@ -33,11 +33,13 @@ export interface Product {
   description: string;
   price: number;
   compareAtPrice?: number;
+  image?: string;
   images: string[];
   categoryId: string;
   categoryName?: string;
   stock: number;
   active: boolean;
+  status?: 'PUBLISHED' | 'UNPUBLISHED' | 'DELETED' | 'ARCHIVED' | 'LOW_STOCK' | 'OUT_OF_STOCK';
   seoTitle?: string;
   seoDescription?: string;
 }

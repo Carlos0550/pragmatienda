@@ -1,8 +1,9 @@
+import { PaymentProvider } from "@prisma/client";
 import { env } from "../../config/env";
 import { encryptString, decryptString } from "../../config/security";
 import { logger } from "../../config/logger";
 import { PaymentError } from "../domain/payment-errors";
-import type { PaymentProvider } from "../domain/payment-provider";
+import type { PaymentProvider as PaymentProviderInterface } from "../domain/payment-provider";
 import { PaymentProviderRegistry } from "./payment-provider.registry";
 import { MercadoPagoProvider } from "../infrastructure/mercadopago.provider";
 import { PrismaPaymentsRepository } from "../infrastructure/prisma-payments.repository";
@@ -202,11 +203,16 @@ export class PaymentsService {
       ? `${frontend}/admin/integrations/mercadopago?status=connected`
       : `${frontend}/admin/integrations/mercadopago?status=error`;
   }
+
+  async getMercadoPagoStatus(storeId: string): Promise<{ connected: boolean }> {
+    const account = await this.repository.findStoreAccount(storeId, PaymentProvider.MERCADOPAGO);
+    return { connected: !!account };
+  }
 }
 
 const paymentsRepository = new PrismaPaymentsRepository();
 const mercadoPagoProvider = new MercadoPagoProvider(paymentsRepository);
 const registry = new PaymentProviderRegistry();
-registry.register(mercadoPagoProvider as PaymentProvider);
+registry.register(mercadoPagoProvider as PaymentProviderInterface);
 
 export const paymentsService = new PaymentsService(registry, paymentsRepository);

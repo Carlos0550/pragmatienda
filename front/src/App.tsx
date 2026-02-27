@@ -1,10 +1,10 @@
+import { useEffect } from "react";
 import { Toaster } from "sileo";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { TenantProvider } from "@/contexts/TenantContext";
-import { AuthProvider } from "@/contexts/AuthContext";
-import { CartProvider } from "@/contexts/CartContext";
+import { useTenantStore } from "@/stores/tenant";
+import { useAuthStore } from "@/stores/auth";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 // Layouts
@@ -39,6 +39,57 @@ import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
 
+function AppRoutes() {
+  useEffect(() => {
+    void (async () => {
+      await useTenantStore.getState().resolveTenant();
+      await useAuthStore.getState().hydrate();
+    })();
+  }, []);
+
+  return (
+    <Routes>
+      {/* Storefront */}
+      <Route element={<StorefrontLayout />}>
+        <Route path="/" element={<StorefrontHome />} />
+        <Route path="/products" element={<ProductsPage />} />
+        <Route path="/products/:slug" element={<ProductDetailPage />} />
+        <Route path="/cart" element={<CartPage />} />
+        <Route path="/checkout" element={
+          <ProtectedRoute requiredRole="customer"><CheckoutPage /></ProtectedRoute>
+        } />
+        <Route path="/login" element={<CustomerLoginPage />} />
+        <Route path="/register" element={<CustomerRegisterPage />} />
+      </Route>
+
+      {/* Admin */}
+      <Route path="/admin/login" element={<AdminLoginPage />} />
+      <Route path="/admin" element={
+        <ProtectedRoute requiredRole="admin"><AdminLayout /></ProtectedRoute>
+      }>
+        <Route index element={<AdminDashboard />} />
+        <Route path="business" element={<BusinessPage />} />
+        <Route path="categories" element={<CategoriesPage />} />
+        <Route path="products" element={<AdminProductsPage />} />
+        <Route path="mercadopago" element={<MercadoPagoPage />} />
+        <Route path="billing" element={<BillingPage />} />
+      </Route>
+
+      {/* SuperAdmin */}
+      <Route path="/superadmin" element={
+        <ProtectedRoute requiredRole="superadmin"><SuperAdminLayout /></ProtectedRoute>
+      }>
+        <Route index element={<Navigate to="/superadmin/plans" replace />} />
+        <Route path="plans" element={<PlansPage />} />
+      </Route>
+
+      {/* Errors */}
+      <Route path="/403" element={<ForbiddenPage />} />
+      <Route path="*" element={<NotFound />} />
+    </Routes>
+  );
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -54,51 +105,7 @@ const App = () => (
         }}
       />
       <BrowserRouter>
-        <TenantProvider>
-          <AuthProvider>
-            <CartProvider>
-              <Routes>
-                {/* Storefront */}
-                <Route element={<StorefrontLayout />}>
-                  <Route path="/" element={<StorefrontHome />} />
-                  <Route path="/products" element={<ProductsPage />} />
-                  <Route path="/products/:slug" element={<ProductDetailPage />} />
-                  <Route path="/cart" element={<CartPage />} />
-                  <Route path="/checkout" element={
-                    <ProtectedRoute requiredRole="customer"><CheckoutPage /></ProtectedRoute>
-                  } />
-                  <Route path="/login" element={<CustomerLoginPage />} />
-                  <Route path="/register" element={<CustomerRegisterPage />} />
-                </Route>
-
-                {/* Admin */}
-                <Route path="/admin/login" element={<AdminLoginPage />} />
-                <Route path="/admin" element={
-                  <ProtectedRoute requiredRole="admin"><AdminLayout /></ProtectedRoute>
-                }>
-                  <Route index element={<AdminDashboard />} />
-                  <Route path="business" element={<BusinessPage />} />
-                  <Route path="categories" element={<CategoriesPage />} />
-                  <Route path="products" element={<AdminProductsPage />} />
-                  <Route path="mercadopago" element={<MercadoPagoPage />} />
-                  <Route path="billing" element={<BillingPage />} />
-                </Route>
-
-                {/* SuperAdmin */}
-                <Route path="/superadmin" element={
-                  <ProtectedRoute requiredRole="superadmin"><SuperAdminLayout /></ProtectedRoute>
-                }>
-                  <Route index element={<Navigate to="/superadmin/plans" replace />} />
-                  <Route path="plans" element={<PlansPage />} />
-                </Route>
-
-                {/* Errors */}
-                <Route path="/403" element={<ForbiddenPage />} />
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </CartProvider>
-          </AuthProvider>
-        </TenantProvider>
+        <AppRoutes />
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
