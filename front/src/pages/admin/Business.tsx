@@ -108,9 +108,9 @@ export default function BusinessPage() {
       setForm(next);
       setInitial(next);
       setPreviews({ logo: '', banner: '', favicon: '' });
-      logoRef.current && (logoRef.current.value = '');
-      bannerRef.current && (bannerRef.current.value = '');
-      faviconRef.current && (faviconRef.current.value = '');
+      if (logoRef.current) logoRef.current.value = '';
+      if (bannerRef.current) bannerRef.current.value = '';
+      if (faviconRef.current) faviconRef.current.value = '';
     } catch (err) {
       const apiErr = err as ApiError;
       if (apiErr.errors) {

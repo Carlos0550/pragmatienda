@@ -26,7 +26,9 @@ export default function PlansPage() {
     try {
       const data = await api.get<Plan[]>('/admin/plans');
       setPlans(Array.isArray(data) ? data : []);
-    } catch {} finally { setLoading(false); }
+    } catch {
+      // Intencional: si falla, se muestra la lista vacía.
+    } finally { setLoading(false); }
   };
 
   useEffect(() => { fetchPlans(); }, []);

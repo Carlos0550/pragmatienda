@@ -38,7 +38,9 @@ export default function CategoriesPage() {
     try {
       const data = await api.get<{ data: { items: Category[] } }>('/admin/categories');
       setCategories(data?.data?.items || []);
-    } catch {} finally { setLoading(false); }
+    } catch {
+      // Intencional: la vista ya maneja estado vacío sin romper la UI.
+    } finally { setLoading(false); }
   };
 
   useEffect(() => { fetchCategories(); }, []);
