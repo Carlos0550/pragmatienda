@@ -34,37 +34,67 @@ export default function StorefrontHome() {
 
   return (
     <div>
-      <section className="relative overflow-hidden bg-secondary/30">
-        <div className="container mx-auto px-4 py-20 lg:py-32">
+      {tenant?.banner ? (
+        <section className="relative w-full h-[60vh] min-h-[400px] max-h-[600px] overflow-hidden">
+          <img 
+            src={tenant.banner} 
+            alt={tenant.name || 'Banner'} 
+            className="w-full h-full object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
-            className="max-w-2xl space-y-6"
+            className="absolute bottom-0 left-0 right-0 p-6 md:p-10"
           >
-            <h1 className="text-4xl lg:text-6xl font-bold tracking-tight leading-tight">
-              Bienvenido a{' '}
-              <span className="text-primary">{capitalizeName(tenant?.name) || 'Nuestra Tienda'}</span>
-            </h1>
-            <p className="text-lg text-muted-foreground max-w-lg">
-              Descubrí los mejores productos con la calidad que merecés. Comprá de forma simple y segura.
-            </p>
-            <div className="flex gap-3">
-              <Link to="/products">
-                <Button size="lg" className="gap-2">
-                  Ver productos
-                  <ArrowRight className="h-4 w-4" />
-                </Button>
-              </Link>
+            <div className="backdrop-blur-md bg-white/20 border border-white/30 rounded-2xl p-6 md:p-8 max-w-2xl shadow-xl">
+              <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold tracking-tight leading-tight text-white drop-shadow-lg">
+                Bienvenido a{' '}
+                <span className="text-white">{capitalizeName(tenant?.name) || 'Nuestra Tienda'}</span>
+              </h1>
+              <p className="text-base md:text-lg text-white/90 max-w-lg mt-4 drop-shadow">
+                Descubrí los mejores productos con la calidad que merecés. Comprá de forma simple y segura.
+              </p>
+              <div className="flex gap-3 mt-6">
+                <Link to="/products">
+                  <Button size="lg" className="gap-2 bg-white text-black hover:bg-white/90">
+                    Ver productos
+                    <ArrowRight className="h-4 w-4" />
+                  </Button>
+                </Link>
+              </div>
             </div>
           </motion.div>
-        </div>
-        {tenant?.banner && (
-          <div className="absolute inset-0 -z-10 opacity-10">
-            <img src={tenant.banner} alt="" className="w-full h-full object-cover" />
+        </section>
+      ) : (
+        <section className="relative overflow-hidden bg-secondary/30">
+          <div className="container mx-auto px-4 py-20 lg:py-32">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6 }}
+              className="max-w-2xl space-y-6"
+            >
+              <h1 className="text-4xl lg:text-6xl font-bold tracking-tight leading-tight">
+                Bienvenido a{' '}
+                <span className="text-primary">{capitalizeName(tenant?.name) || 'Nuestra Tienda'}</span>
+              </h1>
+              <p className="text-lg text-muted-foreground max-w-lg">
+                Descubrí los mejores productos con la calidad que merecés. Comprá de forma simple y segura.
+              </p>
+              <div className="flex gap-3">
+                <Link to="/products">
+                  <Button size="lg" className="gap-2">
+                    Ver productos
+                    <ArrowRight className="h-4 w-4" />
+                  </Button>
+                </Link>
+              </div>
+            </motion.div>
           </div>
-        )}
-      </section>
+        </section>
+      )}
 
       {/* Categories */}
       {categories.length > 0 && (
@@ -119,7 +149,7 @@ export default function StorefrontHome() {
                 transition={{ delay: i * 0.05 }}
               >
                 <Link
-                  to={`/products/${product.slug}`}
+                  to={`/products/${product.slug || product.id}`}
                   className="group rounded-xl border bg-card overflow-hidden hover:shadow-lg transition-all block"
                 >
                   <div className="aspect-square overflow-hidden bg-muted">

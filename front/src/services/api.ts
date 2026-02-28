@@ -49,10 +49,12 @@ class ApiService {
         const payload = data as {
           message?: string;
           err?: Record<string, string[]>;
+          data?: { suggestions?: string[] };
           result?: { message?: string; err?: Record<string, string[]> };
         };
         const backendMessage = payload.message || payload.result?.message || 'Error del servidor';
         const backendErrors = payload.err || payload.result?.err;
+        const suggestions = payload.data?.suggestions;
         if (status === 401) {
           this.onUnauthorized?.();
           return Promise.reject({ status: 401, message: backendMessage || 'Sesión expirada', errors: backendErrors } as ApiError);
@@ -68,6 +70,7 @@ class ApiService {
           status,
           message: backendMessage,
           errors: backendErrors,
+          ...(suggestions?.length ? { suggestions } : {}),
         } as ApiError);
       }
     );

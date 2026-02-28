@@ -134,8 +134,6 @@ export const uploadBusinessAssetsMiddleware = [
 
         const optimized = await sharp(file.buffer)
           .rotate()
-          .resize(512, 512, { fit: "inside", withoutEnlargement: true })
-          .webp({ quality: 85 })
           .toBuffer();
 
         uploadedFiles[group][0] = {

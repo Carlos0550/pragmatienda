@@ -50,3 +50,16 @@ export const capitalizeWords = (value: string): string => {
     .map((word) => (word.length > 0 ? word.charAt(0).toUpperCase() + word.slice(1) : ""))
     .join(" ");
 };
+
+/** Genera un slug URL-friendly desde un nombre (minúsculas, guiones, sin acentos). */
+export const slugify = (value: string): string => {
+  return value
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/[^a-z0-9-]/g, "")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "") || "producto";
+};

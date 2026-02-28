@@ -21,8 +21,9 @@ export default function ProductDetailPage() {
   useEffect(() => {
     const fetchProduct = async () => {
       try {
-        if (!slug) {
+        if (!slug || slug === 'undefined') {
           setProduct(null);
+          setLoading(false);
           return;
         }
         const result = await http.products.getPublicBySlug(slug);

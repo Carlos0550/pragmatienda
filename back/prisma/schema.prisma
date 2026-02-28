@@ -179,6 +179,7 @@ model Products {
   description String?
   image String?
   metadata Json?
+  slug String?
   price Decimal
   stock Int
   status ProductsStatus @default(PUBLISHED)

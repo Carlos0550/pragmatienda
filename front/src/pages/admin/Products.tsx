@@ -4,8 +4,8 @@ import { http } from '@/services/http';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import {
   AlertDialog,
@@ -18,20 +18,30 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Checkbox } from '@/components/ui/checkbox';
 import { sileo } from 'sileo';
 import { Eye, Plus, Pencil, Trash2, ShoppingBag, Search } from 'lucide-react';
 import { toFormErrors } from '@/lib/api-utils';
-import type { ApiError, Category, FormErrors, Product, ProductFormState } from '@/types';
+import type { ApiError, Category, FormErrors, Product, ProductFormState, ProductStatus } from '@/types';
 import { capitalizeName } from '@/lib/utils';
 
 const PAGE_SIZE = 10;
+
+const PRODUCT_STATUS_OPTIONS: { value: ProductStatus; label: string }[] = [
+  { value: 'PUBLISHED', label: 'Publicado' },
+  { value: 'UNPUBLISHED', label: 'No publicado' },
+  { value: 'DELETED', label: 'Eliminado' },
+  { value: 'ARCHIVED', label: 'Archivado' },
+  { value: 'LOW_STOCK', label: 'Stock bajo' },
+  { value: 'OUT_OF_STOCK', label: 'Sin stock' },
+];
 
 const emptyForm: ProductFormState = {
   name: '',
   price: '',
   categoryId: '',
   stock: '',
-  active: true,
+  status: 'PUBLISHED',
 };
 
 export default function AdminProductsPage() {
@@ -52,6 +62,11 @@ export default function AdminProductsPage() {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkStatus, setBulkStatus] = useState<ProductStatus>('PUBLISHED');
+  const [bulkSaving, setBulkSaving] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<ProductStatus | ''>('PUBLISHED');
+  const [formSuggestions, setFormSuggestions] = useState<string[]>([]);
   const imagePreviewRef = useRef(imagePreview);
 
   const loadCategories = useCallback(async () => {
@@ -66,6 +81,7 @@ export default function AdminProductsPage() {
         page,
         limit: PAGE_SIZE,
         name: debouncedSearch.trim() || undefined,
+        ...(statusFilter ? { status: statusFilter } : {}),
       });
       const items = response.items;
       const pagination = response.pagination;
@@ -82,7 +98,7 @@ export default function AdminProductsPage() {
     } finally {
       setLoading(false);
     }
-  }, [debouncedSearch, page]);
+  }, [debouncedSearch, page, statusFilter]);
 
   useEffect(() => {
     void loadCategories();
@@ -115,6 +131,7 @@ export default function AdminProductsPage() {
     setEditing(null);
     setForm(emptyForm);
     setErrors({});
+    setFormSuggestions([]);
     setImageFile(null);
     setImagePreview('');
     setDialogOpen(true);
@@ -122,15 +139,21 @@ export default function AdminProductsPage() {
 
   const openEdit = (p: Product) => {
     const existingImage = p.image || p.images?.[0] || '';
+    const meta = p.metadata ?? {};
     setEditing(p);
     setForm({
       name: p.name,
       price: String(p.price),
       categoryId: p.categoryId || p.category?.id || '',
       stock: String(p.stock),
-      active: p.status ? p.status === 'PUBLISHED' : p.active,
+      status: p.status ?? 'PUBLISHED',
+      description: p.description ?? '',
+      seoTitle: p.seoTitle ?? meta.title ?? '',
+      seoDescription: p.seoDescription ?? meta.description ?? '',
+      seoKeywords: meta.keywords ?? '',
     });
     setErrors({});
+    setFormSuggestions([]);
     setImageFile(null);
     setImagePreview(existingImage);
     setDialogOpen(true);
@@ -139,14 +162,26 @@ export default function AdminProductsPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrors({});
+    setFormSuggestions([]);
     setSaving(true);
     const formData = new FormData();
     formData.append('name', form.name);
     formData.append('price', form.price);
     formData.append('stock', form.stock);
-    formData.append('status', form.active ? 'PUBLISHED' : 'UNPUBLISHED');
+    formData.append('status', form.status);
     if (form.categoryId) formData.append('categoryId', form.categoryId);
     if (imageFile) formData.append('image', imageFile);
+    if (editing) {
+      formData.append('description', form.description ?? '');
+      formData.append(
+        'metadata',
+        JSON.stringify({
+          title: form.seoTitle ?? '',
+          description: form.seoDescription ?? '',
+          keywords: form.seoKeywords ?? '',
+        })
+      );
+    }
     try {
       if (editing) {
         await http.products.updateAdmin(editing.id, formData);
@@ -159,9 +194,13 @@ export default function AdminProductsPage() {
       await loadProducts();
     } catch (err) {
       const apiErr = err as ApiError;
-      if (apiErr.errors) {
-        setErrors(toFormErrors(apiErr.errors));
-      } else {
+      const fieldErrors = toFormErrors(apiErr.errors);
+      const withMessage = apiErr.message
+        ? { ...fieldErrors, _form: apiErr.message }
+        : fieldErrors;
+      setErrors(withMessage);
+      setFormSuggestions(apiErr.suggestions ?? []);
+      if (!apiErr.message && !apiErr.errors) {
         sileo.error({ title: 'Error al guardar' });
       }
     } finally {
@@ -191,6 +230,38 @@ export default function AdminProductsPage() {
     setPendingDeleteId(null);
   };
 
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === products.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(products.map((p) => p.id)));
+    }
+  };
+
+  const handleBulkStatusChange = async () => {
+    if (selectedIds.size === 0) return;
+    setBulkSaving(true);
+    try {
+      const res = await http.products.patchBulkStatus(Array.from(selectedIds), bulkStatus);
+      sileo.success({ title: `${res.data?.updated ?? selectedIds.size} producto(s) actualizado(s)` });
+      setSelectedIds(new Set());
+      await loadProducts();
+    } catch {
+      sileo.error({ title: 'Error al cambiar estado' });
+    } finally {
+      setBulkSaving(false);
+    }
+  };
+
   const handleChange = (field: keyof ProductFormState) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setForm((p) => ({ ...p, [field]: e.target.value }));
   };
@@ -214,7 +285,7 @@ export default function AdminProductsPage() {
           <h2 className="text-2xl font-bold">Productos</h2>
           <p className="text-muted-foreground text-sm mt-1">Gestioná tu catálogo de productos</p>
         </div>
-        <div className="flex w-full flex-col gap-2 md:w-auto md:flex-row md:items-center">
+        <div className="flex w-full flex-col gap-2 md:w-auto md:flex-row md:items-center md:gap-3">
           <div className="relative w-full md:w-72">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -227,6 +298,25 @@ export default function AdminProductsPage() {
               className="pl-9"
             />
           </div>
+          <Select
+            value={statusFilter || 'all'}
+            onValueChange={(v) => {
+              setStatusFilter(v === 'all' ? '' : (v as ProductStatus));
+              setPage(1);
+            }}
+          >
+            <SelectTrigger className="w-full md:w-[180px]">
+              <SelectValue placeholder="Estado" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              {PRODUCT_STATUS_OPTIONS.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
               <Button onClick={openCreate} className="gap-2">
@@ -238,6 +328,32 @@ export default function AdminProductsPage() {
                 <DialogTitle>{editing ? 'Editar' : 'Nuevo'} Producto</DialogTitle>
               </DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4">
+                {errors._form && (
+                  <div className="space-y-2 rounded-lg border border-primary/50 bg-primary/10 px-4 py-3 text-sm text-primary">
+                    <p>{errors._form}</p>
+                    {formSuggestions.length > 0 && (
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        <span className="text-muted-foreground text-xs">Sugerencias:</span>
+                        {formSuggestions.map((s) => (
+                          <Button
+                            key={s}
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="text-xs"
+                            onClick={() => {
+                              setForm((prev) => ({ ...prev, name: s }));
+                              setErrors((prev) => ({ ...prev, _form: undefined }));
+                              setFormSuggestions([]);
+                            }}
+                          >
+                            {s}
+                          </Button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
                 <div className="space-y-2">
                   <Label>Nombre</Label>
                   <Input value={form.name} onChange={handleChange('name')} required />
@@ -272,10 +388,21 @@ export default function AdminProductsPage() {
                   </div>
                   <div className="space-y-2">
                     <Label>Estado</Label>
-                    <div className="flex items-center gap-3 h-10">
-                      <Switch checked={form.active} onCheckedChange={(v) => setForm((p) => ({ ...p, active: v }))} />
-                      <Label>Activo</Label>
-                    </div>
+                    <Select
+                      value={form.status}
+                      onValueChange={(v) => setForm((p) => ({ ...p, status: v as ProductStatus }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccionar estado" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {PRODUCT_STATUS_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
                 <div className="space-y-2">
@@ -289,6 +416,53 @@ export default function AdminProductsPage() {
                   </div>
                   <Input type="file" accept="image/*" onChange={handleImageChange} />
                 </div>
+                {editing && (
+                  <>
+                    <div className="space-y-2">
+                      <Label>Descripción</Label>
+                      <Textarea
+                        value={form.description ?? ''}
+                        onChange={handleChange('description')}
+                        rows={4}
+                        placeholder="Descripción del producto"
+                        className="resize-y"
+                      />
+                      {errors.description && <p className="text-xs text-primary">{errors.description}</p>}
+                    </div>
+                    <div className="space-y-3 rounded-lg border p-4 bg-muted/20">
+                      <Label className="text-base">Información SEO</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Título y descripción para buscadores y redes sociales.
+                      </p>
+                      <div className="space-y-2">
+                        <Label className="text-muted-foreground">Meta título</Label>
+                        <Input
+                          value={form.seoTitle ?? ''}
+                          onChange={handleChange('seoTitle')}
+                          placeholder="Título SEO"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-muted-foreground">Meta descripción</Label>
+                        <Textarea
+                          value={form.seoDescription ?? ''}
+                          onChange={handleChange('seoDescription')}
+                          rows={2}
+                          placeholder="Descripción SEO"
+                          className="resize-y"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-muted-foreground">Keywords</Label>
+                        <Input
+                          value={form.seoKeywords ?? ''}
+                          onChange={handleChange('seoKeywords')}
+                          placeholder="palabra1, palabra2, palabra3"
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
                 <Button type="submit" className="w-full" disabled={saving}>
                   {saving ? 'Guardando...' : 'Guardar'}
                 </Button>
@@ -311,10 +485,42 @@ export default function AdminProductsPage() {
         </div>
       ) : (
         <div className="space-y-4">
+          {selectedIds.size > 0 && (
+            <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-muted/30 p-3">
+              <span className="text-sm font-medium">
+                {selectedIds.size} producto(s) seleccionado(s)
+              </span>
+              <Select value={bulkStatus} onValueChange={(v) => setBulkStatus(v as ProductStatus)}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Nuevo estado" />
+                </SelectTrigger>
+                <SelectContent>
+                  {PRODUCT_STATUS_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button size="sm" onClick={handleBulkStatusChange} disabled={bulkSaving}>
+                {bulkSaving ? 'Guardando...' : 'Cambiar estado'}
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>
+                Cancelar
+              </Button>
+            </div>
+          )}
           <div className="rounded-xl border bg-card">
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-10">
+                    <Checkbox
+                      checked={products.length > 0 && selectedIds.size === products.length}
+                      onCheckedChange={toggleSelectAll}
+                      aria-label="Seleccionar todos"
+                    />
+                  </TableHead>
                   <TableHead>Producto</TableHead>
                   <TableHead>Categoría</TableHead>
                   <TableHead className="text-right">Precio</TableHead>
@@ -325,11 +531,19 @@ export default function AdminProductsPage() {
               </TableHeader>
               <TableBody>
                 {products.map((p) => {
-                  console.log(p);
-                  const isActive = p.status ? p.status === 'PUBLISHED' : p.active;
                   const image = p.image || p.images?.[0];
+                  const statusOption = PRODUCT_STATUS_OPTIONS.find((o) => o.value === (p.status ?? 'PUBLISHED'));
+                  const statusLabel = statusOption?.label ?? p.status ?? '—';
+                  const isPublished = p.status === 'PUBLISHED';
                   return (
                     <TableRow key={p.id}>
+                      <TableCell>
+                        <Checkbox
+                          checked={selectedIds.has(p.id)}
+                          onCheckedChange={() => toggleSelect(p.id)}
+                          aria-label={`Seleccionar ${p.name}`}
+                        />
+                      </TableCell>
                       <TableCell>
                         <div className="flex min-w-0 items-center gap-3">
                           <div className="w-10 h-10 rounded-md overflow-hidden bg-muted shrink-0">
@@ -344,16 +558,16 @@ export default function AdminProductsPage() {
                           <span className="text-sm font-medium truncate">{capitalizeName(p.name)}</span>
                         </div>
                       </TableCell>
-                      <TableCell>{capitalizeName(p.category.name) ?? 'Sin categoría'}</TableCell>
+                      <TableCell>{p.category ? capitalizeName(p.category.name) : 'Sin categoría'}</TableCell>
                       <TableCell className="text-right">${p.price.toLocaleString()}</TableCell>
                       <TableCell className="text-right">{p.stock}</TableCell>
                       <TableCell>
                         <span
                           className={`inline-flex text-xs px-2 py-1 rounded-full ${
-                            isActive ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'
+                            isPublished ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'
                           }`}
                         >
-                          {isActive ? 'Activo' : 'Inactivo'}
+                          {statusLabel}
                         </span>
                       </TableCell>
                       <TableCell className="text-right">

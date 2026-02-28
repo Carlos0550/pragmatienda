@@ -40,5 +40,9 @@ export function normalizeResolvedTenant(response: TenantResolveResponse): Tenant
     id: tenantId,
     name: normalizedName,
     slug,
+    logo: response.data.logo ?? undefined,
+    banner: response.data.banner ?? undefined,
+    favicon: response.data.favicon ?? undefined,
+    socialLinks: response.data.socialMedia ?? undefined,
   };
 }

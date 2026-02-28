@@ -19,6 +19,7 @@ import type {
   PlanMutationPayload,
   Product,
   ProductDetailResponse,
+  ProductStatus,
   ProductsListResponse,
   PublicPlan,
   QueryParams,
@@ -38,6 +39,7 @@ function buildProductParams(params?: ListProductsParams): QueryParams {
   if (params.limit != null) query.limit = String(params.limit);
   if (params.name) query.name = params.name;
   if (params.categoryId) query.categoryId = params.categoryId;
+  if (params.status) query.status = params.status;
   if (params.sortBy) query.sortBy = params.sortBy;
   if (params.sortOrder) query.sortOrder = params.sortOrder;
   return query;
@@ -107,6 +109,8 @@ export const http = {
     createAdmin: (formData: FormData) => api.postMultipart('/admin/products', formData),
     updateAdmin: (id: string, formData: FormData) => api.putMultipart(`/admin/products/${id}`, formData),
     deleteAdmin: (id: string) => api.delete(`/admin/products/${id}`),
+    patchBulkStatus: (ids: string[], status: ProductStatus) =>
+      api.patch<{ message: string; data: { updated: number } }>('/admin/products/bulk/status', { ids, status }),
   },
 
   cart: {

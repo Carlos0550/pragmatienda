@@ -7,6 +7,7 @@ export const listProductsQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(10),
   name: z.string().trim().optional(),
   categoryId: z.string().cuid().optional(),
+  status: z.nativeEnum(ProductsStatus).optional(),
   sortBy: z.enum(["price", "createdAt"]).default("createdAt"),
   sortOrder: z.enum(["asc", "desc"]).default("desc")
 }).strict();

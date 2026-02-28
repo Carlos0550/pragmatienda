@@ -9,7 +9,7 @@ import {
 import { PUBLIC_BUCKET } from "../../storage/minio";
 import { env } from "../../config/env";
 import { generateSecureString } from "../../utils/security.utils";
-import { normalizeProductName, normalizeText } from "../../utils/normalization.utils";
+import { normalizeProductName, normalizeText, slugify } from "../../utils/normalization.utils";
 import {
   generateProductMetadata,
   generateProductDescription,
@@ -39,6 +39,27 @@ const extractObjectNameFromUrl = (url: string): string | null => {
   }
 };
 
+async function getUniqueSlug(
+  tenantId: string,
+  baseSlug: string,
+  excludeId?: string
+): Promise<string> {
+  let slug = baseSlug;
+  let n = 0;
+  for (;;) {
+    const existing = await prisma.products.findFirst({
+      where: {
+        tenantId,
+        slug,
+        ...(excludeId ? { id: { not: excludeId } } : {})
+      }
+    });
+    if (!existing) return slug;
+    n += 1;
+    slug = `${baseSlug}-${n}`;
+  }
+}
+
 export class ProductsService {
   async create(
     tenantId: string,
@@ -49,7 +70,11 @@ export class ProductsService {
       const nameAnalysis = await analyzeProductName(normalizeProductName(data.name));
       logger.info("Name analysis", { nameAnalysis });
       if (nameAnalysis?.isGeneric) {
-        return { status: 400, message: nameAnalysis.message };
+        return {
+          status: 400,
+          message: nameAnalysis.message,
+          data: { suggestions: nameAnalysis.suggestions ?? [] }
+        };
       }
 
       const normalizedName = normalizeProductName(data.name);
@@ -84,10 +109,14 @@ export class ProductsService {
           metadata = generated as Record<string, unknown>;
         }
 
+      const baseSlug = slugify(normalizedName);
+      const slug = await getUniqueSlug(tenantId, baseSlug);
+
       const product = await prisma.products.create({
         data: {
           tenantId,
           name: normalizedName,
+          slug,
           description,
           image: imageUrl,
           price: data.price,
@@ -142,6 +171,11 @@ export class ProductsService {
           return { status: 409, message: "Ya existe un producto con ese nombre." };
         }
         updatePayload.name = normalizedName;
+        const baseSlug = slugify(normalizedName);
+        updatePayload.slug = await getUniqueSlug(tenantId, baseSlug, id);
+      } else if (existing.slug == null) {
+        const baseSlug = slugify(existing.name);
+        updatePayload.slug = await getUniqueSlug(tenantId, baseSlug, id);
       }
       if (data.description !== undefined) updatePayload.description = data.description.trim();
       if (data.price !== undefined) updatePayload.price = data.price;
@@ -191,7 +225,7 @@ export class ProductsService {
     isPublic: boolean
   ): Promise<ServiceResponse> {
     try {
-      const { page, limit, name, categoryId, sortBy, sortOrder } = query;
+      const { page, limit, name, categoryId, status, sortBy, sortOrder } = query;
       const skip = (page - 1) * limit;
 
       const where: Prisma.ProductsWhereInput = {
@@ -200,7 +234,8 @@ export class ProductsService {
           ? { name: { contains: normalizeText(name), mode: "insensitive" as const } }
           : {}),
         ...(categoryId ? { categoryId } : {}),
-        ...(isPublic ? {status: ProductsStatus.PUBLISHED, stock: {gt: 0}} : {})
+        ...(isPublic ? { status: ProductsStatus.PUBLISHED, stock: { gt: 0 } } : {}),
+        ...(!isPublic && status ? { status: status as ProductsStatus } : {})
       };
 
       const orderBy =
@@ -239,12 +274,12 @@ export class ProductsService {
     }
   }
 
-  async getOne(tenantId: string, productId: string, isPublic: boolean): Promise<ServiceResponse> {
+  async getOne(tenantId: string, productIdOrSlug: string, isPublic: boolean): Promise<ServiceResponse> {
     try {
       const where: Prisma.ProductsWhereInput = {
-        id: productId,
         tenantId,
-        ...(isPublic ? { status: ProductsStatus.PUBLISHED, stock: { gt: 0 } } : {})
+        ...(isPublic ? { status: ProductsStatus.PUBLISHED, stock: { gt: 0 } } : {}),
+        OR: [{ id: productIdOrSlug }, { slug: productIdOrSlug }]
       };
       const product = await prisma.products.findFirst({
         where,

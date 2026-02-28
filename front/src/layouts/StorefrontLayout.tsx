@@ -1,7 +1,6 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation, Navigate } from 'react-router-dom';
 import { ShoppingCart, User, Menu, X } from 'lucide-react';
-import { useState } from 'react';
 import { useCart } from '@/contexts/CartContext';
 import { useTenant } from '@/contexts/TenantContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -11,9 +10,39 @@ import { StoreNotFoundFallback } from '@/pages/storefront/StoreNotFoundFallback'
 import { StorefrontLoader } from '@/components/StorefrontLoader';
 import { capitalizeName } from '@/lib/utils';
 
+const FAVICON_LINK_ID = 'tenant-favicon';
+const DEFAULT_FAVICON_URL = 'https://console-production-c5c6.up.railway.app/api/v1/buckets/assets/objects/download?preview=true&prefix=dfbaf27a-6872-4475-b26a-a94389e5ecf5.png&version_id=null';
+
 export function StorefrontLayout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { tenant, loading, isLandingDomain, storeNotFound } = useTenant();
+
+  // Favicon del negocio en todas las rutas del storefront (subdominio), o favicon por defecto Pragmatienda
+  useEffect(() => {
+    const href = tenant?.favicon || DEFAULT_FAVICON_URL;
+    let link = document.querySelector<HTMLLinkElement>(`link#${FAVICON_LINK_ID}`);
+    if (!link) {
+      link = document.createElement('link');
+      link.rel = 'icon';
+      link.type = 'image/png';
+      link.id = FAVICON_LINK_ID;
+      document.head.appendChild(link);
+    }
+    link.href = href;
+    return () => {
+      link?.remove();
+    };
+  }, [tenant?.favicon]);
+
+  useEffect(() => {
+    if (!tenant?.name) return;
+    const prev = document.title;
+    document.title = capitalizeName(`${tenant.name} - PragmaTienda`);
+    return () => {
+      document.title = prev;
+    };
+  }, [tenant?.name]);
+
   const { itemCount } = useCart();
   const { user } = useAuth();
   const location = useLocation();

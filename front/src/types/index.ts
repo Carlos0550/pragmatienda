@@ -10,6 +10,7 @@ export interface ApiError {
   status: number;
   message: string;
   errors?: ApiFieldErrors;
+  suggestions?: string[];
 }
 
 export type ApiRequestBody =
@@ -106,6 +107,8 @@ export interface Product {
   status?: ProductStatus;
   seoTitle?: string;
   seoDescription?: string;
+  /** SEO desde API (metadata JSON) */
+  metadata?: { title?: string; description?: string; keywords?: string };
 }
 
 export interface Category {
@@ -199,6 +202,7 @@ export interface ListProductsParams {
   limit?: number;
   name?: string;
   categoryId?: string;
+  status?: ProductStatus;
   sortBy?: 'price' | 'createdAt';
   sortOrder?: 'asc' | 'desc';
 }
@@ -246,7 +250,14 @@ export interface CustomerLoginResponse {
 }
 
 export type AdminLoginResponse = ApiEnvelope<{ token: string }>;
-export type TenantResolveResponse = ApiEnvelope<{ tenantId: string; businessName: string }>;
+export type TenantResolveResponse = ApiEnvelope<{
+  tenantId: string;
+  businessName: string;
+  logo?: string | null;
+  banner?: string | null;
+  favicon?: string | null;
+  socialMedia?: SocialLinks | null;
+}>;
 export type ProductsListResponse = PaginatedResponse<Product>;
 export type ProductDetailResponse = ApiEnvelope<Product>;
 export type CategoriesListResponse = PaginatedResponse<Category>;
@@ -295,7 +306,12 @@ export interface ProductFormState {
   price: string;
   categoryId: string;
   stock: string;
-  active: boolean;
+  status: ProductStatus;
+  /** Solo al editar */
+  description?: string;
+  seoTitle?: string;
+  seoDescription?: string;
+  seoKeywords?: string;
 }
 
 export interface PlanFormState {

@@ -84,7 +84,7 @@ export default function ProductsPage() {
                   transition={{ delay: i * 0.03 }}
                 >
                   <Link
-                    to={`/products/${product.slug}`}
+                    to={`/products/${product.slug || product.id}`}
                     className="group rounded-xl border bg-card overflow-hidden hover:shadow-lg transition-all block"
                   >
                     <div className="aspect-square overflow-hidden bg-muted">

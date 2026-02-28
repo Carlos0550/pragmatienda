@@ -1,12 +1,15 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import {
-  LayoutDashboard, Store, Tag, Package, Settings, LogOut, Menu, X, ChevronLeft,
+  LayoutDashboard, Store, Tag, Package, Settings, LogOut, Menu, ChevronLeft,
 } from 'lucide-react';
-import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { Button } from '@/components/ui/button';
+import { useTenant } from '@/contexts/TenantContext';
 import { BillingRequiredScreen } from '@/components/BillingRequired';
+import { capitalizeName } from '@/lib/utils';
+
+const FAVICON_LINK_ID = 'tenant-favicon';
+const DEFAULT_FAVICON_URL = 'https://console-production-c5c6.up.railway.app/api/v1/buckets/assets/objects/download?preview=true&prefix=dfbaf27a-6872-4475-b26a-a94389e5ecf5.png&version_id=null';
 
 const adminNavItems = [
   { title: 'Dashboard', path: '/admin', icon: LayoutDashboard },
@@ -20,8 +23,36 @@ export function AdminLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const { user, logout, billingRequired } = useAuth();
+  const { tenant } = useTenant();
   const location = useLocation();
   const navigate = useNavigate();
+
+  // Favicon del negocio también en rutas admin (subdominio), o favicon por defecto Pragmatienda
+  useEffect(() => {
+    const href = tenant?.favicon || DEFAULT_FAVICON_URL;
+    let link = document.querySelector<HTMLLinkElement>(`link#${FAVICON_LINK_ID}`);
+    if (!link) {
+      link = document.createElement('link');
+      link.rel = 'icon';
+      link.type = 'image/png';
+      link.id = FAVICON_LINK_ID;
+      document.head.appendChild(link);
+    }
+    link.href = href;
+    return () => {
+      link?.remove();
+    };
+  }, [tenant?.favicon]);
+
+  // Título de la pestaña con el nombre del negocio
+  useEffect(() => {
+    if (!tenant?.name) return;
+    const prev = document.title;
+    document.title = capitalizeName(`${tenant.name} - PragmaTienda`);
+    return () => {
+      document.title = prev;
+    };
+  }, [tenant?.name]);
 
   if (billingRequired) {
     return <BillingRequiredScreen />;
@@ -36,8 +67,8 @@ export function AdminLayout() {
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between p-4 border-b border-sidebar-border">
         {!collapsed && (
-          <Link to="/admin" className="text-lg font-bold text-sidebar-foreground tracking-tight">
-            PRAGMA<span className="text-sidebar-primary">TIENDA</span>
+          <Link to="/admin" className="text-lg font-bold text-sidebar-foreground tracking-tight truncate">
+            {tenant?.name ? capitalizeName(tenant.name) : <>PRAGMA<span className="text-sidebar-primary">TIENDA</span></>}
           </Link>
         )}
         <button

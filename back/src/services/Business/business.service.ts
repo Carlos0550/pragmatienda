@@ -201,6 +201,10 @@ class BusinessService {
         select: {
           id: true,
           name: true,
+          logo: true,
+          banner: true,
+          favicon: true,
+          socialMedia: true,
           tenant: {
             select: { id: true },
           },
@@ -220,6 +224,10 @@ class BusinessService {
         data: {
           tenantId: business.tenant.id,
           businessName: business.name,
+          logo: business.logo,
+          banner: business.banner,
+          favicon: business.favicon,
+          socialMedia: business.socialMedia,
         },
       };
     } catch (error) {
