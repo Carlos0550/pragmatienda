@@ -1,41 +1,20 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ShoppingCart, Minus, Plus, ArrowLeft } from 'lucide-react';
-import { http } from '@/services/http';
 import { useCart } from '@/contexts/CartContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
-import type { Product } from '@/types';
 import { motion } from 'framer-motion';
 import { sileo } from 'sileo';
+import { useStorefrontProductDetail } from '@/hooks/storefront-queries';
 
 export default function ProductDetailPage() {
   const { slug } = useParams<{ slug: string }>();
-  const [product, setProduct] = useState<Product | null>(null);
-  const [loading, setLoading] = useState(true);
   const [quantity, setQuantity] = useState(1);
   const [selectedImage, setSelectedImage] = useState(0);
   const { addItem } = useCart();
   const { user } = useAuth();
-
-  useEffect(() => {
-    const fetchProduct = async () => {
-      try {
-        if (!slug || slug === 'undefined') {
-          setProduct(null);
-          setLoading(false);
-          return;
-        }
-        const result = await http.products.getPublicBySlug(slug);
-        setProduct(result);
-      } catch {
-        setProduct(null);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchProduct();
-  }, [slug]);
+  const { data: product, isLoading: loading } = useStorefrontProductDetail(slug);
 
   const handleAddToCart = async () => {
     if (!user) {

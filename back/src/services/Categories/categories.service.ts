@@ -8,7 +8,7 @@ import {
 import { PUBLIC_BUCKET } from "../../storage/minio";
 import { env } from "../../config/env";
 import { generateSecureString } from "../../utils/security.utils";
-import { normalizeText } from "../../utils/normalization.utils";
+import { normalizeText, slugify } from "../../utils/normalization.utils";
 import type { z } from "zod";
 import type {
   createCategorySchema,
@@ -30,6 +30,28 @@ const extractObjectNameFromUrl = (url: string): string | null => {
     return null;
   }
 };
+
+async function getUniqueCategorySlug(
+  tenantId: string,
+  baseSlug: string,
+  excludeId?: string
+): Promise<string> {
+  let slug = baseSlug;
+  let n = 0;
+  for (;;) {
+    const existing = await prisma.productsCategory.findFirst({
+      where: {
+        tenantId,
+        slug,
+        ...(excludeId ? { id: { not: excludeId } } : {}),
+      },
+      select: { id: true },
+    });
+    if (!existing) return slug;
+    n += 1;
+    slug = `${baseSlug}-${n}`;
+  }
+}
 
 export class CategoriesService {
   async getMany(
@@ -84,6 +106,7 @@ export class CategoriesService {
   ): Promise<ServiceResponse> {
     try {
       const normalizedName = normalizeText(data.name);
+      const slug = await getUniqueCategorySlug(tenantId, slugify(normalizedName));
 
       const existing = await prisma.productsCategory.findUnique({
         where: { tenantId_name: { tenantId, name: normalizedName } }
@@ -107,8 +130,11 @@ export class CategoriesService {
         data: {
           tenantId,
           name: normalizedName,
+          slug,
           description: data.description?.trim(),
-          image: imageUrl
+          image: imageUrl,
+          metaTitle: data.metaTitle?.trim(),
+          metaDescription: data.metaDescription?.trim(),
         }
       });
 
@@ -149,9 +175,18 @@ export class CategoriesService {
           return { status: 409, message: "Ya existe una categoría con ese nombre." };
         }
         updatePayload.name = normalizedName;
+        updatePayload.slug = await getUniqueCategorySlug(tenantId, slugify(normalizedName), id);
+      } else if (existing.slug == null) {
+        updatePayload.slug = await getUniqueCategorySlug(tenantId, slugify(existing.name), id);
       }
       if (data.description !== undefined) {
         updatePayload.description = data.description.trim();
+      }
+      if (data.metaTitle !== undefined) {
+        updatePayload.metaTitle = data.metaTitle.trim();
+      }
+      if (data.metaDescription !== undefined) {
+        updatePayload.metaDescription = data.metaDescription.trim();
       }
       if (file?.buffer) {
         if (existing.image) {
@@ -208,6 +243,25 @@ export class CategoriesService {
       const err = error as Error;
       logger.error("Error en categories delete", { message: err.message });
       return { status: 500, message: "Error al eliminar categoría.", err: err.message };
+    }
+  }
+
+  async getOneBySlug(tenantId: string, slug: string): Promise<ServiceResponse> {
+    try {
+      const category = await prisma.productsCategory.findFirst({
+        where: {
+          tenantId,
+          slug: slugify(slug),
+        },
+      });
+      if (!category) {
+        return { status: 404, message: "Categoría no encontrada." };
+      }
+      return { status: 200, message: "Categoría obtenida.", data: category };
+    } catch (error) {
+      const err = error as Error;
+      logger.error("Error en categories getOneBySlug", { message: err.message });
+      return { status: 500, message: "Error al obtener categoría.", err: err.message };
     }
   }
 }

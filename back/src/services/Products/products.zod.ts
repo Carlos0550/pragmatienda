@@ -7,6 +7,7 @@ export const listProductsQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(10),
   name: z.string().trim().optional(),
   categoryId: z.string().cuid().optional(),
+  categorySlug: z.string().trim().min(1).optional(),
   status: z.nativeEnum(ProductsStatus).optional(),
   sortBy: z.enum(["price", "createdAt"]).default("createdAt"),
   sortOrder: z.enum(["asc", "desc"]).default("desc")
@@ -15,6 +16,8 @@ export const listProductsQuerySchema = z.object({
 export const createProductSchema = z.object({
   name: z.string().min(1, "Nombre requerido").trim(),
   description: z.string().optional(),
+  metaTitle: z.string().max(120).optional(),
+  metaDescription: z.string().max(255).optional(),
   price: z.coerce.number().positive("Precio debe ser positivo"),
   stock: z.coerce.number().int().min(0, "Stock no puede ser negativo"),
   categoryId: z.string().cuid().optional().nullable(),
@@ -25,6 +28,8 @@ export const createProductSchema = z.object({
 export const updateProductSchema = z.object({
   name: z.string().min(1).optional(),
   description: z.string().optional(),
+  metaTitle: z.string().max(120).optional(),
+  metaDescription: z.string().max(255).optional(),
   price: z.coerce.number().positive().optional(),
   stock: z.coerce.number().int().min(0).optional(),
   categoryId: z.string().cuid().optional().nullable(),

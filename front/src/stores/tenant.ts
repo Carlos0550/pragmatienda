@@ -17,9 +17,9 @@ export const useTenantStore = create<TenantState>((set) => ({
   isLandingDomain: false,
   storeNotFound: false,
 
-  resolveTenant: async () => {
+  resolveTenantByHostname: async (hostnameInput: string) => {
     set({ loading: true, error: null, isLandingDomain: false, storeNotFound: false });
-    const hostname = window.location.hostname;
+    const hostname = hostnameInput.toLowerCase();
 
     // Dominio raíz del sistema: siempre mostrar landing, no llamar al resolve
     if (isLandingHostname(hostname)) {
@@ -39,5 +39,13 @@ export const useTenantStore = create<TenantState>((set) => ({
     } catch {
       set({ tenant: null, loading: false, error: null, isLandingDomain: false, storeNotFound: true });
     }
+  },
+
+  resolveTenant: async () => {
+    if (typeof window === 'undefined') {
+      set({ loading: false });
+      return;
+    }
+    await useTenantStore.getState().resolveTenantByHostname(window.location.hostname);
   },
 }));

@@ -1,5 +1,5 @@
 import { capitalizeName } from '@/lib/utils';
-import type { ApiFieldErrors, FormErrors, Product, Tenant, TenantResolveResponse } from '@/types';
+import type { ApiFieldErrors, Category, FormErrors, Product, Tenant, TenantResolveResponse } from '@/types';
 
 export function toFormErrors(errors?: ApiFieldErrors): FormErrors {
   if (!errors) return {};
@@ -12,6 +12,11 @@ export function toFormErrors(errors?: ApiFieldErrors): FormErrors {
 }
 
 export function normalizeProduct(product: Product): Product {
+  const rawPrice = typeof product.price === 'string' ? Number(product.price) : product.price;
+  const rawCompareAtPrice =
+    typeof product.compareAtPrice === 'string'
+      ? Number(product.compareAtPrice)
+      : product.compareAtPrice;
   const imageList = product.images && product.images.length > 0
     ? product.images
     : product.image
@@ -19,14 +24,31 @@ export function normalizeProduct(product: Product): Product {
       : [];
   return {
     ...product,
+    slug: product.slug || product.id,
+    description: product.description || '',
+    price: Number.isFinite(rawPrice) ? rawPrice : 0,
+    ...(rawCompareAtPrice != null && Number.isFinite(rawCompareAtPrice) ? { compareAtPrice: rawCompareAtPrice } : {}),
     images: imageList,
     categoryName: product.categoryName ?? product.category?.name,
     active: product.status ? product.status === 'PUBLISHED' : product.active,
+    metaTitle: product.metaTitle ?? product.metadata?.title,
+    metaDescription: product.metaDescription ?? product.metadata?.description,
   };
 }
 
 export function normalizeProducts(products: Product[]): Product[] {
   return products.map(normalizeProduct);
+}
+
+export function normalizeCategory(category: Category): Category {
+  return {
+    ...category,
+    slug: category.slug || category.id,
+  };
+}
+
+export function normalizeCategories(categories: Category[]): Category[] {
+  return categories.map(normalizeCategory);
 }
 
 export function normalizeResolvedTenant(response: TenantResolveResponse): Tenant | null {

@@ -32,6 +32,23 @@ class CategoriesController {
     }
   }
 
+  async getOneBySlug(req: Request, res: Response): Promise<Response> {
+    try {
+      const tenantId = req.tenantId;
+      const slug = req.params.slug;
+      if (!tenantId || !slug) {
+        return res.status(400).json({ message: "Tenant y slug requeridos." });
+      }
+
+      const result = await categoriesService.getOneBySlug(tenantId, slug);
+      return res.status(result.status).json(result);
+    } catch (error) {
+      const err = error as Error;
+      logger.error("Error en getOneBySlug categories controller:", err.message);
+      return res.status(500).json({ message: "Error interno del servidor." });
+    }
+  }
+
   async create(req: Request, res: Response): Promise<Response> {
     try {
       const tenantId = req.tenantId;

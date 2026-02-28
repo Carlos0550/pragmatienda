@@ -1,23 +1,14 @@
-import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { http } from '@/services/http';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Store, Zap, Shield } from 'lucide-react';
 import { capitalizeName } from '@/lib/utils';
 import type { PublicPlan } from '@/types';
+import { usePublicPlans } from '@/hooks/storefront-queries';
 
 export function LandingPage() {
-  const [plans, setPlans] = useState<PublicPlan[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    http.billing
-      .listPublicPlans()
-      .then((data) => setPlans(Array.isArray(data) ? data : []))
-      .catch(() => setPlans([]))
-      .finally(() => setLoading(false));
-  }, []);
+  const { data: plansResponse, isLoading: loading } = usePublicPlans();
+  const plans = (Array.isArray(plansResponse) ? plansResponse : []) as PublicPlan[];
 
   const formatPrice = (p: PublicPlan) => {
     if (p.price === 0) return 'Gratis';

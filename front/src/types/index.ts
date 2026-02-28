@@ -107,6 +107,8 @@ export interface Product {
   status?: ProductStatus;
   seoTitle?: string;
   seoDescription?: string;
+  metaTitle?: string;
+  metaDescription?: string;
   /** SEO desde API (metadata JSON) */
   metadata?: { title?: string; description?: string; keywords?: string };
 }
@@ -117,6 +119,8 @@ export interface Category {
   slug: string;
   image?: string;
   productCount?: number;
+  metaTitle?: string;
+  metaDescription?: string;
 }
 
 export interface CartItem {
@@ -202,6 +206,7 @@ export interface ListProductsParams {
   limit?: number;
   name?: string;
   categoryId?: string;
+  categorySlug?: string;
   status?: ProductStatus;
   sortBy?: 'price' | 'createdAt';
   sortOrder?: 'asc' | 'desc';
@@ -338,6 +343,7 @@ export interface TenantState {
   isLandingDomain: boolean;
   storeNotFound: boolean;
   resolveTenant: () => Promise<void>;
+  resolveTenantByHostname: (hostname: string) => Promise<void>;
 }
 
 export interface AuthState {
@@ -348,7 +354,7 @@ export interface AuthState {
   loginAdmin: (email: string, password: string) => Promise<void>;
   loginCustomer: (email: string, password: string) => Promise<void>;
   logout: () => void;
-  hydrate: () => void;
+  hydrate: () => Promise<void>;
 }
 
 export interface CartState {

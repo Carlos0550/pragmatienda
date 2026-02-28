@@ -1,7 +1,9 @@
 import { api } from '@/services/api';
-import { normalizeProducts } from '@/lib/api-utils';
+import { normalizeCategories, normalizeCategory, normalizeProducts } from '@/lib/api-utils';
 import type {
+  ApiEnvelope,
   AdminLoginResponse,
+  Category,
   BillingChangePlanResponse,
   BillingSelectPlanPayload,
   BillingSubscriptionCreateResponse,
@@ -39,6 +41,7 @@ function buildProductParams(params?: ListProductsParams): QueryParams {
   if (params.limit != null) query.limit = String(params.limit);
   if (params.name) query.name = params.name;
   if (params.categoryId) query.categoryId = params.categoryId;
+  if (params.categorySlug) query.categorySlug = params.categorySlug;
   if (params.status) query.status = params.status;
   if (params.sortBy) query.sortBy = params.sortBy;
   if (params.sortOrder) query.sortOrder = params.sortOrder;
@@ -80,7 +83,11 @@ export const http = {
     },
     listPublic: async (params?: ListCategoriesParams) => {
       const response = await api.get<CategoriesListResponse>('/public/categories', buildCategoryParams(params));
-      return response.data.items;
+      return normalizeCategories(response.data.items);
+    },
+    getPublicBySlug: async (slug: string) => {
+      const response = await api.get<ApiEnvelope<Category>>(`/public/categories/${slug}`);
+      return normalizeCategory(response.data);
     },
     createAdmin: (formData: FormData) => api.postMultipart('/admin/categories', formData),
     updateAdmin: (id: string, formData: FormData) => api.putMultipart(`/admin/categories/${id}`, formData),

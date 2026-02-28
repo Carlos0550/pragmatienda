@@ -96,6 +96,21 @@ openApiRegistry.registerPath({
   }
 });
 
+openApiRegistry.registerPath({
+  method: "get",
+  path: "/public/categories/{slug}",
+  tags: ["Categories"],
+  summary: "Obtener categoría pública por slug",
+  request: {
+    headers: z.object({ "x-tenant-id": z.string() }),
+    params: z.object({ slug: z.string() })
+  },
+  responses: {
+    "200": { description: "Categoría obtenida" },
+    "404": { description: "Categoría no encontrada" }
+  }
+});
+
 // User - público
 openApiRegistry.registerPath({
   method: "post",
@@ -213,6 +228,7 @@ router.get("/health", (req, res) => {
 router.get("/tenant/resolve", businessController.resolveTenantByStoreUrl);
 router.get("/plans", billingController.listPublicPlans);
 router.get("/categories", requireTenant, categoriesController.getMany);
+router.get("/categories/:slug", requireTenant, categoriesController.getOneBySlug);
 router.get(
   "/products",
   requireTenant,

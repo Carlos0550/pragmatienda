@@ -160,7 +160,10 @@ model User {
 model ProductsCategory {
   id        String   @id @default(cuid())
   name      String
+  slug      String?
   description String?
+  metaTitle String?
+  metaDescription String?
   image String?
   tenantId String
   tenant Tenant @relation("TenantProductsCategory", fields: [tenantId], references: [id], onDelete: Cascade)
@@ -170,7 +173,9 @@ model ProductsCategory {
   products Products[] @relation("ProductsCategory")
 
   @@index([name])
+  @@index([slug])
   @@unique([tenantId, name])
+  @@unique([tenantId, slug])
 }
 
 model Products {
@@ -180,6 +185,8 @@ model Products {
   image String?
   metadata Json?
   slug String?
+  metaTitle String?
+  metaDescription String?
   price Decimal
   stock Int
   status ProductsStatus @default(PUBLISHED)
@@ -193,7 +200,9 @@ model Products {
   category ProductsCategory? @relation("ProductsCategory", fields: [categoryId], references: [id], onDelete: SetNull)
   cart CartItem[] @relation("ProductCartItems")
   @@index([name])
+  @@index([slug])
   @@unique([tenantId, name])
+  @@unique([tenantId, slug])
 }
 
 model Cart{

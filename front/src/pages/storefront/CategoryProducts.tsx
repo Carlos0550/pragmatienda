@@ -1,42 +1,37 @@
-import React from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
-import { ShoppingBag, Filter } from 'lucide-react';
-import { motion } from 'framer-motion';
-import { useStorefrontCategories, useStorefrontProducts } from '@/hooks/storefront-queries';
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { Filter, ShoppingBag } from "lucide-react";
+import { motion } from "framer-motion";
+import { useStorefrontCategories, useStorefrontCategoryBySlug, useStorefrontProducts } from "@/hooks/storefront-queries";
 
-export default function ProductsPage() {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const selectedCategory = searchParams.get('category') || '';
-  const { data: productResponse, isLoading: productsLoading } = useStorefrontProducts(
-    selectedCategory ? { categoryId: selectedCategory } : undefined
-  );
-  const { data: categories = [], isLoading: categoriesLoading } = useStorefrontCategories();
+export default function CategoryProductsPage() {
+  const navigate = useNavigate();
+  const { slug } = useParams<{ slug: string }>();
+  const { data: category, isLoading: categoryLoading } = useStorefrontCategoryBySlug(slug);
+  const { data: categories = [] } = useStorefrontCategories();
+  const { data: productResponse, isLoading: productsLoading } = useStorefrontProducts({ categorySlug: slug ?? null });
   const products = productResponse?.items ?? [];
-  const loading = productsLoading || categoriesLoading;
+  const loading = categoryLoading || productsLoading;
 
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="flex flex-col md:flex-row gap-8">
-        {/* Filters Sidebar */}
         <aside className="w-full md:w-56 shrink-0">
           <h2 className="font-semibold mb-4 flex items-center gap-2">
             <Filter className="h-4 w-4" /> Categorías
           </h2>
           <div className="space-y-1">
             <button
-              onClick={() => setSearchParams({})}
-              className={`block w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
-                !selectedCategory ? 'bg-primary text-primary-foreground font-medium' : 'hover:bg-accent'
-              }`}
+              onClick={() => navigate("/products")}
+              className="block w-full text-left px-3 py-2 rounded-lg text-sm transition-colors hover:bg-accent"
             >
               Todas
             </button>
             {categories.map((cat) => (
               <button
                 key={cat.id}
-                onClick={() => setSearchParams({ category: cat.id })}
+                onClick={() => navigate(`/category/${cat.slug}`)}
                 className={`block w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
-                  selectedCategory === cat.id ? 'bg-primary text-primary-foreground font-medium' : 'hover:bg-accent'
+                  cat.slug === slug ? "bg-primary text-primary-foreground font-medium" : "hover:bg-accent"
                 }`}
               >
                 {cat.name}
@@ -45,10 +40,11 @@ export default function ProductsPage() {
           </div>
         </aside>
 
-        {/* Product Grid */}
         <div className="flex-1">
           <div className="flex items-center justify-between mb-6">
-            <h1 className="text-2xl font-bold">Productos</h1>
+            <h1 className="text-2xl font-bold">
+              {category?.name ? `Categoría: ${category.name}` : "Categoría"}
+            </h1>
             <span className="text-sm text-muted-foreground">{products.length} productos</span>
           </div>
 
@@ -73,7 +69,12 @@ export default function ProductsPage() {
                   >
                     <div className="aspect-square overflow-hidden bg-muted">
                       {product.images?.[0] ? (
-                        <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
+                        <img
+                          src={product.images[0]}
+                          alt={product.name}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          loading="lazy"
+                        />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center">
                           <ShoppingBag className="h-8 w-8 text-muted-foreground/30" />
@@ -83,15 +84,7 @@ export default function ProductsPage() {
                     <div className="p-4 space-y-1">
                       <p className="text-xs text-muted-foreground">{product.categoryName}</p>
                       <h3 className="text-sm font-medium line-clamp-2">{product.name}</h3>
-                      <div className="flex items-center gap-2">
-                        <span className="text-lg font-bold">${product.price.toLocaleString()}</span>
-                        {product.compareAtPrice && (
-                          <span className="text-xs text-muted-foreground line-through">${product.compareAtPrice.toLocaleString()}</span>
-                        )}
-                      </div>
-                      {product.stock <= 0 && (
-                        <span className="text-xs text-primary font-medium">Sin stock</span>
-                      )}
+                      <span className="text-lg font-bold">${product.price.toLocaleString()}</span>
                     </div>
                   </Link>
                 </motion.div>
@@ -100,7 +93,7 @@ export default function ProductsPage() {
           ) : (
             <div className="text-center py-16 text-muted-foreground">
               <ShoppingBag className="h-12 w-12 mx-auto mb-4 opacity-30" />
-              <p>No se encontraron productos.</p>
+              <p>No se encontraron productos en esta categoría.</p>
             </div>
           )}
         </div>

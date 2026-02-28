@@ -1,35 +1,18 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, ShoppingBag } from 'lucide-react';
-import { http } from '@/services/http';
 import { useTenant } from '@/contexts/TenantContext';
 import { Button } from '@/components/ui/button';
-import type { Category, Product } from '@/types';
 import { motion } from 'framer-motion';
 import { capitalizeName } from '@/lib/utils';
+import { useStorefrontCategories, useStorefrontProducts } from '@/hooks/storefront-queries';
 
 export default function StorefrontHome() {
   const { tenant } = useTenant();
-  const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [prodsRes, catsRes] = await Promise.all([
-          http.products.listPublic().catch(() => null),
-          http.categories.listPublic().catch(() => null),
-        ]);
-        const products = prodsRes?.items ?? [];
-        setFeaturedProducts(products.slice(0, 8));
-        setCategories(catsRes ?? []);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, []);
+  const { data: productsResponse, isLoading: productsLoading } = useStorefrontProducts();
+  const { data: categories = [], isLoading: categoriesLoading } = useStorefrontCategories();
+  const featuredProducts = (productsResponse?.items ?? []).slice(0, 8);
+  const loading = productsLoading || categoriesLoading;
 
 
   return (
@@ -111,7 +94,7 @@ export default function StorefrontHome() {
                 transition={{ delay: i * 0.05 }}
               >
                 <Link
-                  to={`/products?category=${cat.id}`}
+                  to={`/category/${cat.slug || cat.id}`}
                   className="group relative flex flex-col items-center gap-3 p-6 rounded-xl border bg-card hover:border-primary/30 hover:shadow-md transition-all"
                 >
                   {cat.image && (

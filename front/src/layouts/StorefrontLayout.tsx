@@ -36,11 +36,12 @@ export function StorefrontLayout() {
 
   useEffect(() => {
     if (!tenant?.name) return;
-    const prev = document.title;
-    document.title = capitalizeName(`${tenant.name} - PragmaTienda`);
-    return () => {
-      document.title = prev;
-    };
+    const current = document.title.toLowerCase();
+    const isGenericTitle =
+      current.includes("pragmatienda") || current.trim().length === 0;
+    if (isGenericTitle) {
+      document.title = capitalizeName(`${tenant.name} - PragmaTienda`);
+    }
   }, [tenant?.name]);
 
   const { itemCount } = useCart();

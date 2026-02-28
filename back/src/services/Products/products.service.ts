@@ -118,6 +118,8 @@ export class ProductsService {
           name: normalizedName,
           slug,
           description,
+          metaTitle: data.metaTitle?.trim() || generated?.title || undefined,
+          metaDescription: data.metaDescription?.trim() || generated?.description || undefined,
           image: imageUrl,
           price: data.price,
           stock: data.stock,
@@ -178,6 +180,8 @@ export class ProductsService {
         updatePayload.slug = await getUniqueSlug(tenantId, baseSlug, id);
       }
       if (data.description !== undefined) updatePayload.description = data.description.trim();
+      if (data.metaTitle !== undefined) updatePayload.metaTitle = data.metaTitle.trim();
+      if (data.metaDescription !== undefined) updatePayload.metaDescription = data.metaDescription.trim();
       if (data.price !== undefined) updatePayload.price = data.price;
       if (data.stock !== undefined) updatePayload.stock = data.stock;
       if (data.categoryId !== undefined) updatePayload.categoryId = data.categoryId || null;
@@ -226,6 +230,7 @@ export class ProductsService {
   ): Promise<ServiceResponse> {
     try {
       const { page, limit, name, categoryId, status, sortBy, sortOrder } = query;
+      const categorySlug = query.categorySlug?.trim();
       const skip = (page - 1) * limit;
 
       const where: Prisma.ProductsWhereInput = {
@@ -234,6 +239,7 @@ export class ProductsService {
           ? { name: { contains: normalizeText(name), mode: "insensitive" as const } }
           : {}),
         ...(categoryId ? { categoryId } : {}),
+        ...(categorySlug ? { category: { slug: slugify(categorySlug) } } : {}),
         ...(isPublic ? { status: ProductsStatus.PUBLISHED, stock: { gt: 0 } } : {}),
         ...(!isPublic && status ? { status: status as ProductsStatus } : {})
       };
