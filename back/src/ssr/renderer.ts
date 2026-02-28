@@ -1,7 +1,6 @@
 import fs from "fs";
 import path from "path";
 import { PassThrough } from "stream";
-import { pathToFileURL } from "url";
 import type { Request, RequestHandler, Response } from "express";
 import { renderToPipeableStream } from "react-dom/server";
 import { ProductsStatus } from "@prisma/client";
@@ -72,9 +71,9 @@ type FrontServerModule = {
 };
 
 const LANDING_HOSTNAMES = new Set(["pragmatienda.com", "www.pragmatienda.com", "localhost"]);
-const FRONT_ROOT = path.resolve(process.cwd(), "../front");
+const BACK_ROOT = path.resolve(__dirname, "../..");
+const FRONT_ROOT = path.resolve(BACK_ROOT, "../front");
 const FRONT_CLIENT_DIST_DIR = path.resolve(FRONT_ROOT, "dist/client");
-const FRONT_SERVER_ENTRY = path.resolve(FRONT_ROOT, "dist/server/entry-server.js");
 const CLIENT_MANIFEST_PATH = path.resolve(FRONT_CLIENT_DIST_DIR, ".vite/manifest.json");
 const STREAM_ABORT_DELAY_MS = 10_000;
 const AUTH_TOKEN_COOKIE_KEY = "pragmatienda_token";
@@ -255,19 +254,42 @@ function getClientAssets(): ClientAssets {
   };
 }
 
+function getFrontServerEntryPath(): string | null {
+  const candidates = [
+    path.resolve(FRONT_ROOT, "dist/server/entry-server.js"),
+    path.resolve(FRONT_ROOT, "dist/server/entry-server.mjs"),
+    path.resolve(FRONT_ROOT, "dist/server/entry-server.cjs"),
+  ];
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+  return null;
+}
+
 async function loadFrontServerModule(): Promise<FrontServerModule | null> {
   if (cachedServerModule && env.NODE_ENV === "production") {
     return cachedServerModule;
   }
 
-  if (!fs.existsSync(FRONT_SERVER_ENTRY)) {
+  const entryPath = getFrontServerEntryPath();
+  if (!entryPath) {
     return null;
   }
 
-  const moduleUrl = pathToFileURL(FRONT_SERVER_ENTRY).href;
-  const imported = (await import(
-    env.NODE_ENV === "development" ? `${moduleUrl}?v=${Date.now()}` : moduleUrl
-  )) as Partial<FrontServerModule>;
+  // En CommonJS compilado (back), usar path absoluto evita errores con esquemas file://.
+  if (env.NODE_ENV === "development") {
+    try {
+      const resolved = require.resolve(entryPath);
+      delete require.cache[resolved];
+    } catch {
+      // noop: si no está en cache todavía no hay nada que invalidar.
+    }
+  }
+
+  const imported = (await import(entryPath)) as Partial<FrontServerModule>;
 
   if (!imported.createServerRenderPayload) {
     return null;
