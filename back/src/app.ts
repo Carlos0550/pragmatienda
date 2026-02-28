@@ -18,7 +18,30 @@ const corsOrigins = env.CORS_ORIGIN
   ? env.CORS_ORIGIN.split(",").map((origin) => origin.trim())
   : true;
 
-app.use(helmet());
+const cspConnectSrc = ["'self'", "https:", "http:", "wss:", "ws:"];
+if (env.FRONTEND_URL) cspConnectSrc.push(env.FRONTEND_URL);
+if (env.BACKEND_URL) cspConnectSrc.push(env.BACKEND_URL);
+if (env.MINIO_PUBLIC_URL) cspConnectSrc.push(env.MINIO_PUBLIC_URL);
+
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        baseUri: ["'self'"],
+        formAction: ["'self'"],
+        frameAncestors: ["'self'"],
+        objectSrc: ["'none'"],
+        scriptSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrcAttr: ["'none'"],
+        styleSrc: ["'self'", "https:", "'unsafe-inline'"],
+        fontSrc: ["'self'", "https:", "data:"],
+        imgSrc: ["'self'", "https:", "http:", "data:", "blob:"],
+        connectSrc: cspConnectSrc,
+      },
+    },
+  })
+);
 app.use(compression());
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
