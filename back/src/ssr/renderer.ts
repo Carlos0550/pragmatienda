@@ -114,6 +114,11 @@ function isLandingHostname(hostname: string): boolean {
   return LANDING_HOSTNAMES.has(hostname.toLowerCase());
 }
 
+function isApiHostname(hostname: string): boolean {
+  const normalized = hostname.toLowerCase();
+  return normalized === "api.pragmatienda.com" || normalized.startsWith("api.");
+}
+
 function matchRoute(req: Request): RouteMatch {
   const url = new URL(req.originalUrl || req.url, "http://localhost");
   const pathname = url.pathname;
@@ -625,6 +630,9 @@ export const ssrHandler: RequestHandler = async (req, res, next) => {
 
     const route = matchRoute(req);
     const { hostname, hostHeader } = normalizeHost(req);
+    if (isApiHostname(hostname)) {
+      return next();
+    }
     const protocol = (req.header("x-forwarded-proto") ?? req.protocol ?? "http").split(",")[0].trim();
     const baseUrl = `${protocol}://${hostHeader}`;
     const hasAuthCookie = Boolean(extractCookie(req.header("cookie"), AUTH_TOKEN_COOKIE_KEY));

@@ -7,7 +7,7 @@
     "dev": "tsx watch --clear-screen=false --watch=src --watch=prisma --watch=.env src/server.ts",
     "dev:ssr:front": "npm run build:client:watch --prefix ../front & npm run build:server:watch --prefix ../front",
     "build": "tsc",
-    "build:ssr": "npm run build --prefix ../front && npm run build",
+    "build:ssr": "npm run build:ssr --prefix ../front && npm run build",
     "start": "node dist/server.js",
     "postinstall": "prisma generate",
     "prisma": "prisma",
