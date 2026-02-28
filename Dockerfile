@@ -7,6 +7,11 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends openssl ca-certificates \
   && rm -rf /var/lib/apt/lists/*
 
+# Prisma generate no requiere conectarse, pero Prisma Config sí exige que exista DATABASE_URL.
+# Este valor dummy solo aplica al build y será sobreescrito por variables reales en Railway runtime.
+ARG DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/pragmatienda
+ENV DATABASE_URL=${DATABASE_URL}
+
 # Instala dependencias de ambos paquetes primero para aprovechar cache de Docker.
 # Copiamos prisma schema antes de npm ci de back para evitar fallo en postinstall.
 COPY front/package.json front/package-lock.json ./front/
