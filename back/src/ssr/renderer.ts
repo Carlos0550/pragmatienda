@@ -2,7 +2,6 @@ import fs from "fs";
 import path from "path";
 import { PassThrough } from "stream";
 import type { Request, RequestHandler, Response } from "express";
-import { renderToPipeableStream } from "react-dom/server";
 import { ProductsStatus } from "@prisma/client";
 import { logger } from "../config/logger";
 import { env } from "../config/env";
@@ -100,6 +99,9 @@ type RouteMatch = {
 
 let cachedServerModule: FrontServerModule | null = null;
 let cachedClientAssets: ClientAssets | null = null;
+let cachedRenderToPipeableStream:
+  | ((typeof import("react-dom/server"))["renderToPipeableStream"])
+  | null = null;
 
 function normalizeHost(req: Request): { hostname: string; hostHeader: string } {
   const forwardedHost = req.header("x-forwarded-host");
@@ -269,6 +271,27 @@ function getFrontServerEntryPath(): string | null {
   return null;
 }
 
+function getRenderToPipeableStream() {
+  if (cachedRenderToPipeableStream) {
+    return cachedRenderToPipeableStream;
+  }
+
+  const frontRendererPath = path.resolve(FRONT_ROOT, "node_modules/react-dom/server");
+  try {
+    // Preferimos usar el renderer del front para evitar incompatibilidades de múltiples instancias de React.
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const frontReactDomServer = require(frontRendererPath) as typeof import("react-dom/server");
+    cachedRenderToPipeableStream = frontReactDomServer.renderToPipeableStream;
+    return cachedRenderToPipeableStream;
+  } catch {
+    // Fallback al renderer local del backend.
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const localReactDomServer = require("react-dom/server") as typeof import("react-dom/server");
+    cachedRenderToPipeableStream = localReactDomServer.renderToPipeableStream;
+    return cachedRenderToPipeableStream;
+  }
+}
+
 async function loadFrontServerModule(): Promise<FrontServerModule | null> {
   if (cachedServerModule && env.NODE_ENV === "production") {
     return cachedServerModule;
@@ -393,12 +416,24 @@ function getPagination(total: number, limit: number) {
 function normalizeProduct(product: Record<string, unknown>) {
   const category = (product.category as Record<string, unknown> | null) ?? null;
   const priceValue = product.price;
-  const price =
-    typeof priceValue === "number"
-      ? priceValue
-      : typeof priceValue === "string"
-        ? Number(priceValue)
-        : 0;
+  let price = 0;
+  if (typeof priceValue === "number") {
+    price = priceValue;
+  } else if (typeof priceValue === "string") {
+    price = Number(priceValue);
+  } else if (priceValue && typeof priceValue === "object") {
+    const decimalLike = priceValue as { toNumber?: () => number; toString?: () => string; valueOf?: () => unknown };
+    if (typeof decimalLike.toNumber === "function") {
+      price = decimalLike.toNumber();
+    } else if (typeof decimalLike.toString === "function") {
+      const parsed = Number(decimalLike.toString());
+      price = Number.isFinite(parsed) ? parsed : 0;
+    } else if (typeof decimalLike.valueOf === "function") {
+      const value = decimalLike.valueOf();
+      const parsed = typeof value === "number" ? value : Number(value);
+      price = Number.isFinite(parsed) ? parsed : 0;
+    }
+  }
 
   return {
     id: String(product.id),
@@ -791,6 +826,7 @@ export const ssrHandler: RequestHandler = async (req, res, next) => {
       stream.destroy();
     }, STREAM_ABORT_DELAY_MS);
 
+    const renderToPipeableStream = getRenderToPipeableStream();
     const { pipe, abort } = renderToPipeableStream(reactNode, {
       onShellReady() {
         res.status(didError ? 500 : statusCode);
