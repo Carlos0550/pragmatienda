@@ -9,6 +9,7 @@ import { getSsrBootstrapPayload } from "@/lib/ssr";
 import { useTenantStore } from "@/stores/tenant";
 import { useAuthStore } from "@/stores/auth";
 import { ClientBootstrap } from "@/components/ClientBootstrap";
+import { api } from "@/services/api";
 import "./index.css";
 
 const queryClient = createAppQueryClient();
@@ -18,6 +19,7 @@ const shouldUseSsrBootstrap = Boolean(ssrPayload && ssrPayload.routeKind !== "sp
 let shouldHydrateAuthFromCookie = false;
 if (ssrPayload && shouldUseSsrBootstrap) {
   useTenantStore.setState(ssrPayload.tenantState);
+  api.setTenantId(ssrPayload.tenantState.tenant?.id ?? null);
   const { hasAuthCookie, ...authStateForStore } = ssrPayload.authState;
   shouldHydrateAuthFromCookie = hasAuthCookie && !authStateForStore.user;
   useAuthStore.setState(authStateForStore);

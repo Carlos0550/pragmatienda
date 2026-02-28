@@ -23,6 +23,7 @@ export const useTenantStore = create<TenantState>((set) => ({
 
     // Dominio raíz del sistema: siempre mostrar landing, no llamar al resolve
     if (isLandingHostname(hostname)) {
+      api.setTenantId(null);
       set({ tenant: null, loading: false, error: null, isLandingDomain: true, storeNotFound: false });
       return;
     }
@@ -34,9 +35,11 @@ export const useTenantStore = create<TenantState>((set) => ({
         api.setTenantId(tenant.id);
         set({ tenant, loading: false, error: null, isLandingDomain: false, storeNotFound: false });
       } else {
+        api.setTenantId(null);
         set({ tenant: null, loading: false, error: null, isLandingDomain: false, storeNotFound: true });
       }
     } catch {
+      api.setTenantId(null);
       set({ tenant: null, loading: false, error: null, isLandingDomain: false, storeNotFound: true });
     }
   },

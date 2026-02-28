@@ -76,7 +76,7 @@ class ApiService {
     );
   }
 
-  setTenantId(id: string) {
+  setTenantId(id: string | null) {
     this.tenantId = id;
   }
 
