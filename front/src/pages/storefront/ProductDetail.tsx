@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
 import { sileo } from 'sileo';
 import { useStorefrontProductDetail } from '@/hooks/storefront-queries';
+import { capitalizeName } from '@/lib/utils';
 
 export default function ProductDetailPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -92,7 +93,7 @@ export default function ProductDetailPage() {
           {product.categoryName && (
             <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{product.categoryName}</span>
           )}
-          <h1 className="text-3xl font-bold">{product.name}</h1>
+          <h1 className="text-3xl font-bold">{capitalizeName(product.name || "") || "Producto sin nombre"}</h1>
           <div className="flex items-baseline gap-3">
             <span className="text-3xl font-bold">${product.price.toLocaleString()}</span>
             {product.compareAtPrice && (

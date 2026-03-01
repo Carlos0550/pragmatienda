@@ -4,7 +4,7 @@ const REDIRECT_SECONDS = 5;
 
 function getLandingUrl(): string {
   if (typeof window === 'undefined') {
-    return 'https://pragmatienda.com';
+    return 'https://pragmatienda.com' ;
   }
   const hostname = window.location.hostname;
   const protocol = window.location.protocol;

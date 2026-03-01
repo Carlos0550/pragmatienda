@@ -33,6 +33,12 @@ function ensureAbsoluteUrl(baseUrl: string, path: string) {
   return `${cleanedBase}${cleanedPath}`;
 }
 
+function ensureAbsoluteImageUrl(baseUrl: string, image?: string | null): string | undefined {
+  if (!image) return undefined;
+  if (/^https?:\/\//i.test(image)) return image;
+  return ensureAbsoluteUrl(baseUrl, image.startsWith("/") ? image : `/${image}`);
+}
+
 function extractProductSeo(product?: Product | null) {
   if (!product) return { title: undefined, description: undefined };
   return {
@@ -113,7 +119,10 @@ export function buildSeo(args: {
       seo.description ||
       args.product.description ||
       `Compra ${args.product.name} en ${tenantName}.`;
-    const ogImage = args.product.images?.[0] || args.product.image;
+    const ogImage = ensureAbsoluteImageUrl(
+      args.baseUrl,
+      args.product.images?.[0] || args.product.image
+    );
     return {
       title,
       description,
@@ -156,21 +165,27 @@ export function buildSeo(args: {
         title,
         description,
         url: canonicalUrl,
-        image: args.category.image,
+        image: ensureAbsoluteImageUrl(args.baseUrl, args.category.image),
         siteName: tenantName,
       },
       twitter: {
         card: "summary_large_image",
         title,
         description,
-        image: args.category.image,
+        image: ensureAbsoluteImageUrl(args.baseUrl, args.category.image),
       },
     };
   }
 
   if (args.routeKind === "products") {
     const title = `Productos | ${tenantName}`;
-    const description = `Catalogo de productos disponible en ${tenantName}.`;
+    const description =
+      args.tenant?.description?.trim() ||
+      `Catálogo de productos en ${tenantName}. Comprá online con envío a domicilio.`;
+    const ogImage = ensureAbsoluteImageUrl(
+      args.baseUrl,
+      args.tenant?.banner || args.tenant?.logo
+    );
     return {
       title,
       description,
@@ -181,19 +196,27 @@ export function buildSeo(args: {
         title,
         description,
         url: canonicalUrl,
+        image: ogImage,
         siteName: tenantName,
       },
       twitter: {
         card: "summary_large_image",
         title,
         description,
+        image: ogImage,
       },
     };
   }
 
   if (args.routeKind === "home") {
     const title = `${tenantName} | Tienda online`;
-    const description = `Descubre productos destacados en ${tenantName}.`;
+    const description =
+      args.tenant?.description?.trim() ||
+      `Comprá en ${tenantName}. Tienda online con productos de calidad, ofertas y envíos a domicilio.`;
+    const ogImage = ensureAbsoluteImageUrl(
+      args.baseUrl,
+      args.tenant?.banner || args.tenant?.logo
+    );
     return {
       title,
       description,
@@ -204,12 +227,14 @@ export function buildSeo(args: {
         title,
         description,
         url: canonicalUrl,
+        image: ogImage,
         siteName: tenantName,
       },
       twitter: {
         card: "summary_large_image",
         title,
         description,
+        image: ogImage,
       },
     };
   }

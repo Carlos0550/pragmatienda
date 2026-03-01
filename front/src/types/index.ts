@@ -61,6 +61,7 @@ export interface Tenant {
   logo?: string;
   banner?: string;
   favicon?: string;
+  description?: string;
   socialLinks?: SocialLinks;
   bankOptions?: BankOption[];
 }
@@ -258,6 +259,7 @@ export type AdminLoginResponse = ApiEnvelope<{ token: string }>;
 export type TenantResolveResponse = ApiEnvelope<{
   tenantId: string;
   businessName: string;
+  description?: string | null;
   logo?: string | null;
   banner?: string | null;
   favicon?: string | null;

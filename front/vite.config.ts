@@ -8,12 +8,13 @@ export default defineConfig(({ mode, ssrBuild }) => ({
   server: {
     host: "::",
     port: 3000,
+    watch: process.env.VITE_PROXY_API_TARGET ? { usePolling: true } : undefined,
     hmr: {
       overlay: false,
     },
     proxy: {
       "/api": {
-        target: "http://localhost:3001",
+        target: process.env.VITE_PROXY_API_TARGET ?? "http://localhost:3001",
         changeOrigin: true,
       },
     },

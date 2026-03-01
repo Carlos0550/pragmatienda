@@ -1,0 +1,40 @@
+
+
+services:
+  back:
+    image: node:22-bookworm
+    container_name: pragmatienda-back
+    working_dir: /app/back
+    volumes:
+      - ./back:/app/back
+      - back_node_modules:/app/back/node_modules
+    ports:
+      - "3001:3001"
+    env_file:
+      - ./back/.env
+    environment:
+      NODE_ENV: development
+      PORT: 3001
+      FRONTEND_URL: http://localhost:3000
+      CORS_ORIGIN: http://localhost:3000
+    command: sh -c "npm install && npm run dev:docker"
+
+  front:
+    image: node:22-bookworm
+    container_name: pragmatienda-front
+    working_dir: /app/front
+    volumes:
+      - ./front:/app/front
+      - front_node_modules:/app/front/node_modules
+    ports:
+      - "3000:3000"
+    environment:
+      VITE_PROXY_API_TARGET: http://back:3001
+      CHOKIDAR_USEPOLLING: "true"
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    depends_on:
+      - back
+
+volumes:
+  back_node_modules:
+  front_node_modules:

@@ -502,6 +502,7 @@ async function resolveTenantFromHostname(hostname: string) {
   const data = result.data as {
     tenantId: string;
     businessName: string;
+    description?: string | null;
     logo?: string | null;
     banner?: string | null;
     favicon?: string | null;
@@ -514,6 +515,7 @@ async function resolveTenantFromHostname(hostname: string) {
         id: data.tenantId,
         name: capitalizeWords(data.businessName),
         slug: slugify(data.businessName),
+        description: data.description ?? undefined,
         logo: data.logo ?? undefined,
         banner: data.banner ?? undefined,
         favicon: data.favicon ?? undefined,

@@ -18,7 +18,8 @@
     "billing:sync-subscriptions": "tsx src/scripts/billing-subscription-sync.ts",
     "superadmin:token": "tsx src/scripts/superadmin-token.ts",
     "studio": "prisma studio",
-    "test": "vitest run"
+    "test": "vitest run",
+    "dev:docker": "nodemon --watch src --watch prisma --ext ts,json,env,prisma --legacy-watch --exec \"tsx src/server.ts\""
   },
   "keywords": [],
   "author": "",
@@ -66,6 +67,7 @@
     "@types/react-dom": "^19.2.3",
     "@types/sharp": "^0.31.1",
     "@types/swagger-ui-express": "^4.1.8",
+    "nodemon": "^3.1.9",
     "prisma": "^7.3.0",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",

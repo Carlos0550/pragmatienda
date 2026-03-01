@@ -62,6 +62,7 @@ export function normalizeResolvedTenant(response: TenantResolveResponse): Tenant
     id: tenantId,
     name: normalizedName,
     slug,
+    description: response.data.description ?? undefined,
     logo: response.data.logo ?? undefined,
     banner: response.data.banner ?? undefined,
     favicon: response.data.favicon ?? undefined,
