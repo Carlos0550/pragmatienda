@@ -129,9 +129,9 @@ class ApiService {
     return res.data;
   }
 
-  async postMultipart<T>(path: string, formData: FormData): Promise<T> {
+  async postMultipart<T>(path: string, formData: FormData, extraHeaders?: Record<string, string>): Promise<T> {
     const res = await this.client.post<T>(path, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
+      headers: { 'Content-Type': 'multipart/form-data', ...extraHeaders },
     });
     return res.data;
   }

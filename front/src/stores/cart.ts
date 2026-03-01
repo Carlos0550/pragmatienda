@@ -10,9 +10,10 @@ export const useCartStore = create<CartState>((set) => ({
     set({ loading: true });
     try {
       const cart = await http.cart.get();
+      console.log("cart", cart);
       set({ cart });
-    } catch {
-      // Cart might not exist yet
+    } catch (error) {
+      console.error("Error fetching cart", error);
     } finally {
       set({ loading: false });
     }
@@ -54,6 +55,16 @@ export const useCartStore = create<CartState>((set) => ({
     set({ cart: null, loading: false });
     return result;
   },
+
+  totalCartItems: () => {
+    const cart = useCartStore.getState().cart;
+    return cart?.items?.reduce((sum: number, item: CartItem) => sum + item.quantity, 0) || 0;
+  }, // total items in cart
+
+  totalCart: () => {
+    const cart = useCartStore.getState().cart;
+    return cart?.items?.reduce((sum: number, item: CartItem) => sum + item.product.price * item.quantity, 0) || 0;
+  } // total price of cart
 }));
 
 export function useCartItemCount(): number {

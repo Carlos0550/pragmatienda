@@ -129,7 +129,10 @@ export const http = {
     checkout: async (comprobante: File) => {
       const formData = new FormData();
       formData.append('comprobante', comprobante);
-      const response = await api.postMultipart<CartCheckoutResponse>('/cart/checkout', formData);
+      const idempotencyKey = crypto.randomUUID();
+      const response = await api.postMultipart<CartCheckoutResponse>('/cart/checkout', formData, {
+        'Idempotency-Key': idempotencyKey,
+      });
       return { orderId: response.data.order };
     },
   },

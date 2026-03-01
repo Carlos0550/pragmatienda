@@ -8,7 +8,7 @@ import { sileo } from 'sileo';
 import { motion } from 'framer-motion';
 
 export default function CheckoutPage() {
-  const { cart, checkout } = useCart();
+  const { cart, checkout, totalCart } = useCart();
   const navigate = useNavigate();
   const fileRef = useRef<HTMLInputElement>(null);
   const [comprobante, setComprobante] = useState<File | null>(null);
@@ -85,13 +85,13 @@ export default function CheckoutPage() {
         <h2 className="font-semibold">Resumen del pedido</h2>
         {cart.items.map((item) => (
           <div key={item.id} className="flex justify-between text-sm">
-            <span className="text-muted-foreground">{item.product.name} × {item.quantity}</span>
-            <span className="font-medium">${(item.product.price * item.quantity).toLocaleString()}</span>
+            <span className="text-muted-foreground">{item.product?.name ?? "Producto"} × {item.quantity}</span>
+            <span className="font-medium">${((item.product?.price ?? 0) * item.quantity).toLocaleString()}</span>
           </div>
         ))}
         <div className="border-t pt-3 flex justify-between font-bold text-lg">
           <span>Total</span>
-          <span>${cart.total.toLocaleString()}</span>
+          <span>{(totalCart ?? 0).toLocaleString("es-AR", { style: "currency", currency: "ARS" }) ?? "0"}</span>
         </div>
       </div>
 

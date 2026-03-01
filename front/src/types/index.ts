@@ -367,4 +367,6 @@ export interface CartState {
   updateItem: (productId: string, quantity: number) => Promise<void>;
   removeItem: (productId: string) => Promise<void>;
   checkout: (comprobante: File) => Promise<{ orderId: string }>;
+  totalCartItems: () => number;
+  totalCart: () => number;
 }

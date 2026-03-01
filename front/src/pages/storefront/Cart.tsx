@@ -5,9 +5,11 @@ import { useCart } from '@/contexts/CartContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
+import { capitalizeName } from '@/lib/utils';
+import { StorefrontLoader } from '@/components/StorefrontLoader';
 
 export default function CartPage() {
-  const { cart, itemCount, loading, fetchCart, updateItem, removeItem } = useCart();
+  const { cart, itemCount, loading, fetchCart, updateItem, removeItem, totalCartItems, totalCart } = useCart();
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -26,6 +28,12 @@ export default function CartPage() {
     );
   }
 
+  if(loading) {
+    return (
+      <StorefrontLoader message="Cargando tu carrito..." />
+    );
+  }
+
   if (!cart || cart.items.length === 0) {
     return (
       <div className="container mx-auto px-4 py-16 text-center">
@@ -39,7 +47,7 @@ export default function CartPage() {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold mb-8">Tu Carrito ({itemCount} items)</h1>
+      <h1 className="text-2xl font-bold mb-8">Tu Carrito ({totalCartItems} items)</h1>
 
       <div className="grid lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-3">
@@ -61,8 +69,8 @@ export default function CartPage() {
                 )}
               </div>
               <div className="flex-1 min-w-0">
-                <h3 className="font-medium text-sm truncate">{item.product.name}</h3>
-                <p className="text-lg font-bold mt-1">${item.product.price.toLocaleString()}</p>
+                <h3 className="font-medium text-sm truncate">{capitalizeName(item.product.name || "") || "Producto sin nombre"}</h3>
+                <p className="text-lg font-bold mt-1">${item.product.price.toLocaleString() || "0.00"}</p>
               </div>
               <div className="flex flex-col items-end gap-2">
                 <button onClick={() => removeItem(item.productId)} className="text-muted-foreground hover:text-primary transition-colors">
@@ -88,13 +96,13 @@ export default function CartPage() {
             <h2 className="font-semibold">Resumen del pedido</h2>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Subtotal</span>
-              <span className="font-medium">${cart.total.toLocaleString()}</span>
+              <span className="font-medium">{totalCart.toLocaleString("es-AR", { style: "currency", currency: "ARS" }) ?? "0.00"}</span>
             </div>
             <div className="border-t pt-4 flex justify-between text-lg font-bold">
               <span>Total</span>
-              <span>${cart.total.toLocaleString()}</span>
+              <span className="font-medium">{totalCart.toLocaleString("es-AR", { style: "currency", currency: "ARS" }) ?? "0.00"}</span>
             </div>
-            <Button className="w-full gap-2" size="lg" onClick={() => navigate('/checkout')}>
+            <Button className="w-full gap-2" size="lg" onClick={() => navigate("/checkout")}>
               Finalizar compra <ArrowRight className="h-4 w-4" />
             </Button>
           </div>
