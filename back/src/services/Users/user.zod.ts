@@ -1,9 +1,14 @@
 import { z } from "zod";
 
+const optionalPhone = z.preprocess(
+  (val) => (val === "" || val == null ? undefined : val),
+  z.string().min(10).max(15).optional()
+);
+
 export const publicRegisterUserSchema = z.object({
     name: z.string().min(3),
     email: z.string().email(),
-    phone: z.string().min(10).max(15).optional()
+    phone: optionalPhone
 }).strict();
 
 export const loginSchema = z.object({
@@ -23,7 +28,7 @@ export const recoverPasswordSchema = z.object({
 export const updateUserSchema = z.object({
     name: z.string().min(3).optional(),
     email: z.string().email().optional(),
-    phone: z.string().min(10).max(15).optional()
+    phone: optionalPhone
 }).strict();
 
 export const updateAvatarSchema = z.object({
