@@ -112,12 +112,18 @@ model BusinessData {
   name      String
   description String?
   address String?
+  province String?
+  country String @default("Argentina")
   phone String?
   email String?
   website String?
   logo String?
   favicon String?
   banner String?
+  mainBanner String?
+  banners Json?
+  seoImage String?
+  seoDescription String?
   socialMedia Json?
   bankOptions Json?
   tenantId  String   @unique

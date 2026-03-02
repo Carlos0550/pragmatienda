@@ -54,14 +54,26 @@ export interface SocialLinks {
   whatsapp?: string;
 }
 
+export interface BusinessBanner {
+  url: string;
+  order: number;
+}
+
 export interface Tenant {
   id: string;
   name: string;
   slug: string;
   logo?: string;
   banner?: string;
+  mainBanner?: string;
+  banners?: BusinessBanner[];
+  seoImage?: string;
   favicon?: string;
   description?: string;
+  seoDescription?: string;
+  address?: string;
+  province?: string;
+  country?: string;
   socialLinks?: SocialLinks;
   bankOptions?: BankOption[];
 }
@@ -174,7 +186,7 @@ export interface Subscription {
   planId: string;
   plan: Plan;
   status: string;
-  currentPeriodEnd: string;
+  currentPeriodEnd: string | null;
 }
 
 export interface BillingSubscriptionCreateData {
@@ -263,6 +275,13 @@ export type TenantResolveResponse = ApiEnvelope<{
   logo?: string | null;
   banner?: string | null;
   favicon?: string | null;
+  mainBanner?: string | null;
+  banners?: BusinessBanner[] | null;
+  seoImage?: string | null;
+  seoDescription?: string | null;
+  address?: string | null;
+  province?: string | null;
+  country?: string | null;
   socialMedia?: SocialLinks | null;
 }>;
 export type ProductsListResponse = PaginatedResponse<Product>;
@@ -290,16 +309,24 @@ export type NavLinkCompatProps = Omit<NavLinkProps, 'className'> & {
 export interface BusinessFormState {
   logo: string;
   banner: string;
+  mainBanner: string;
+  seoImage: string;
   favicon: string;
+  address: string;
+  province: string;
+  seoDescription: string;
   facebook: string;
   instagram: string;
   whatsapp: string;
+  banners: BusinessBanner[];
   bankOptions: BankOption[];
 }
 
 export interface BusinessPreviewsState {
   logo: string;
   banner: string;
+  mainBanner: string;
+  seoImage: string;
   favicon: string;
 }
 

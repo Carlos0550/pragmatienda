@@ -34,6 +34,7 @@ MP_ENV=sandbox
 MP_BILLING_ACCESS_TOKEN=
 MP_BILLING_SUCCESS_URL=
 MP_BILLING_REASON_PREFIX=Pragmatienda
+MP_BILLING_SEND_PAYER_EMAIL=
 
 # Política de acceso para estados past_due
 BILLING_ALLOW_PAST_DUE=false
@@ -45,6 +46,8 @@ BACKEND_URL=
 Notas:
 - `MP_CLIENT_ID/SECRET/REDIRECT_URI` -> OAuth marketplace.
 - `MP_BILLING_ACCESS_TOKEN` -> token fijo de la cuenta plataforma para billing.
+- `MP_BILLING_SEND_PAYER_EMAIL` -> opcional. Si no se define, en `MP_ENV=sandbox` se envía `false` y en `MP_ENV=production` se envía `true`.
+- `MP_BILLING_SEND_PAYER_EMAIL=false` -> útil en sandbox para no forzar que el pagador use el mismo email del owner del tenant.
 - `MP_WEBHOOK_SECRET` -> valida firma `x-signature` (si está vacío, no valida).
 
 ## 3) Qué traer de Mercado Pago (panel)
@@ -107,6 +110,11 @@ Requisitos:
 - `PATCH /api/payments/billing/subscriptions/current/plan`
 - `POST /api/payments/billing/sync`
 
+Requisitos para crear suscripción:
+- `x-tenant-id`
+- `Authorization: Bearer ...`
+- `Idempotency-Key`
+
 ## Webhook global
 
 - `POST /api/payments/webhooks/mercadopago`
@@ -154,4 +162,3 @@ Requisitos:
   - tabla `SubscriptionEvent`
 - Idempotencia / eventos webhook:
   - `IdempotencyKey`, `PaymentEvent`
-

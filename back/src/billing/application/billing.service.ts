@@ -14,6 +14,12 @@ const toJsonValue = (value: unknown) =>
 const webhookEventId = (subscriptionId: string, webhookId: string) =>
   `preapproval:${subscriptionId}:${webhookId || "unknown"}`;
 
+const REUSABLE_SUBSCRIPTION_STATUSES = new Set<BillingStatus>([
+  BillingStatus.ACTIVE,
+  BillingStatus.TRIALING,
+  BillingStatus.PAST_DUE
+]);
+
 export class BillingService {
   constructor(
     private readonly repository: PrismaBillingRepository,
@@ -48,6 +54,21 @@ export class BillingService {
       throw new BillingError(400, "PLAN_UNAVAILABLE", "El plan FREE no requiere suscripción de cobro.");
     }
 
+    const currentSubscription = await this.repository.getCurrentSubscriptionForTenant(tenantId);
+    if (currentSubscription && REUSABLE_SUBSCRIPTION_STATUSES.has(currentSubscription.status)) {
+      logger.info("Billing: se reutiliza suscripción existente", {
+        tenantId,
+        subscriptionId: currentSubscription.id,
+        status: currentSubscription.status
+      });
+      return {
+        created: false,
+        subscriptionId: currentSubscription.id,
+        externalSubscriptionId: currentSubscription.externalSubscriptionId,
+        initPoint: null
+      };
+    }
+
     const storeSuccessUrl = tenant.businessData?.website
       ? `${tenant.businessData.website.replace(/\/$/, "")}/admin/billing`
       : tenant.businessData?.name
@@ -75,6 +96,7 @@ export class BillingService {
       });
       if (billing.initPoint) {
         return {
+          created: true,
           subscriptionId: null,
           externalSubscriptionId: null,
           initPoint: billing.initPoint
@@ -102,6 +124,7 @@ export class BillingService {
     );
 
     return {
+      created: true,
       subscriptionId: subscription.id,
       externalSubscriptionId: billing.externalSubscriptionId,
       initPoint: billing.initPoint
@@ -313,7 +336,7 @@ export class BillingService {
   }
 
   async syncActiveSubscriptionsJob() {
-    const statuses: Array<"authorized" | "pending"> = ["authorized", "pending"];
+    const statuses = ["authorized", "pending", "paused", "cancelled", "expired"] as const;
     let processed = 0;
 
     for (const status of statuses) {
@@ -386,7 +409,7 @@ export class BillingService {
       planId: sub.planId,
       plan: this.mapPlanToResponse(sub.plan),
       status: sub.status,
-      currentPeriodEnd: sub.currentPeriodEnd?.toISOString() ?? new Date().toISOString(),
+      currentPeriodEnd: sub.currentPeriodEnd?.toISOString() ?? null,
     };
   }
 

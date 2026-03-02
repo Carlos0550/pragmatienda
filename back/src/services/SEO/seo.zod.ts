@@ -13,3 +13,9 @@ export const metadataSchema = z.object({
 }).passthrough();
 
 export type MetadataSchema = z.infer<typeof metadataSchema>;
+
+export const businessSeoDescriptionSchema = z.object({
+  description: z.string().min(40).max(220),
+}).strict();
+
+export type BusinessSeoDescription = z.infer<typeof businessSeoDescriptionSchema>;

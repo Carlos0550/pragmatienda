@@ -3,6 +3,7 @@ import { z } from "zod";
 import { logger } from "../config/logger";
 import { BillingError } from "../billing/domain/billing-errors";
 import { billingService } from "../billing/application/billing.service";
+import { persistIdempotencyResponse } from "../middlewares";
 
 const planIdSchema = z.object({
   planId: z.string().cuid()
@@ -25,10 +26,17 @@ class BillingController {
       }
 
       const result = await billingService.createSubscriptionByPlanId(tenantId, parsed.data.planId);
-      return res.status(201).json({
-        message: "Suscripción creada.",
-        data: result
-      });
+      const responseBody = {
+        message: result.created ? "Suscripción creada." : "Suscripción existente reutilizada.",
+        data: {
+          subscriptionId: result.subscriptionId,
+          externalSubscriptionId: result.externalSubscriptionId,
+          initPoint: result.initPoint
+        }
+      };
+      const statusCode = result.created ? 201 : 200;
+      await persistIdempotencyResponse(req, statusCode, responseBody);
+      return res.status(statusCode).json(responseBody);
     } catch (error) {
       if (error instanceof BillingError) {
         return res.status(error.status).json({

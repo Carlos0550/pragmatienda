@@ -1,5 +1,12 @@
 import { PlanType } from "@prisma/client";
 
+export type MercadoPagoPreapprovalSearchStatus =
+  | "authorized"
+  | "pending"
+  | "paused"
+  | "cancelled"
+  | "expired";
+
 export type BillingPlanInput = {
   code: PlanType;
   name: string;
@@ -58,5 +65,7 @@ export interface BillingProvider {
     amount: number,
     currency: string
   ): Promise<void>;
-  searchSubscriptionsByStatus(status: "authorized" | "pending"): Promise<BillingSubscriptionSnapshot[]>;
+  searchSubscriptionsByStatus(
+    status: MercadoPagoPreapprovalSearchStatus
+  ): Promise<BillingSubscriptionSnapshot[]>;
 }

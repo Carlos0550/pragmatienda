@@ -3,6 +3,14 @@ import { http } from '@/services/http';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { sileo } from 'sileo';
 import { toFormErrors } from '@/lib/api-utils';
 import type { ApiError, BankOption, BusinessFormState, BusinessPreviewsState, FormErrors } from '@/types';
@@ -42,16 +50,32 @@ function normalizeBankOptions(bankOptions: BankOption[]) {
 
 export default function BusinessPage() {
   const [form, setForm] = useState<BusinessFormState>({
-    logo: '', banner: '', favicon: '',
+    logo: '', banner: '', mainBanner: '', seoImage: '', favicon: '',
+    address: '', province: '', seoDescription: '',
     facebook: '', instagram: '', whatsapp: '',
+    banners: [],
     bankOptions: [],
   });
-  const [previews, setPreviews] = useState<BusinessPreviewsState>({ logo: '', banner: '', favicon: '' });
+  const [previews, setPreviews] = useState<BusinessPreviewsState>({
+    logo: '', banner: '', mainBanner: '', seoImage: '', favicon: ''
+  });
   const [initial, setInitial] = useState<typeof form | null>(null);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
+  const [seoModalOpen, setSeoModalOpen] = useState(false);
+  const [seoAssistantLoading, setSeoAssistantLoading] = useState(false);
+  const [seoAssistant, setSeoAssistant] = useState({
+    businessSummary: '',
+    offerAndDifferential: '',
+    shipsNationwide: false,
+    hasPhysicalStore: false,
+    physicalStoreLocation: '',
+  });
   const logoRef = useRef<HTMLInputElement>(null);
   const bannerRef = useRef<HTMLInputElement>(null);
+  const mainBannerRef = useRef<HTMLInputElement>(null);
+  const bannersRef = useRef<HTMLInputElement>(null);
+  const seoImageRef = useRef<HTMLInputElement>(null);
   const faviconRef = useRef<HTMLInputElement>(null);
   const previewsRef = useRef(previews);
 
@@ -60,10 +84,16 @@ export default function BusinessPage() {
       const next = {
         logo: data.logo || '',
         banner: data.banner || '',
+        mainBanner: data.mainBanner || data.banner || '',
+        seoImage: data.seoImage || '',
         favicon: data.favicon || '',
+        address: data.address || '',
+        province: data.province || '',
+        seoDescription: data.seoDescription || '',
         facebook: data.socialLinks?.facebook || '',
         instagram: data.socialLinks?.instagram || '',
         whatsapp: data.socialLinks?.whatsapp || '',
+        banners: Array.isArray(data.banners) ? data.banners : [],
         bankOptions: Array.isArray(data.bankOptions) ? data.bankOptions : [],
       };
       setForm(next);
@@ -93,6 +123,9 @@ export default function BusinessPage() {
       const normalizedBankOptions = normalizeBankOptions(form.bankOptions);
       const logoFile = logoRef.current?.files?.[0];
       const bannerFile = bannerRef.current?.files?.[0];
+      const mainBannerFile = mainBannerRef.current?.files?.[0];
+      const bannersFiles = Array.from(bannersRef.current?.files ?? []);
+      const seoImageFile = seoImageRef.current?.files?.[0];
       const faviconFile = faviconRef.current?.files?.[0];
 
       if (normalizedBankOptions.hasPartial) {
@@ -116,12 +149,36 @@ export default function BusinessPage() {
         formData.append('bankOptions', JSON.stringify(normalizedBankOptions.items));
         hasChanges = true;
       }
+      if (form.address.trim() !== (initial?.address ?? '').trim()) {
+        formData.append('address', form.address.trim());
+        hasChanges = true;
+      }
+      if (form.province.trim() !== (initial?.province ?? '').trim()) {
+        formData.append('province', form.province.trim());
+        hasChanges = true;
+      }
+      if (form.seoDescription.trim() !== (initial?.seoDescription ?? '').trim()) {
+        formData.append('seoDescription', form.seoDescription.trim());
+        hasChanges = true;
+      }
       if (logoFile) {
         formData.append('logo', logoFile);
         hasChanges = true;
       }
       if (bannerFile) {
         formData.append('banner', bannerFile);
+        hasChanges = true;
+      }
+      if (mainBannerFile) {
+        formData.append('mainBanner', mainBannerFile);
+        hasChanges = true;
+      }
+      if (bannersFiles.length > 0) {
+        bannersFiles.forEach((file) => formData.append('banners', file));
+        hasChanges = true;
+      }
+      if (seoImageFile) {
+        formData.append('seoImage', seoImageFile);
         hasChanges = true;
       }
       if (faviconFile) {
@@ -141,17 +198,26 @@ export default function BusinessPage() {
       const next = {
         logo: data.logo || '',
         banner: data.banner || '',
+        mainBanner: data.mainBanner || data.banner || '',
+        seoImage: data.seoImage || '',
         favicon: data.favicon || '',
+        address: data.address || '',
+        province: data.province || '',
+        seoDescription: data.seoDescription || '',
         facebook: data.socialLinks?.facebook || '',
         instagram: data.socialLinks?.instagram || '',
         whatsapp: data.socialLinks?.whatsapp || '',
+        banners: Array.isArray(data.banners) ? data.banners : [],
         bankOptions: Array.isArray(data.bankOptions) ? data.bankOptions : [],
       };
       setForm(next);
       setInitial(next);
-      setPreviews({ logo: '', banner: '', favicon: '' });
+      setPreviews({ logo: '', banner: '', mainBanner: '', seoImage: '', favicon: '' });
       if (logoRef.current) logoRef.current.value = '';
       if (bannerRef.current) bannerRef.current.value = '';
+      if (mainBannerRef.current) mainBannerRef.current.value = '';
+      if (bannersRef.current) bannersRef.current.value = '';
+      if (seoImageRef.current) seoImageRef.current.value = '';
       if (faviconRef.current) faviconRef.current.value = '';
     } catch (err) {
       const apiErr = err as ApiError;
@@ -165,7 +231,7 @@ export default function BusinessPage() {
     }
   };
 
-  const handleChange = (field: keyof Pick<BusinessFormState, 'facebook' | 'instagram' | 'whatsapp'>) => (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (field: keyof Pick<BusinessFormState, 'facebook' | 'instagram' | 'whatsapp' | 'address' | 'province' | 'seoDescription'>) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setForm((prev) => ({ ...prev, [field]: e.target.value }));
   };
 
@@ -190,7 +256,7 @@ export default function BusinessPage() {
     }));
   };
 
-  const handleFileChange = (field: 'logo' | 'banner' | 'favicon') => (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (field: 'logo' | 'banner' | 'mainBanner' | 'seoImage' | 'favicon') => (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     setPreviews((prev) => {
       const next = { ...prev };
@@ -202,7 +268,39 @@ export default function BusinessPage() {
 
   const logoSrc = previews.logo || form.logo;
   const bannerSrc = previews.banner || form.banner;
+  const mainBannerSrc = previews.mainBanner || form.mainBanner;
+  const seoImageSrc = previews.seoImage || form.seoImage;
   const faviconSrc = previews.favicon || form.favicon;
+
+  const handleImproveSeoWithIa = async () => {
+    try {
+      setSeoAssistantLoading(true);
+      const payload = {
+        currentText: form.seoDescription.trim() || undefined,
+        businessSummary: seoAssistant.businessSummary.trim() || undefined,
+        businessDetails: seoAssistant.offerAndDifferential.trim() || undefined,
+        productsOrServices: seoAssistant.offerAndDifferential.trim() || undefined,
+        shipsNationwide: seoAssistant.shipsNationwide,
+        hasPhysicalStore: seoAssistant.hasPhysicalStore,
+        physicalStoreLocation:
+          seoAssistant.hasPhysicalStore && seoAssistant.physicalStoreLocation.trim()
+            ? seoAssistant.physicalStoreLocation.trim()
+            : undefined,
+      };
+      const result = await http.business.improveSeoDescription(payload);
+      setForm((prev) => ({
+        ...prev,
+        seoDescription: result.data.seoDescription || prev.seoDescription,
+      }));
+      setSeoModalOpen(false);
+      sileo.success({ title: 'Descripción SEO mejorada con IA' });
+    } catch (err) {
+      const apiErr = err as ApiError;
+      sileo.error({ title: apiErr.message || 'No se pudo mejorar con IA' });
+    } finally {
+      setSeoAssistantLoading(false);
+    }
+  };
 
   return (
     <div className="w-full max-w-7xl space-y-6">
@@ -233,6 +331,24 @@ export default function BusinessPage() {
               />
             </div>
             <div className="space-y-2">
+              <Label>Banner principal</Label>
+              <div className="mb-2 rounded-lg border bg-muted/30 p-3 min-h-[160px]">
+                {mainBannerSrc ? (
+                  <img src={mainBannerSrc} alt="Banner principal" className="h-28 w-full object-cover rounded" />
+                ) : (
+                  <p className="text-xs text-muted-foreground">Sin banner principal cargado</p>
+                )}
+                {previews.mainBanner && <p className="mt-2 text-[11px] text-muted-foreground">Previsualización</p>}
+              </div>
+              <Input
+                ref={mainBannerRef}
+                type="file"
+                accept="image/*"
+                className="cursor-pointer"
+                onChange={handleFileChange('mainBanner')}
+              />
+            </div>
+            <div className="space-y-2">
               <Label>Banner</Label>
               <div className="mb-2 rounded-lg border bg-muted/30 p-3 min-h-[160px]">
                 {bannerSrc ? (
@@ -248,6 +364,39 @@ export default function BusinessPage() {
                 accept="image/*"
                 className="cursor-pointer"
                 onChange={handleFileChange('banner')}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Banners secundarios (carousel)</Label>
+              <Input
+                ref={bannersRef}
+                type="file"
+                accept="image/*"
+                className="cursor-pointer"
+                multiple
+              />
+              {form.banners.length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Actualmente hay {form.banners.length} banners secundarios cargados.
+                </p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label>Imagen SEO (Open Graph/Twitter)</Label>
+              <div className="mb-2 rounded-lg border bg-muted/30 p-3 min-h-[160px]">
+                {seoImageSrc ? (
+                  <img src={seoImageSrc} alt="Imagen SEO" className="h-28 w-full object-cover rounded" />
+                ) : (
+                  <p className="text-xs text-muted-foreground">Sin imagen SEO cargada</p>
+                )}
+                {previews.seoImage && <p className="mt-2 text-[11px] text-muted-foreground">Previsualización</p>}
+              </div>
+              <Input
+                ref={seoImageRef}
+                type="file"
+                accept="image/*"
+                className="cursor-pointer"
+                onChange={handleFileChange('seoImage')}
               />
             </div>
             <div className="space-y-2">
@@ -273,6 +422,28 @@ export default function BusinessPage() {
           <div className="space-y-5">
             <div className="space-y-4">
               <h3 className="font-semibold text-sm">Redes sociales</h3>
+              <div className="space-y-2">
+                <Label>Dirección</Label>
+                <Input value={form.address} onChange={handleChange('address')} placeholder="Calle 123" />
+              </div>
+              <div className="space-y-2">
+                <Label>Provincia</Label>
+                <Input value={form.province} onChange={handleChange('province')} placeholder="Buenos Aires" />
+              </div>
+              <div className="space-y-2">
+                <Label>SEO description</Label>
+                <textarea
+                  value={form.seoDescription}
+                  onChange={handleChange('seoDescription')}
+                  className="w-full min-h-24 rounded-md border bg-background px-3 py-2 text-sm"
+                  placeholder="Descripción breve para metatags y compartidos."
+                />
+                <div className="flex justify-end">
+                  <Button type="button" variant="outline" size="sm" onClick={() => setSeoModalOpen(true)}>
+                    Mejorar con IA
+                  </Button>
+                </div>
+              </div>
               <div className="space-y-2">
                 <Label>Facebook</Label>
                 <Input value={form.facebook} onChange={handleChange('facebook')} placeholder="https://facebook.com/..." />
@@ -354,6 +525,73 @@ export default function BusinessPage() {
           {loading ? 'Guardando...' : 'Guardar Cambios'}
         </Button>
       </form>
+
+      <Dialog open={seoModalOpen} onOpenChange={setSeoModalOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Mejorar descripción SEO con IA</DialogTitle>
+            <DialogDescription>
+              Contá brevemente sobre tu negocio y vamos a generar una mejor descripción para metatags y compartidos.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label>¿Qué es tu negocio?</Label>
+              <Input
+                value={seoAssistant.businessSummary}
+                onChange={(e) => setSeoAssistant((prev) => ({ ...prev, businessSummary: e.target.value }))}
+                placeholder="Ej: Tienda de indumentaria urbana"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>¿Qué vendés/ofrecés y qué te diferencia?</Label>
+              <Input
+                value={seoAssistant.offerAndDifferential}
+                onChange={(e) => setSeoAssistant((prev) => ({ ...prev, offerAndDifferential: e.target.value }))}
+                placeholder="Ej: Joyas, relojes y accesorios; atención personalizada y envíos rápidos"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                id="shipsNationwide"
+                type="checkbox"
+                checked={seoAssistant.shipsNationwide}
+                onChange={(e) => setSeoAssistant((prev) => ({ ...prev, shipsNationwide: e.target.checked }))}
+              />
+              <Label htmlFor="shipsNationwide">¿Hacés envíos nacionales?</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                id="hasPhysicalStore"
+                type="checkbox"
+                checked={seoAssistant.hasPhysicalStore}
+                onChange={(e) => setSeoAssistant((prev) => ({ ...prev, hasPhysicalStore: e.target.checked }))}
+              />
+              <Label htmlFor="hasPhysicalStore">¿Tenés local físico?</Label>
+            </div>
+            {seoAssistant.hasPhysicalStore && (
+              <div className="space-y-1">
+                <Label>¿Dónde queda el local?</Label>
+                <Input
+                  value={seoAssistant.physicalStoreLocation}
+                  onChange={(e) => setSeoAssistant((prev) => ({ ...prev, physicalStoreLocation: e.target.value }))}
+                  placeholder="Ej: Posadas, Misiones"
+                />
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setSeoModalOpen(false)} disabled={seoAssistantLoading}>
+              Cancelar
+            </Button>
+            <Button type="button" onClick={handleImproveSeoWithIa} disabled={seoAssistantLoading}>
+              {seoAssistantLoading ? 'Generando...' : 'Generar descripción'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

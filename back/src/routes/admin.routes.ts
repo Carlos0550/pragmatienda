@@ -24,6 +24,7 @@ import {
   deleteBulkSchema,
   listProductsQuerySchema
 } from "../services/Products/products.zod";
+import { improveBusinessSeoDescriptionSchema } from "../services/Business/business.zod";
 
 openApiRegistry.registerPath({
   method: "put",
@@ -40,7 +41,9 @@ openApiRegistry.registerPath({
           schema: z.object({
             name: z.string().optional(),
             description: z.string().optional(),
+            seoDescription: z.string().optional(),
             address: z.string().optional(),
+            province: z.string().optional(),
             phone: z.string().optional(),
             email: z.string().optional(),
             website: z.string().optional(),
@@ -52,6 +55,9 @@ openApiRegistry.registerPath({
             }),
             logo: z.any().optional().openapi({ type: "string", format: "binary" }),
             banner: z.any().optional().openapi({ type: "string", format: "binary" }),
+            mainBanner: z.any().optional().openapi({ type: "string", format: "binary" }),
+            banners: z.any().optional().openapi({ type: "string", format: "binary" }),
+            seoImage: z.any().optional().openapi({ type: "string", format: "binary" }),
             favicon: z.any().optional().openapi({ type: "string", format: "binary" })
           })
         }
@@ -99,6 +105,30 @@ openApiRegistry.registerPath({
     "200": {
       description: "Contraseña actualizada correctamente"
     }
+  }
+});
+
+openApiRegistry.registerPath({
+  method: "post",
+  path: "/admin/business/seo-description/improve",
+  tags: ["Business"],
+  summary: "Mejorar descripción SEO del negocio con IA",
+  request: {
+    headers: z.object({
+      "x-tenant-id": z.string(),
+      "Authorization": z.string()
+    }),
+    body: {
+      content: {
+        "application/json": {
+          schema: improveBusinessSeoDescriptionSchema
+        }
+      }
+    }
+  },
+  responses: {
+    "200": { description: "Descripción SEO mejorada" },
+    "400": { description: "Datos inválidos" }
   }
 });
 
@@ -306,6 +336,7 @@ router.get("/business", requireTenant, requireRole([1]), businessController.getB
 router.get("/mercadopago/status", requireTenant, requireRole([1]), paymentsController.getMercadoPagoStatus);
 router.get("/mercadopago/connect-url", requireTenant, requireRole([1]), paymentsController.getMercadoPagoConnectUrl);
 router.put("/business/manage", requireTenant, requireRole([1]), uploadBusinessAssetsMiddleware, businessController.manageBusiness);
+router.post("/business/seo-description/improve", requireTenant, requireRole([1]), businessController.improveSeoDescription);
 
 // Categorías
 router.get(

@@ -13,6 +13,19 @@ const booleanFromString = z.preprocess((value) => {
   return value;
 }, z.boolean());
 
+const booleanOptionalFromString = z.preprocess((value) => {
+  if (value === undefined || value === null || value === "") {
+    return undefined;
+  }
+  if (value === "true" || value === true) {
+    return true;
+  }
+  if (value === "false" || value === false) {
+    return false;
+  }
+  return value;
+}, z.boolean().optional());
+
 const numberOptionalFromString = z.preprocess((value) => {
   if (value === undefined || value === null || value === "") {
     return undefined;
@@ -51,6 +64,7 @@ const schema = z.object({
   MP_BILLING_ACCESS_TOKEN: z.string().optional(),
   MP_BILLING_SUCCESS_URL: z.string().url().optional(),
   MP_BILLING_REASON_PREFIX: z.string().default("Pragmatienda"),
+  MP_BILLING_SEND_PAYER_EMAIL: booleanOptionalFromString,
   MP_WEBHOOK_SECRET: z.string().optional(),
   BILLING_ALLOW_PAST_DUE: booleanFromString.default(false)
 });
@@ -68,9 +82,11 @@ const mailProvider =
 const minioPublicUrl =
   data.MINIO_PUBLIC_URL ??
   `http${data.MINIO_USE_SSL ? "s" : ""}://${data.MINIO_ENDPOINT}:${data.MINIO_PORT}`;
+const mpBillingSendPayerEmail = data.MP_BILLING_SEND_PAYER_EMAIL ?? data.MP_ENV === "production";
 
 export const env = {
   ...data,
   MAIL_PROVIDER: mailProvider,
-  MINIO_PUBLIC_URL: minioPublicUrl
+  MINIO_PUBLIC_URL: minioPublicUrl,
+  MP_BILLING_SEND_PAYER_EMAIL: mpBillingSendPayerEmail
 };

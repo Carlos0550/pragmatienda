@@ -78,11 +78,13 @@ export default function MercadoPagoPage() {
             )}
           </div>
         </div>
-        {subscription?.currentPeriodEnd && (
+        {subscription?.currentPeriodEnd ? (
           <p className="text-xs text-muted-foreground">
             Próximo vencimiento: {new Date(subscription.currentPeriodEnd).toLocaleDateString()}
           </p>
-        )}
+        ) : subscription ? (
+          <p className="text-xs text-muted-foreground">Sin fecha de vencimiento definida</p>
+        ) : null}
         {!loading && !subscription && (
           <Button variant="outline" size="sm" asChild>
             <Link to="/admin/billing">Ver planes y suscripción</Link>

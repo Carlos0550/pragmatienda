@@ -1,7 +1,13 @@
 import { Request, Response } from "express";
 import { logger } from "../config/logger";
 import { businessService } from "../services/Business/business.service";
-import { createBusinessTenantSchema, loginBusinessSchema, resolveTenantByStoreUrlSchema, updateBusinessSchema } from "../services/Business/business.zod";
+import {
+  createBusinessTenantSchema,
+  improveBusinessSeoDescriptionSchema,
+  loginBusinessSchema,
+  resolveTenantByStoreUrlSchema,
+  updateBusinessSchema,
+} from "../services/Business/business.zod";
 import { normalizeText, removeSpaces, toE164Argentina } from "../utils/normalization.utils";
 import { changePasswordSchema, recoverPasswordSchema } from "../services/Users/user.zod";
 import { userService } from "../services/Users/user.service";
@@ -20,7 +26,8 @@ class BusinessController {
 
       const payload = {
         name: removeSpaces(normalizeText(parsed.data.name)),
-        address: normalizeText(parsed.data.address),
+        ...(parsed.data.address ? { address: normalizeText(parsed.data.address) } : {}),
+        ...(parsed.data.province ? { province: normalizeText(parsed.data.province) } : {}),
         phone: toE164Argentina(normalizeText(parsed.data.phone)) ?? parsed.data.phone,
         adminEmail: parsed.data.adminEmail.toLowerCase(),
         adminName: parsed.data.adminName
@@ -81,6 +88,9 @@ class BusinessController {
       const uploadedFiles = (req.files as Record<string, Express.Multer.File[]>) ?? {};
       const logo = uploadedFiles.logo?.[0];
       const banner = uploadedFiles.banner?.[0];
+      const mainBanner = uploadedFiles.mainBanner?.[0];
+      const banners = uploadedFiles.banners ?? [];
+      const seoImage = uploadedFiles.seoImage?.[0];
       const favicon = uploadedFiles.favicon?.[0]; 
 
       let socialMedia: unknown = req.body.socialMedia;
@@ -116,6 +126,9 @@ class BusinessController {
         socialMedia,
         bankOptions,
         logo,
+        mainBanner,
+        banners,
+        seoImage,
         banner,
         favicon
       });
@@ -154,6 +167,30 @@ class BusinessController {
     } catch (error) {
       const err = error as Error;
       logger.error("Error catched en loginBusiness controller: ", err.message);
+      return res.status(500).json({ message: "Error interno del servidor, por favor intente nuevamente." });
+    }
+  }
+
+  async improveSeoDescription(req: Request, res: Response): Promise<Response> {
+    try {
+      if (!req.tenantId) {
+        return res.status(400).json({ message: "Tenant requerido." });
+      }
+      const parsed = improveBusinessSeoDescriptionSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({
+          message: "Datos invalidos.",
+          err: parsed.error.flatten().fieldErrors,
+        });
+      }
+      const result = await businessService.improveSeoDescriptionForTenant(
+        req.tenantId,
+        parsed.data,
+      );
+      return res.status(result.status).json(result);
+    } catch (error) {
+      const err = error as Error;
+      logger.error("Error catched en improveSeoDescription controller: ", err.message);
       return res.status(500).json({ message: "Error interno del servidor, por favor intente nuevamente." });
     }
   }

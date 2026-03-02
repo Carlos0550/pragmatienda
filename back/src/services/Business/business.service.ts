@@ -9,6 +9,7 @@ import { prisma } from "../../db/prisma";
 import { generateSecureString } from "../../utils/security.utils";
 import {
   createBusinessTenantSchema,
+  improveBusinessSeoDescriptionSchema,
   loginBusinessSchema,
 } from "./business.zod";
 import { z } from "zod";
@@ -27,11 +28,20 @@ import {
 } from "../../storage/minio";
 import path from "path";
 import { updateBusinessSchema } from "./business.zod";
+import {
+  generateBusinessSeoDescription,
+  improveBusinessSeoDescription,
+} from "../SEO/seo.service";
 
 type BankOption = {
   bankName: string;
   recipientName: string;
   aliasCvuCbu: string;
+};
+
+type BusinessBanner = {
+  url: string;
+  order: number;
 };
 
 class BusinessService {
@@ -45,6 +55,12 @@ class BusinessService {
       const website = businessNameForWebsite
         ? `https://${businessNameForWebsite}.pragmatienda.com`
         : undefined;
+      const generatedSeoDescription = await generateBusinessSeoDescription({
+        businessName: capitalizeWords(data.name),
+        address: data.address,
+        province: data.province,
+        country: "Argentina",
+      });
 
       const transactionResult = await prisma.$transaction(async (tx) => {
         const existingBusiness = await tx.businessData.findFirst({
@@ -93,6 +109,11 @@ class BusinessService {
             name: businessNameForWebsite,
             website: website,
             address: data.address ? normalizeText(data.address) : undefined,
+            province: data.province ? normalizeText(data.province) : undefined,
+            country: "Argentina",
+            seoDescription:
+              generatedSeoDescription ??
+              `Compra en ${capitalizeWords(data.name)}. Tienda online en Argentina con catálogo actualizado y atención personalizada.`,
             phone: data.phone,
           },
         });
@@ -118,7 +139,7 @@ class BusinessService {
         plainPassword: secureString,
         business: {
           name: capitalizeWords(data.name),
-          address: capitalizeWords(data.address),
+          address: data.address ? capitalizeWords(data.address) : "",
           website: website,
           phone: data.phone,
           email: data.adminEmail,
@@ -204,7 +225,14 @@ class BusinessService {
           description: true,
           logo: true,
           banner: true,
+          mainBanner: true,
+          banners: true,
           favicon: true,
+          seoImage: true,
+          seoDescription: true,
+          address: true,
+          province: true,
+          country: true,
           socialMedia: true,
           tenant: {
             select: { id: true },
@@ -228,7 +256,14 @@ class BusinessService {
           description: business.description,
           logo: business.logo,
           banner: business.banner,
+          mainBanner: business.mainBanner ?? business.banner,
+          banners: business.banners,
           favicon: business.favicon,
+          seoImage: business.seoImage,
+          seoDescription: business.seoDescription ?? business.description,
+          address: business.address,
+          province: business.province,
+          country: business.country,
           socialMedia: business.socialMedia,
         },
       };
@@ -255,8 +290,16 @@ class BusinessService {
           businessData: {
             select: {
               name: true,
+              description: true,
+              seoDescription: true,
+              address: true,
+              province: true,
+              country: true,
               logo: true,
               banner: true,
+              mainBanner: true,
+              banners: true,
+              seoImage: true,
               favicon: true,
               socialMedia: true,
               bankOptions: true,
@@ -273,6 +316,7 @@ class BusinessService {
       const b = tenant.businessData;
       const socialMedia = b.socialMedia as Record<string, string> | Array<{ name: string; url: string }> | null;
       const rawBankOptions = b.bankOptions as BankOption[] | null;
+      const rawBanners = b.banners as BusinessBanner[] | null;
       const slug = b.name
         .toLowerCase()
         .replace(/\s+/g, "-")
@@ -313,6 +357,17 @@ class BusinessService {
               aliasCvuCbu: item.aliasCvuCbu,
             }))
         : [];
+      const banners = Array.isArray(rawBanners)
+        ? rawBanners
+            .filter((item) => item && typeof item.url === "string")
+            .map((item, index) => ({
+              url: item.url,
+              order:
+                typeof item.order === "number" && Number.isFinite(item.order)
+                  ? item.order
+                  : index,
+            }))
+        : [];
 
       return {
         status: 200,
@@ -321,8 +376,16 @@ class BusinessService {
           id: tenant.id,
           name: b.name,
           slug,
+          description: b.description ?? undefined,
+          seoDescription: b.seoDescription ?? b.description ?? undefined,
+          address: b.address ?? undefined,
+          province: b.province ?? undefined,
+          country: b.country ?? "Argentina",
           logo: b.logo ?? undefined,
           banner: b.banner ?? undefined,
+          mainBanner: b.mainBanner ?? b.banner ?? undefined,
+          banners,
+          seoImage: b.seoImage ?? undefined,
           favicon: b.favicon ?? undefined,
           socialLinks,
           bankOptions,
@@ -356,7 +419,7 @@ class BusinessService {
       }
 
       const uploadAsset = async (
-        folder: "logos" | "banners" | "favicons",
+        folder: "logos" | "banners" | "favicons" | "seo-images",
         file: z.infer<typeof updateBusinessSchema>["logo"],
       ) => {
         if (!file) {
@@ -375,7 +438,21 @@ class BusinessService {
 
       const logoUrl = await uploadAsset("logos", data.logo);
       const bannerUrl = await uploadAsset("banners", data.banner);
+      const mainBannerUrl = await uploadAsset("banners", data.mainBanner);
       const faviconUrl = await uploadAsset("favicons", data.favicon);
+      const seoImageUrl = await uploadAsset("seo-images", data.seoImage);
+      const secondaryBanners = Array.isArray(data.banners)
+        ? await Promise.all(
+            data.banners.map(async (file, index) => {
+              const url = await uploadAsset("banners", file);
+              if (!url) return null;
+              return { url, order: index };
+            })
+          )
+        : undefined;
+      const normalizedSecondaryBanners = secondaryBanners?.filter(
+        (item): item is BusinessBanner => Boolean(item?.url)
+      );
 
       const socialMediaPayload = Array.isArray(data.socialMedia)
         ? data.socialMedia.reduce<Record<string, string>>((acc, item) => {
@@ -395,13 +472,18 @@ class BusinessService {
 
       const updatePayload = {
         ...(data.description ? { description: data.description.trim() } : {}),
+        ...(data.seoDescription ? { seoDescription: data.seoDescription.trim() } : {}),
         ...(data.address ? { address: data.address.trim() } : {}),
+        ...(data.province ? { province: data.province.trim() } : {}),
         ...(data.phone ? { phone: data.phone.trim() } : {}),
         ...(data.email ? { email: data.email.toLowerCase().trim() } : {}),
         ...(socialMediaPayload ? { socialMedia: socialMediaPayload } : {}),
         ...(bankOptionsPayload !== undefined ? { bankOptions: bankOptionsPayload } : {}),
         ...(logoUrl ? { logo: logoUrl } : {}),
-        ...(bannerUrl ? { banner: bannerUrl } : {}),
+        ...(bannerUrl ? { banner: bannerUrl, mainBanner: bannerUrl } : {}),
+        ...(mainBannerUrl ? { mainBanner: mainBannerUrl } : {}),
+        ...(normalizedSecondaryBanners !== undefined ? { banners: normalizedSecondaryBanners } : {}),
+        ...(seoImageUrl ? { seoImage: seoImageUrl } : {}),
         ...(faviconUrl ? { favicon: faviconUrl } : {}),
       };
 
@@ -470,6 +552,102 @@ class BusinessService {
       return {
         status: 500,
         message: "No se pudo iniciar sesión en el negocio.",
+        err: err.message,
+      };
+    }
+  }
+
+  async improveSeoDescriptionForTenant(
+    tenantId: string,
+    input: z.infer<typeof improveBusinessSeoDescriptionSchema>,
+  ): Promise<ServiceResponse> {
+    try {
+      const business = await prisma.businessData.findUnique({
+        where: { tenantId },
+        select: {
+          name: true,
+          address: true,
+          province: true,
+          country: true,
+          seoDescription: true,
+        },
+      });
+      if (!business) {
+        return { status: 404, message: "Negocio no encontrado para el tenant." };
+      }
+      const contextParts = [
+        input.businessSummary ? `Qué es el negocio: ${input.businessSummary}` : "",
+        input.businessDetails ? `De qué trata: ${input.businessDetails}` : "",
+        input.productsOrServices ? `Qué vende/ofrece: ${input.productsOrServices}` : "",
+        input.shipsNationwide === true ? "Realiza envíos nacionales: sí." : "",
+        input.shipsNationwide === false ? "Realiza envíos nacionales: no." : "",
+        input.hasPhysicalStore === true ? "Tiene local físico: sí." : "",
+        input.hasPhysicalStore === false ? "Tiene local físico: no." : "",
+        input.physicalStoreLocation
+          ? `Ubicación del local físico: ${input.physicalStoreLocation}`
+          : "",
+      ].filter(Boolean);
+      const contextText = contextParts.join(" ");
+      const baseText = input.currentText?.trim() || business.seoDescription?.trim();
+      if (!baseText) {
+        const generated = await generateBusinessSeoDescription({
+          businessName: business.name,
+          address: business.address ?? undefined,
+          province: business.province ?? undefined,
+          country: business.country || "Argentina",
+          extraContext: contextText || undefined,
+        });
+        if (!generated) {
+          return {
+            status: 502,
+            message: "No se pudo generar la descripción SEO con IA.",
+          };
+        }
+        await prisma.businessData.update({
+          where: { tenantId },
+          data: { seoDescription: generated },
+        });
+        return {
+          status: 200,
+          message: "Descripción SEO generada correctamente.",
+          data: { seoDescription: generated },
+        };
+      }
+
+      const improved = await improveBusinessSeoDescription({
+        businessName: business.name,
+        address: business.address ?? undefined,
+        province: business.province ?? undefined,
+        country: business.country || "Argentina",
+        currentText: baseText,
+        extraContext: contextText || undefined,
+      });
+      if (!improved) {
+        return {
+          status: 502,
+          message: "No se pudo mejorar la descripción SEO con IA.",
+        };
+      }
+
+      await prisma.businessData.update({
+        where: { tenantId },
+        data: { seoDescription: improved },
+      });
+
+      return {
+        status: 200,
+        message: "Descripción SEO mejorada correctamente.",
+        data: { seoDescription: improved },
+      };
+    } catch (error) {
+      const err = error as Error;
+      logger.error("Error catched en improveSeoDescriptionForTenant service", {
+        message: err?.message,
+        stack: err?.stack,
+      });
+      return {
+        status: 500,
+        message: "No se pudo mejorar la descripción SEO.",
         err: err.message,
       };
     }

@@ -109,8 +109,10 @@ class ApiService {
     return res.data;
   }
 
-  async post<T>(path: string, body?: ApiRequestBody): Promise<T> {
-    const res = await this.client.post<T>(path, body);
+  async post<T>(path: string, body?: ApiRequestBody, extraHeaders?: Record<string, string>): Promise<T> {
+    const res = await this.client.post<T>(path, body, {
+      headers: extraHeaders,
+    });
     return res.data;
   }
 

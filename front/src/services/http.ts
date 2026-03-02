@@ -74,6 +74,16 @@ export const http = {
   business: {
     getAdminBusiness: () => api.get<Tenant>('/admin/business'),
     updateAdminBusiness: (formData: FormData) => api.putMultipart('/admin/business/manage', formData),
+    improveSeoDescription: (payload?: {
+      currentText?: string;
+      businessSummary?: string;
+      businessDetails?: string;
+      productsOrServices?: string;
+      shipsNationwide?: boolean;
+      hasPhysicalStore?: boolean;
+      physicalStoreLocation?: string;
+    }) =>
+      api.post<ApiEnvelope<{ seoDescription: string }>>('/admin/business/seo-description/improve', payload ?? {}),
   },
 
   categories: {
@@ -141,8 +151,12 @@ export const http = {
     getCurrentSubscription: () => api.get<Subscription>('/payments/billing/subscriptions/current'),
     listPlansForBilling: () => api.get<Plan[]>('/payments/billing/plans'),
     listPublicPlans: () => api.get<PublicPlan[]>('/public/plans'),
-    createSubscription: (payload: BillingSelectPlanPayload) =>
-      api.post<BillingSubscriptionCreateResponse>('/payments/billing/subscriptions', payload),
+    createSubscription: (payload: BillingSelectPlanPayload) => {
+      const idempotencyKey = crypto.randomUUID();
+      return api.post<BillingSubscriptionCreateResponse>('/payments/billing/subscriptions', payload, {
+        'Idempotency-Key': idempotencyKey,
+      });
+    },
     changeCurrentPlan: (payload: BillingSelectPlanPayload) =>
       api.patch<BillingChangePlanResponse>('/payments/billing/subscriptions/current/plan', payload),
   },
@@ -151,7 +165,12 @@ export const http = {
     getMercadoPagoStatus: () => api.get<MercadoPagoStatus>('/admin/mercadopago/status'),
     getMercadoPagoConnectUrl: () => api.get<MercadoPagoConnectUrl>('/admin/mercadopago/connect-url'),
     createCheckout: async (orderId: string) => {
-      const response = await api.post<PaymentsCheckoutResponse>(`/payments/checkout/${orderId}`);
+      const idempotencyKey = crypto.randomUUID();
+      const response = await api.post<PaymentsCheckoutResponse>(
+        `/payments/checkout/${orderId}`,
+        undefined,
+        { 'Idempotency-Key': idempotencyKey }
+      );
       return response.data;
     },
   },

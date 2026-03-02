@@ -4,6 +4,7 @@ import { BillingError } from "../domain/billing-errors";
 import type {
   BillingPlanInput,
   BillingProvider,
+  MercadoPagoPreapprovalSearchStatus,
   BillingSubscriptionInput,
   BillingSubscriptionResponse,
   BillingSubscriptionSnapshot
@@ -124,10 +125,11 @@ export class MercadoPagoBillingProvider implements BillingProvider {
     const preApproval = new PreApproval(this.getConfig());
     const reasonPrefix = env.MP_BILLING_REASON_PREFIX || "Pragmatienda";
     const backUrl = input.storeSuccessUrl || env.MP_BILLING_SUCCESS_URL || env.FRONTEND_URL;
+    const shouldSendPayerEmail = env.MP_BILLING_SEND_PAYER_EMAIL;
     const body: PreApprovalCreateBody = {
       reason: `${reasonPrefix} - ${input.planName}`,
       external_reference: input.tenantId,
-      payer_email: input.ownerEmail,
+      ...(shouldSendPayerEmail ? { payer_email: input.ownerEmail } : {}),
       back_url: backUrl,
       status: "pending"
     };
@@ -165,6 +167,7 @@ export class MercadoPagoBillingProvider implements BillingProvider {
     const preApproval = new PreApproval(this.getConfig());
     const backUrl = input.storeSuccessUrl || env.MP_BILLING_SUCCESS_URL || env.FRONTEND_URL;
     const reasonPrefix = env.MP_BILLING_REASON_PREFIX || "Pragmatienda";
+    const shouldSendPayerEmail = env.MP_BILLING_SEND_PAYER_EMAIL;
 
     const interval = input.interval.toLowerCase();
     const frequency = interval === "year" ? 12 : 1;
@@ -172,7 +175,7 @@ export class MercadoPagoBillingProvider implements BillingProvider {
     const body: PreApprovalCreateBody = {
       reason: `${reasonPrefix} - ${input.planName}`,
       external_reference: input.tenantId,
-      payer_email: input.ownerEmail,
+      ...(shouldSendPayerEmail ? { payer_email: input.ownerEmail } : {}),
       back_url: backUrl,
       status: "pending",
       auto_recurring: {
@@ -377,7 +380,7 @@ export class MercadoPagoBillingProvider implements BillingProvider {
     });
   }
 
-  async searchSubscriptionsByStatus(status: "authorized" | "pending") {
+  async searchSubscriptionsByStatus(status: MercadoPagoPreapprovalSearchStatus) {
     const preApproval = new PreApproval(this.getConfig());
     const result = await preApproval.search({
       options: {

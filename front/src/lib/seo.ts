@@ -180,11 +180,12 @@ export function buildSeo(args: {
   if (args.routeKind === "products") {
     const title = `Productos | ${tenantName}`;
     const description =
+      args.tenant?.seoDescription?.trim() ||
       args.tenant?.description?.trim() ||
       `Catálogo de productos en ${tenantName}. Comprá online con envío a domicilio.`;
     const ogImage = ensureAbsoluteImageUrl(
       args.baseUrl,
-      args.tenant?.banner || args.tenant?.logo
+      args.tenant?.seoImage || args.tenant?.mainBanner || args.tenant?.banner || args.tenant?.logo
     );
     return {
       title,
@@ -211,11 +212,12 @@ export function buildSeo(args: {
   if (args.routeKind === "home") {
     const title = `${tenantName} | Tienda online`;
     const description =
+      args.tenant?.seoDescription?.trim() ||
       args.tenant?.description?.trim() ||
       `Comprá en ${tenantName}. Tienda online con productos de calidad, ofertas y envíos a domicilio.`;
     const ogImage = ensureAbsoluteImageUrl(
       args.baseUrl,
-      args.tenant?.banner || args.tenant?.logo
+      args.tenant?.seoImage || args.tenant?.mainBanner || args.tenant?.banner || args.tenant?.logo
     );
     return {
       title,

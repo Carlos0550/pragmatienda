@@ -63,9 +63,16 @@ export function normalizeResolvedTenant(response: TenantResolveResponse): Tenant
     name: normalizedName,
     slug,
     description: response.data.description ?? undefined,
+    seoDescription: response.data.seoDescription ?? response.data.description ?? undefined,
     logo: response.data.logo ?? undefined,
     banner: response.data.banner ?? undefined,
+    mainBanner: response.data.mainBanner ?? response.data.banner ?? undefined,
+    banners: response.data.banners ?? undefined,
+    seoImage: response.data.seoImage ?? undefined,
     favicon: response.data.favicon ?? undefined,
+    address: response.data.address ?? undefined,
+    province: response.data.province ?? undefined,
+    country: response.data.country ?? 'Argentina',
     socialLinks: response.data.socialMedia ?? undefined,
   };
 }

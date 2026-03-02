@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
 import { capitalizeName } from '@/lib/utils';
 import { useStorefrontCategories, useStorefrontProducts } from '@/hooks/storefront-queries';
+import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel';
 
 export default function StorefrontHome() {
   const { tenant } = useTenant();
@@ -17,10 +18,10 @@ export default function StorefrontHome() {
 
   return (
     <div>
-      {tenant?.banner ? (
+      {(tenant?.mainBanner || tenant?.banner) ? (
         <section className="relative w-full h-[60vh] min-h-[400px] max-h-[600px] overflow-hidden">
           <img 
-            src={tenant.banner} 
+            src={tenant?.mainBanner || tenant?.banner} 
             alt={tenant.name || 'Banner'} 
             className="w-full h-full object-cover"
           />
@@ -75,6 +76,31 @@ export default function StorefrontHome() {
                 </Link>
               </div>
             </motion.div>
+          </div>
+        </section>
+      )}
+
+      {(tenant?.banners?.length ?? 0) > 0 && (
+        <section className="container mx-auto px-4 py-8">
+          <div className="relative px-10">
+            <Carousel opts={{ align: 'start', loop: true }}>
+              <CarouselContent>
+                {(tenant?.banners ?? []).map((item, index) => (
+                  <CarouselItem key={`${item.url}-${index}`} className="basis-full md:basis-1/2 lg:basis-1/3">
+                    <div className="rounded-xl overflow-hidden border bg-card">
+                      <img
+                        src={item.url}
+                        alt={`Banner secundario ${index + 1}`}
+                        className="h-44 w-full object-cover"
+                        loading="lazy"
+                      />
+                    </div>
+                  </CarouselItem>
+                ))}
+              </CarouselContent>
+              <CarouselPrevious className="left-0" />
+              <CarouselNext className="right-0" />
+            </Carousel>
           </div>
         </section>
       )}

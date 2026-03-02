@@ -63,9 +63,9 @@ export default function BillingPage() {
               <h3 className="font-semibold">{subscription.plan.name}</h3>
               <p className="text-sm text-muted-foreground">
                 ${subscription.plan.price.toLocaleString()}/{subscription.plan.interval}
-                {subscription.currentPeriodEnd && (
-                  <> · Vence: {new Date(subscription.currentPeriodEnd).toLocaleDateString()}</>
-                )}
+                {subscription.currentPeriodEnd
+                  ? <> · Vence: {new Date(subscription.currentPeriodEnd).toLocaleDateString()}</>
+                  : <> · Sin fecha de vencimiento definida</>}
               </p>
             </div>
           </div>

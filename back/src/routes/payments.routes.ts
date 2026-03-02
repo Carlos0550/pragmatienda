@@ -69,7 +69,8 @@ openApiRegistry.registerPath({
   request: {
     headers: z.object({
       "x-tenant-id": z.string(),
-      Authorization: z.string()
+      Authorization: z.string(),
+      "idempotency-key": z.string().min(8)
     }),
     body: {
       content: {
@@ -169,6 +170,7 @@ router.post(
   "/billing/subscriptions",
   requireTenant,
   requireRole([1]),
+  requireIdempotencyKey("payments.billing.subscription.create"),
   billingController.createSubscription
 );
 router.patch(

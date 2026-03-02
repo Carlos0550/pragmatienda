@@ -1,9 +1,14 @@
 import Groq from "groq-sdk";
 import { env } from "../../config/env";
 import { logger } from "../../config/logger";
-import type { MetadataSchema, ProductNameAnalysis } from "./seo.zod";
+import type {
+  BusinessSeoDescription,
+  MetadataSchema,
+  ProductNameAnalysis,
+} from "./seo.zod";
 
 export type ProductMetadata = MetadataSchema;
+export type BusinessSeo = BusinessSeoDescription;
 
 const getClient = () =>
   env.GROQ_API_KEY?.trim() ? new Groq({ apiKey: env.GROQ_API_KEY! }) : null;
@@ -280,6 +285,142 @@ Si no puedes generar contenido válido responde:
     };
   } catch (error) {
     logger.warn("Groq SEO generation failed", {
+      error: (error as Error).message,
+    });
+    return null;
+  }
+}
+
+const normalizeBusinessSeoDescription = (value: string): string => {
+  return value.replace(/\s+/g, " ").trim();
+};
+
+export async function generateBusinessSeoDescription(input: {
+  businessName: string;
+  address?: string;
+  province?: string;
+  country?: string;
+  extraContext?: string;
+}): Promise<string | null> {
+  const client = getClient();
+  if (!client) return null;
+
+  try {
+    const prompt = `
+Eres copywriter SEO local senior para ecommerce en Argentina.
+
+Tu objetivo es generar UNA metadescripción con intención de búsqueda local y comercial.
+Debe sonar concreta y específica, no genérica.
+
+DATOS:
+- Negocio: ${input.businessName}
+- Dirección: ${input.address || "No especificada"}
+- Provincia: ${input.province || "No especificada"}
+- País: ${input.country || "Argentina"}
+- Contexto adicional: ${input.extraContext || "No especificado"}
+
+REGLAS:
+- Responder en español neutro.
+- Debe tener entre 125 y 155 caracteres.
+- Debe incluir el nombre del negocio exactamente una vez.
+- Debe incluir señal local explícita: provincia o país.
+- Debe incluir al menos 1 elemento concreto del negocio (rubro, producto, servicio, público, modalidad, beneficio verificable).
+- Si falta información, NO inventar; usar solo lo disponible.
+- Evitar frases vacías o infladas.
+
+PROHIBIDO usar estas expresiones (o variantes):
+- "alta calidad", "la mejor calidad", "excelente calidad"
+- "los mejores precios", "precios increíbles", "calidad y precio"
+- "amplia variedad", "todo lo que necesitás", "soluciones para todos"
+- "atención personalizada" (si no está explícita en el contexto)
+
+ESTILO:
+- Una sola oración fluida.
+- Tono profesional y directo.
+- Sin comillas, sin markdown, sin emojis, sin hashtags.
+
+SALIDA:
+- Devuelve SOLO la metadescripción final.
+`;
+
+    const completion = await client.chat.completions.create({
+      model: "llama-3.1-8b-instant",
+      temperature: 0.4,
+      max_tokens: 120,
+      messages: [{ role: "user", content: prompt }],
+    });
+
+    const content = completion.choices[0]?.message?.content?.trim();
+    if (!content) return null;
+    return normalizeBusinessSeoDescription(content);
+  } catch (error) {
+    logger.warn("Groq business SEO generation failed", {
+      error: (error as Error).message,
+    });
+    return null;
+  }
+}
+
+export async function improveBusinessSeoDescription(input: {
+  businessName: string;
+  address?: string;
+  province?: string;
+  country?: string;
+  currentText: string;
+  extraContext?: string;
+}): Promise<string | null> {
+  const client = getClient();
+  if (!client) return null;
+
+  try {
+    const prompt = `
+Eres editor SEO local senior para ecommerce.
+
+Reescribe la metadescripción para que tenga más precisión semántica y menos frases genéricas,
+sin cambiar el sentido principal del texto actual.
+
+DATOS:
+- Negocio: ${input.businessName}
+- Dirección: ${input.address || "No especificada"}
+- Provincia: ${input.province || "No especificada"}
+- País: ${input.country || "Argentina"}
+- Texto actual: ${input.currentText}
+- Contexto adicional: ${input.extraContext || "No especificado"}
+
+REGLAS:
+- Español neutro.
+- Entre 125 y 155 caracteres.
+- Debe incluir el nombre del negocio exactamente una vez.
+- Debe incluir contexto local (provincia o país).
+- Debe conservar la intención principal del texto actual.
+- Debe incorporar al menos 1 detalle concreto del negocio (producto/servicio/segmento/modalidad) usando DATOS reales.
+- No inventar información.
+- Reemplazar adjetivos vacíos por términos concretos.
+
+PROHIBIDO usar estas expresiones (o variantes):
+- "alta calidad", "la mejor calidad", "excelente calidad"
+- "los mejores precios", "precios increíbles", "calidad y precio"
+- "amplia variedad", "todo lo que necesitás", "soluciones para todos"
+- "atención personalizada" (si no está en los datos)
+
+FORMATO:
+- Una sola oración.
+- Sin markdown, sin comillas, sin listas, sin emojis.
+- Salida: solo el texto final.
+`;
+
+    const completion = await client.chat.completions.create({
+      model: "llama-3.1-8b-instant",
+      temperature: 0.4,
+      max_tokens: 120,
+      messages: [{ role: "user", content: prompt }],
+    });
+
+    const content = completion.choices[0]?.message?.content?.trim();
+    if (!content) return null;
+    return normalizeBusinessSeoDescription(content);
+  } catch (error) {
+    logger.warn("Groq business SEO improve failed", {
       error: (error as Error).message,
     });
     return null;
