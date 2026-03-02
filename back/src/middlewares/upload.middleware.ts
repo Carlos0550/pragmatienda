@@ -119,7 +119,6 @@ export const uploadBusinessAssetsMiddleware = [
   upload.fields([
     { name: "logo", maxCount: 1 },
     { name: "banner", maxCount: 1 },
-    { name: "mainBanner", maxCount: 1 },
     { name: "banners", maxCount: 10 },
     { name: "seoImage", maxCount: 1 },
     { name: "favicon", maxCount: 1 }
@@ -127,7 +126,7 @@ export const uploadBusinessAssetsMiddleware = [
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const uploadedFiles = (req.files as Record<string, Express.Multer.File[]>) ?? {};
-      const fileGroups = ["logo", "banner", "mainBanner", "seoImage", "favicon", "banners"] as const;
+      const fileGroups = ["logo", "banner", "seoImage", "favicon", "banners"] as const;
 
       for (const group of fileGroups) {
         const files = uploadedFiles[group];

@@ -185,7 +185,7 @@ export function buildSeo(args: {
       `Catálogo de productos en ${tenantName}. Comprá online con envío a domicilio.`;
     const ogImage = ensureAbsoluteImageUrl(
       args.baseUrl,
-      args.tenant?.seoImage || args.tenant?.mainBanner || args.tenant?.banner || args.tenant?.logo
+      args.tenant?.seoImage || args.tenant?.banner || args.tenant?.logo
     );
     return {
       title,
@@ -217,7 +217,7 @@ export function buildSeo(args: {
       `Comprá en ${tenantName}. Tienda online con productos de calidad, ofertas y envíos a domicilio.`;
     const ogImage = ensureAbsoluteImageUrl(
       args.baseUrl,
-      args.tenant?.seoImage || args.tenant?.mainBanner || args.tenant?.banner || args.tenant?.logo
+      args.tenant?.seoImage || args.tenant?.banner || args.tenant?.logo
     );
     return {
       title,

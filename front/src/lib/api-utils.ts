@@ -66,7 +66,6 @@ export function normalizeResolvedTenant(response: TenantResolveResponse): Tenant
     seoDescription: response.data.seoDescription ?? response.data.description ?? undefined,
     logo: response.data.logo ?? undefined,
     banner: response.data.banner ?? undefined,
-    mainBanner: response.data.mainBanner ?? response.data.banner ?? undefined,
     banners: response.data.banners ?? undefined,
     seoImage: response.data.seoImage ?? undefined,
     favicon: response.data.favicon ?? undefined,

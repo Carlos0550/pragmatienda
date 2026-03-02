@@ -120,7 +120,6 @@ model BusinessData {
   logo String?
   favicon String?
   banner String?
-  mainBanner String?
   banners Json?
   seoImage String?
   seoDescription String?

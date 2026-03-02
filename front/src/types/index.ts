@@ -65,7 +65,6 @@ export interface Tenant {
   slug: string;
   logo?: string;
   banner?: string;
-  mainBanner?: string;
   banners?: BusinessBanner[];
   seoImage?: string;
   favicon?: string;
@@ -275,7 +274,6 @@ export type TenantResolveResponse = ApiEnvelope<{
   logo?: string | null;
   banner?: string | null;
   favicon?: string | null;
-  mainBanner?: string | null;
   banners?: BusinessBanner[] | null;
   seoImage?: string | null;
   seoDescription?: string | null;
@@ -309,7 +307,6 @@ export type NavLinkCompatProps = Omit<NavLinkProps, 'className'> & {
 export interface BusinessFormState {
   logo: string;
   banner: string;
-  mainBanner: string;
   seoImage: string;
   favicon: string;
   address: string;
@@ -325,7 +322,6 @@ export interface BusinessFormState {
 export interface BusinessPreviewsState {
   logo: string;
   banner: string;
-  mainBanner: string;
   seoImage: string;
   favicon: string;
 }

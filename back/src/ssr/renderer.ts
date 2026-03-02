@@ -27,7 +27,6 @@ type FrontServerModule = {
         seoDescription?: string;
         logo?: string;
         banner?: string;
-        mainBanner?: string;
         seoImage?: string;
         favicon?: string;
         socialLinks?: { facebook?: string; instagram?: string; whatsapp?: string };
@@ -510,7 +509,6 @@ async function resolveTenantFromHostname(hostname: string) {
     seoDescription?: string | null;
     logo?: string | null;
     banner?: string | null;
-    mainBanner?: string | null;
     seoImage?: string | null;
     favicon?: string | null;
     socialMedia?: unknown;
@@ -526,7 +524,6 @@ async function resolveTenantFromHostname(hostname: string) {
         seoDescription: data.seoDescription ?? data.description ?? undefined,
         logo: data.logo ?? undefined,
         banner: data.banner ?? undefined,
-        mainBanner: data.mainBanner ?? data.banner ?? undefined,
         seoImage: data.seoImage ?? undefined,
         favicon: data.favicon ?? undefined,
         socialLinks: toTenantSocialLinks(data.socialMedia),

@@ -40,8 +40,11 @@ export const updateBusinessSchema = z.object({
     logo: uploadedFileSchema.optional(),
     favicon: uploadedFileSchema.optional(),
     banner: uploadedFileSchema.optional(),
-    mainBanner: uploadedFileSchema.optional(),
     banners: z.array(uploadedFileSchema).max(10).optional(),
+    clearLogo: z.union([z.boolean(), z.literal("true"), z.literal("1")]).optional(),
+    clearFavicon: z.union([z.boolean(), z.literal("true"), z.literal("1")]).optional(),
+    clearSeoImage: z.union([z.boolean(), z.literal("true"), z.literal("1")]).optional(),
+    bannerUrls: z.array(z.string().url()).max(20).optional(),
     seoImage: uploadedFileSchema.optional(),
     socialMedia: z.array(z.object({
         name: z.string().min(3),

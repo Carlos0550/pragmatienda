@@ -88,10 +88,12 @@ class BusinessController {
       const uploadedFiles = (req.files as Record<string, Express.Multer.File[]>) ?? {};
       const logo = uploadedFiles.logo?.[0];
       const banner = uploadedFiles.banner?.[0];
-      const mainBanner = uploadedFiles.mainBanner?.[0];
       const banners = uploadedFiles.banners ?? [];
       const seoImage = uploadedFiles.seoImage?.[0];
-      const favicon = uploadedFiles.favicon?.[0]; 
+      const favicon = uploadedFiles.favicon?.[0];
+      const clearLogo = req.body.clearLogo === true || req.body.clearLogo === "true" || req.body.clearLogo === "1";
+      const clearFavicon = req.body.clearFavicon === true || req.body.clearFavicon === "true" || req.body.clearFavicon === "1";
+      const clearSeoImage = req.body.clearSeoImage === true || req.body.clearSeoImage === "true" || req.body.clearSeoImage === "1";
 
       let socialMedia: unknown = req.body.socialMedia;
       if (typeof socialMedia === "string" && socialMedia.trim().length > 0) {
@@ -121,12 +123,27 @@ class BusinessController {
         }
       }
 
+      let bannerUrls: unknown = req.body.bannerUrls;
+      if (typeof bannerUrls === "string" && bannerUrls.trim().length > 0) {
+        try {
+          bannerUrls = JSON.parse(bannerUrls) as string[];
+        } catch {
+          return res.status(400).json({
+            message: "Datos invalidos.",
+            err: { bannerUrls: ["bannerUrls debe ser JSON valido (array de URLs)."] }
+          });
+        }
+      }
+
       const parsed = updateBusinessSchema.safeParse({
         ...req.body,
         socialMedia,
         bankOptions,
+        bannerUrls,
+        clearLogo,
+        clearFavicon,
+        clearSeoImage,
         logo,
-        mainBanner,
         banners,
         seoImage,
         banner,

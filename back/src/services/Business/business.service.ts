@@ -225,7 +225,6 @@ class BusinessService {
           description: true,
           logo: true,
           banner: true,
-          mainBanner: true,
           banners: true,
           favicon: true,
           seoImage: true,
@@ -256,7 +255,6 @@ class BusinessService {
           description: business.description,
           logo: business.logo,
           banner: business.banner,
-          mainBanner: business.mainBanner ?? business.banner,
           banners: business.banners,
           favicon: business.favicon,
           seoImage: business.seoImage,
@@ -297,7 +295,6 @@ class BusinessService {
               country: true,
               logo: true,
               banner: true,
-              mainBanner: true,
               banners: true,
               seoImage: true,
               favicon: true,
@@ -383,7 +380,6 @@ class BusinessService {
           country: b.country ?? "Argentina",
           logo: b.logo ?? undefined,
           banner: b.banner ?? undefined,
-          mainBanner: b.mainBanner ?? b.banner ?? undefined,
           banners,
           seoImage: b.seoImage ?? undefined,
           favicon: b.favicon ?? undefined,
@@ -438,21 +434,30 @@ class BusinessService {
 
       const logoUrl = await uploadAsset("logos", data.logo);
       const bannerUrl = await uploadAsset("banners", data.banner);
-      const mainBannerUrl = await uploadAsset("banners", data.mainBanner);
       const faviconUrl = await uploadAsset("favicons", data.favicon);
       const seoImageUrl = await uploadAsset("seo-images", data.seoImage);
-      const secondaryBanners = Array.isArray(data.banners)
-        ? await Promise.all(
-            data.banners.map(async (file, index) => {
-              const url = await uploadAsset("banners", file);
-              if (!url) return null;
-              return { url, order: index };
-            })
-          )
-        : undefined;
-      const normalizedSecondaryBanners = secondaryBanners?.filter(
+      const hasBannerUrlsPayload = data.bannerUrls !== undefined && Array.isArray(data.bannerUrls);
+      const existingBannerUrls = hasBannerUrlsPayload
+        ? (data.bannerUrls as string[]).filter((u): u is string => typeof u === "string" && u.length > 0)
+        : [];
+      const newBannerFiles = Array.isArray(data.banners) ? data.banners : [];
+      const uploadedNewBanners = await Promise.all(
+        newBannerFiles.map(async (file, index) => {
+          const url = await uploadAsset("banners", file);
+          if (!url) return null;
+          return { url, order: existingBannerUrls.length + index };
+        })
+      );
+      const normalizedNew = uploadedNewBanners.filter(
         (item): item is BusinessBanner => Boolean(item?.url)
       );
+      const shouldUpdateBanners = hasBannerUrlsPayload || normalizedNew.length > 0;
+      const finalBanners: BusinessBanner[] = shouldUpdateBanners
+        ? [
+            ...existingBannerUrls.map((url, order) => ({ url, order })),
+            ...normalizedNew,
+          ]
+        : [];
 
       const socialMediaPayload = Array.isArray(data.socialMedia)
         ? data.socialMedia.reduce<Record<string, string>>((acc, item) => {
@@ -479,12 +484,11 @@ class BusinessService {
         ...(data.email ? { email: data.email.toLowerCase().trim() } : {}),
         ...(socialMediaPayload ? { socialMedia: socialMediaPayload } : {}),
         ...(bankOptionsPayload !== undefined ? { bankOptions: bankOptionsPayload } : {}),
-        ...(logoUrl ? { logo: logoUrl } : {}),
-        ...(bannerUrl ? { banner: bannerUrl, mainBanner: bannerUrl } : {}),
-        ...(mainBannerUrl ? { mainBanner: mainBannerUrl } : {}),
-        ...(normalizedSecondaryBanners !== undefined ? { banners: normalizedSecondaryBanners } : {}),
-        ...(seoImageUrl ? { seoImage: seoImageUrl } : {}),
-        ...(faviconUrl ? { favicon: faviconUrl } : {}),
+        ...(logoUrl ? { logo: logoUrl } : data.clearLogo ? { logo: null } : {}),
+        ...(bannerUrl ? { banner: bannerUrl } : {}),
+        ...(shouldUpdateBanners ? { banners: finalBanners } : {}),
+        ...(seoImageUrl ? { seoImage: seoImageUrl } : data.clearSeoImage ? { seoImage: null } : {}),
+        ...(faviconUrl ? { favicon: faviconUrl } : data.clearFavicon ? { favicon: null } : {}),
       };
 
       if (Object.keys(updatePayload).length === 0) {

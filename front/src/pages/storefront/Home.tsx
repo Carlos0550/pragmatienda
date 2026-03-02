@@ -1,12 +1,12 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, ShoppingBag } from 'lucide-react';
+import { ArrowRight, ChevronLeft, ChevronRight, ShoppingBag } from 'lucide-react';
 import { useTenant } from '@/contexts/TenantContext';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
 import { capitalizeName } from '@/lib/utils';
 import { useStorefrontCategories, useStorefrontProducts } from '@/hooks/storefront-queries';
-import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel';
+import { Carousel, CarouselContent, CarouselItem, type CarouselApi } from '@/components/ui/carousel';
 
 export default function StorefrontHome() {
   const { tenant } = useTenant();
@@ -14,93 +14,162 @@ export default function StorefrontHome() {
   const { data: categories = [], isLoading: categoriesLoading } = useStorefrontCategories();
   const featuredProducts = (productsResponse?.items ?? []).slice(0, 8);
   const loading = productsLoading || categoriesLoading;
+  const [carouselApi, setCarouselApi] = React.useState<CarouselApi>();
+  const [selectedIndex, setSelectedIndex] = React.useState(0);
 
+  const hasBanners = (tenant?.banners?.length ?? 0) > 0;
+  const bannerCount = tenant?.banners?.length ?? 0;
+  const canNavigateBanners = bannerCount > 1;
+
+  React.useEffect(() => {
+    if (!carouselApi) return;
+
+    const onSelect = () => setSelectedIndex(carouselApi.selectedScrollSnap());
+
+    onSelect();
+    carouselApi.on('select', onSelect);
+    carouselApi.on('reInit', onSelect);
+
+    return () => {
+      carouselApi.off('select', onSelect);
+      carouselApi.off('reInit', onSelect);
+    };
+  }, [carouselApi]);
+
+  const handlePrevBanner = () => {
+    carouselApi?.scrollPrev();
+  };
+
+  const handleNextBanner = () => {
+    carouselApi?.scrollNext();
+  };
+
+  const welcomeContent = (
+    <motion.div
+      initial={{ opacity: 0, y: hasBanners ? 30 : 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.6 }}
+      className={
+        hasBanners
+          ? 'relative z-10 p-4 sm:p-6 md:absolute md:bottom-0 md:left-0 md:right-0 md:p-10'
+          : 'max-w-2xl space-y-6'
+      }
+    >
+      {hasBanners ? (
+        <div className="backdrop-blur-md bg-black/45 md:bg-white/20 border border-white/30 rounded-2xl p-5 md:p-8 max-w-2xl shadow-xl">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight leading-tight text-white drop-shadow-lg">
+            Bienvenido a{' '}
+            <span className="text-white">{capitalizeName(tenant?.name) || 'Nuestra Tienda'}</span>
+          </h1>
+          <p className="text-base md:text-lg text-white/90 max-w-lg mt-4 drop-shadow">
+            Descubrí los mejores productos con la calidad que merecés. Comprá de forma simple y segura.
+          </p>
+          <div className="flex gap-3 mt-6">
+            <Link to="/products">
+              <Button size="lg" className="gap-2 bg-white text-black hover:bg-white/90">
+                Ver productos
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            </Link>
+          </div>
+        </div>
+      ) : (
+        <>
+          <h1 className="text-4xl lg:text-6xl font-bold tracking-tight leading-tight">
+            Bienvenido a{' '}
+            <span className="text-primary">{capitalizeName(tenant?.name) || 'Nuestra Tienda'}</span>
+          </h1>
+          <p className="text-lg text-muted-foreground max-w-lg">
+            Descubrí los mejores productos con la calidad que merecés. Comprá de forma simple y segura.
+          </p>
+          <div className="flex gap-3">
+            <Link to="/products">
+              <Button size="lg" className="gap-2">
+                Ver productos
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            </Link>
+          </div>
+        </>
+      )}
+    </motion.div>
+  );
 
   return (
     <div>
-      {(tenant?.mainBanner || tenant?.banner) ? (
-        <section className="relative w-full h-[60vh] min-h-[400px] max-h-[600px] overflow-hidden">
-          <img 
-            src={tenant?.mainBanner || tenant?.banner} 
-            alt={tenant.name || 'Banner'} 
-            className="w-full h-full object-cover"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            className="absolute bottom-0 left-0 right-0 p-6 md:p-10"
-          >
-            <div className="backdrop-blur-md bg-white/20 border border-white/30 rounded-2xl p-6 md:p-8 max-w-2xl shadow-xl">
-              <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold tracking-tight leading-tight text-white drop-shadow-lg">
-                Bienvenido a{' '}
-                <span className="text-white">{capitalizeName(tenant?.name) || 'Nuestra Tienda'}</span>
-              </h1>
-              <p className="text-base md:text-lg text-white/90 max-w-lg mt-4 drop-shadow">
-                Descubrí los mejores productos con la calidad que merecés. Comprá de forma simple y segura.
-              </p>
-              <div className="flex gap-3 mt-6">
-                <Link to="/products">
-                  <Button size="lg" className="gap-2 bg-white text-black hover:bg-white/90">
-                    Ver productos
-                    <ArrowRight className="h-4 w-4" />
-                  </Button>
-                </Link>
-              </div>
-            </div>
-          </motion.div>
-        </section>
-      ) : (
-        <section className="relative overflow-hidden bg-secondary/30">
-          <div className="container mx-auto px-4 py-20 lg:py-32">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
-              className="max-w-2xl space-y-6"
-            >
-              <h1 className="text-4xl lg:text-6xl font-bold tracking-tight leading-tight">
-                Bienvenido a{' '}
-                <span className="text-primary">{capitalizeName(tenant?.name) || 'Nuestra Tienda'}</span>
-              </h1>
-              <p className="text-lg text-muted-foreground max-w-lg">
-                Descubrí los mejores productos con la calidad que merecés. Comprá de forma simple y segura.
-              </p>
-              <div className="flex gap-3">
-                <Link to="/products">
-                  <Button size="lg" className="gap-2">
-                    Ver productos
-                    <ArrowRight className="h-4 w-4" />
-                  </Button>
-                </Link>
-              </div>
-            </motion.div>
-          </div>
-        </section>
-      )}
-
-      {(tenant?.banners?.length ?? 0) > 0 && (
-        <section className="container mx-auto px-4 py-8">
-          <div className="relative px-10">
-            <Carousel opts={{ align: 'start', loop: true }}>
-              <CarouselContent>
+      {hasBanners ? (
+        <section className="relative w-full overflow-hidden">
+          <div className="relative h-[220px] sm:h-[300px] md:h-[62vh] md:min-h-[420px] md:max-h-[700px]">
+            <Carousel opts={{ align: 'start', loop: canNavigateBanners }} setApi={setCarouselApi} className="absolute inset-0">
+              <CarouselContent className="h-full ml-0">
                 {(tenant?.banners ?? []).map((item, index) => (
-                  <CarouselItem key={`${item.url}-${index}`} className="basis-full md:basis-1/2 lg:basis-1/3">
-                    <div className="rounded-xl overflow-hidden border bg-card">
+                  <CarouselItem key={`${item.url}-${index}`} className="basis-full h-full pl-0">
+                    <div className="relative w-full h-full">
                       <img
                         src={item.url}
-                        alt={`Banner secundario ${index + 1}`}
-                        className="h-44 w-full object-cover"
-                        loading="lazy"
+                        alt=""
+                        aria-hidden="true"
+                        className="absolute inset-0 w-full h-full object-cover blur-md scale-105 opacity-60"
+                        loading={index === 0 ? 'eager' : 'lazy'}
+                      />
+                      <img
+                        src={item.url}
+                        alt={`Banner ${index + 1}`}
+                        className="relative z-[1] w-full h-full object-contain object-center"
+                        loading={index === 0 ? 'eager' : 'lazy'}
                       />
                     </div>
                   </CarouselItem>
                 ))}
               </CarouselContent>
-              <CarouselPrevious className="left-0" />
-              <CarouselNext className="right-0" />
             </Carousel>
+            {canNavigateBanners && (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={handlePrevBanner}
+                  className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 z-20 h-9 w-9 sm:h-10 sm:w-10 rounded-full border-white/40 bg-black/45 text-white hover:bg-black/60"
+                  aria-label="Banner anterior"
+                >
+                  <ChevronLeft className="h-5 w-5" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={handleNextBanner}
+                  className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 z-20 h-9 w-9 sm:h-10 sm:w-10 rounded-full border-white/40 bg-black/45 text-white hover:bg-black/60"
+                  aria-label="Banner siguiente"
+                >
+                  <ChevronRight className="h-5 w-5" />
+                </Button>
+              </>
+            )}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent pointer-events-none" />
+            {canNavigateBanners && (
+              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2">
+                {(tenant?.banners ?? []).map((item, index) => (
+                  <button
+                    key={`banner-indicator-${item.url}-${index}`}
+                    type="button"
+                    onClick={() => carouselApi?.scrollTo(index)}
+                    className={`h-2 rounded-full transition-all ${
+                      selectedIndex === index ? 'w-6 bg-white' : 'w-2 bg-white/60 hover:bg-white/80'
+                    }`}
+                    aria-label={`Ir al banner ${index + 1}`}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+          {welcomeContent}
+        </section>
+      ) : (
+        <section className="relative overflow-hidden bg-secondary/30">
+          <div className="container mx-auto px-4 py-20 lg:py-32">
+            {welcomeContent}
           </div>
         </section>
       )}

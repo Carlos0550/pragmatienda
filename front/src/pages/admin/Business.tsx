@@ -13,8 +13,48 @@ import {
 } from '@/components/ui/dialog';
 import { sileo } from 'sileo';
 import { toFormErrors } from '@/lib/api-utils';
-import type { ApiError, BankOption, BusinessFormState, BusinessPreviewsState, FormErrors } from '@/types';
+import type { ApiError, BankOption, BusinessBanner, BusinessFormState, BusinessPreviewsState, FormErrors } from '@/types';
 import { Landmark, Plus, Trash2 } from 'lucide-react';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+
+/** Previsualización que respeta el formato de la imagen (sin recortar). */
+function AssetPreview({
+  src,
+  alt,
+  variant = 'wide',
+}: {
+  src: string;
+  alt: string;
+  variant?: 'square' | 'wide';
+}) {
+  const isSquare = variant === 'square';
+  return (
+    <div
+      className={
+        isSquare
+          ? 'flex items-center justify-center rounded-lg border bg-muted/30 p-3 min-h-[100px] min-w-[100px] max-w-[140px]'
+          : 'rounded-lg border bg-muted/30 p-3 min-h-[100px] w-full max-w-md'
+      }
+    >
+      <img
+        src={src}
+        alt={alt}
+        className={
+          isSquare
+            ? 'max-h-20 max-w-20 w-auto h-auto object-contain rounded'
+            : 'max-h-32 w-full h-auto object-contain rounded'
+        }
+      />
+    </div>
+  );
+}
 
 function toSocialMediaArray(facebook: string, instagram: string, whatsapp: string): { name: string; url: string }[] {
   const arr: { name: string; url: string }[] = [];
@@ -50,15 +90,16 @@ function normalizeBankOptions(bankOptions: BankOption[]) {
 
 export default function BusinessPage() {
   const [form, setForm] = useState<BusinessFormState>({
-    logo: '', banner: '', mainBanner: '', seoImage: '', favicon: '',
+    logo: '', banner: '', seoImage: '', favicon: '',
     address: '', province: '', seoDescription: '',
     facebook: '', instagram: '', whatsapp: '',
     banners: [],
     bankOptions: [],
   });
   const [previews, setPreviews] = useState<BusinessPreviewsState>({
-    logo: '', banner: '', mainBanner: '', seoImage: '', favicon: ''
+    logo: '', banner: '', seoImage: '', favicon: ''
   });
+  const [clearingAsset, setClearingAsset] = useState<'logo' | 'favicon' | 'seoImage' | null>(null);
   const [initial, setInitial] = useState<typeof form | null>(null);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
@@ -71,9 +112,9 @@ export default function BusinessPage() {
     hasPhysicalStore: false,
     physicalStoreLocation: '',
   });
+  const [pendingBannerFiles, setPendingBannerFiles] = useState<File[]>([]);
+  const [pendingBannerPreviews, setPendingBannerPreviews] = useState<string[]>([]);
   const logoRef = useRef<HTMLInputElement>(null);
-  const bannerRef = useRef<HTMLInputElement>(null);
-  const mainBannerRef = useRef<HTMLInputElement>(null);
   const bannersRef = useRef<HTMLInputElement>(null);
   const seoImageRef = useRef<HTMLInputElement>(null);
   const faviconRef = useRef<HTMLInputElement>(null);
@@ -84,7 +125,6 @@ export default function BusinessPage() {
       const next = {
         logo: data.logo || '',
         banner: data.banner || '',
-        mainBanner: data.mainBanner || data.banner || '',
         seoImage: data.seoImage || '',
         favicon: data.favicon || '',
         address: data.address || '',
@@ -113,6 +153,16 @@ export default function BusinessPage() {
     };
   }, []);
 
+  const pendingPreviewsRef = useRef<string[]>([]);
+  pendingPreviewsRef.current = pendingBannerPreviews;
+  useEffect(() => {
+    return () => {
+      pendingPreviewsRef.current.forEach((url) => {
+        if (url) URL.revokeObjectURL(url);
+      });
+    };
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrors({});
@@ -122,9 +172,6 @@ export default function BusinessPage() {
       const socialArr = toSocialMediaArray(form.facebook, form.instagram, form.whatsapp);
       const normalizedBankOptions = normalizeBankOptions(form.bankOptions);
       const logoFile = logoRef.current?.files?.[0];
-      const bannerFile = bannerRef.current?.files?.[0];
-      const mainBannerFile = mainBannerRef.current?.files?.[0];
-      const bannersFiles = Array.from(bannersRef.current?.files ?? []);
       const seoImageFile = seoImageRef.current?.files?.[0];
       const faviconFile = faviconRef.current?.files?.[0];
 
@@ -161,20 +208,18 @@ export default function BusinessPage() {
         formData.append('seoDescription', form.seoDescription.trim());
         hasChanges = true;
       }
+      const currentBannerUrls = form.banners.map((b) => b.url);
+      const initialBannerUrls = (initial?.banners ?? []).map((b) => b.url);
+      if (
+        JSON.stringify(currentBannerUrls) !== JSON.stringify(initialBannerUrls) ||
+        pendingBannerFiles.length > 0
+      ) {
+        formData.append('bannerUrls', JSON.stringify(currentBannerUrls));
+        pendingBannerFiles.forEach((file) => formData.append('banners', file));
+        hasChanges = true;
+      }
       if (logoFile) {
         formData.append('logo', logoFile);
-        hasChanges = true;
-      }
-      if (bannerFile) {
-        formData.append('banner', bannerFile);
-        hasChanges = true;
-      }
-      if (mainBannerFile) {
-        formData.append('mainBanner', mainBannerFile);
-        hasChanges = true;
-      }
-      if (bannersFiles.length > 0) {
-        bannersFiles.forEach((file) => formData.append('banners', file));
         hasChanges = true;
       }
       if (seoImageFile) {
@@ -198,7 +243,6 @@ export default function BusinessPage() {
       const next = {
         logo: data.logo || '',
         banner: data.banner || '',
-        mainBanner: data.mainBanner || data.banner || '',
         seoImage: data.seoImage || '',
         favicon: data.favicon || '',
         address: data.address || '',
@@ -212,10 +256,13 @@ export default function BusinessPage() {
       };
       setForm(next);
       setInitial(next);
-      setPreviews({ logo: '', banner: '', mainBanner: '', seoImage: '', favicon: '' });
+      setPreviews({ logo: '', banner: '', seoImage: '', favicon: '' });
+      setPendingBannerFiles([]);
+      setPendingBannerPreviews((prev) => {
+        prev.forEach((url) => URL.revokeObjectURL(url));
+        return [];
+      });
       if (logoRef.current) logoRef.current.value = '';
-      if (bannerRef.current) bannerRef.current.value = '';
-      if (mainBannerRef.current) mainBannerRef.current.value = '';
       if (bannersRef.current) bannersRef.current.value = '';
       if (seoImageRef.current) seoImageRef.current.value = '';
       if (faviconRef.current) faviconRef.current.value = '';
@@ -256,7 +303,34 @@ export default function BusinessPage() {
     }));
   };
 
-  const handleFileChange = (field: 'logo' | 'banner' | 'mainBanner' | 'seoImage' | 'favicon') => (e: React.ChangeEvent<HTMLInputElement>) => {
+  const removeCarouselBanner = (index: number) => {
+    setForm((prev) => ({
+      ...prev,
+      banners: prev.banners.filter((_, i) => i !== index),
+    }));
+  };
+
+  const removePendingBanner = (index: number) => {
+    setPendingBannerPreviews((prev) => {
+      const url = prev[index];
+      if (url) URL.revokeObjectURL(url);
+      return prev.filter((_, i) => i !== index);
+    });
+    setPendingBannerFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleAddBanners = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    if (files.length === 0) return;
+    setPendingBannerFiles((prev) => [...prev, ...files]);
+    setPendingBannerPreviews((prev) => [
+      ...prev,
+      ...files.map((f) => URL.createObjectURL(f)),
+    ]);
+    e.target.value = '';
+  };
+
+  const handleFileChange = (field: 'logo' | 'banner' | 'seoImage' | 'favicon') => (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     setPreviews((prev) => {
       const next = { ...prev };
@@ -267,10 +341,48 @@ export default function BusinessPage() {
   };
 
   const logoSrc = previews.logo || form.logo;
-  const bannerSrc = previews.banner || form.banner;
-  const mainBannerSrc = previews.mainBanner || form.mainBanner;
   const seoImageSrc = previews.seoImage || form.seoImage;
   const faviconSrc = previews.favicon || form.favicon;
+
+  const handleClearAsset = async (asset: 'logo' | 'favicon' | 'seoImage') => {
+    const flag = asset === 'logo' ? 'clearLogo' : asset === 'favicon' ? 'clearFavicon' : 'clearSeoImage';
+    setClearingAsset(asset);
+    try {
+      const formData = new FormData();
+      formData.append(flag, 'true');
+      await http.business.updateAdminBusiness(formData);
+      sileo.success({ title: 'Imagen eliminada' });
+      const data = await http.business.getAdminBusiness();
+      const next = {
+        logo: data.logo || '',
+        banner: data.banner || '',
+        seoImage: data.seoImage || '',
+        favicon: data.favicon || '',
+        address: data.address || '',
+        province: data.province || '',
+        seoDescription: data.seoDescription || '',
+        facebook: data.socialLinks?.facebook || '',
+        instagram: data.socialLinks?.instagram || '',
+        whatsapp: data.socialLinks?.whatsapp || '',
+        banners: Array.isArray(data.banners) ? data.banners : [],
+        bankOptions: Array.isArray(data.bankOptions) ? data.bankOptions : [],
+      };
+      setForm(next);
+      setInitial(next);
+      setPreviews((p) => {
+        const url = p[asset];
+        if (url) URL.revokeObjectURL(url);
+        return { ...p, [asset]: '' };
+      });
+      const ref = asset === 'logo' ? logoRef : asset === 'favicon' ? faviconRef : seoImageRef;
+      if (ref.current) ref.current.value = '';
+    } catch (err) {
+      const apiErr = err as ApiError;
+      sileo.error({ title: apiErr.message || 'No se pudo eliminar la imagen' });
+    } finally {
+      setClearingAsset(null);
+    }
+  };
 
   const handleImproveSeoWithIa = async () => {
     try {
@@ -311,112 +423,217 @@ export default function BusinessPage() {
 
       <form onSubmit={handleSubmit} className="rounded-xl border bg-card p-6 space-y-6">
         <div className="grid gap-6 xl:grid-cols-2">
-          <div className="space-y-5">
-            <div className="space-y-2">
-              <Label>Logo</Label>
-              <div className="mb-2 rounded-lg border bg-muted/30 p-3 min-h-[92px]">
-                {logoSrc ? (
-                  <img src={logoSrc} alt="Logo actual" className="h-16 w-16 object-contain rounded bg-white" />
-                ) : (
-                  <p className="text-xs text-muted-foreground">Sin logo cargado</p>
-                )}
-                {previews.logo && <p className="mt-2 text-[11px] text-muted-foreground">Previsualización</p>}
+          <div className="space-y-6">
+            <section className="space-y-4">
+              <h3 className="text-lg font-semibold border-b pb-2">Imagen e identidad</h3>
+              <p className="text-sm text-muted-foreground">
+                Logo, favicon e imagen para redes y compartidos (SEO).
+              </p>
+              <div className="grid gap-6 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Logo</Label>
+                  {logoSrc ? (
+                    <AssetPreview src={logoSrc} alt="Logo" variant="square" />
+                  ) : (
+                    <div className="flex items-center justify-center rounded-lg border border-dashed bg-muted/20 p-6 min-h-[100px]">
+                      <p className="text-xs text-muted-foreground">Sin logo</p>
+                    </div>
+                  )}
+                  {previews.logo && <p className="text-[11px] text-muted-foreground">Nuevo archivo seleccionado</p>}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Input
+                      ref={logoRef}
+                      type="file"
+                      accept="image/*"
+                      className="cursor-pointer max-w-[200px]"
+                      onChange={handleFileChange('logo')}
+                    />
+                    {form.logo && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleClearAsset('logo')}
+                        disabled={clearingAsset === 'logo'}
+                        className="gap-1"
+                      >
+                        <Trash2 className="h-4 w-4" /> {clearingAsset === 'logo' ? 'Eliminando...' : 'Eliminar'}
+                      </Button>
+                    )}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Favicon</Label>
+                  {faviconSrc ? (
+                    <AssetPreview src={faviconSrc} alt="Favicon" variant="square" />
+                  ) : (
+                    <div className="flex items-center justify-center rounded-lg border border-dashed bg-muted/20 p-6 min-h-[100px]">
+                      <p className="text-xs text-muted-foreground">Sin favicon</p>
+                    </div>
+                  )}
+                  {previews.favicon && <p className="text-[11px] text-muted-foreground">Nuevo archivo seleccionado</p>}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Input
+                      ref={faviconRef}
+                      type="file"
+                      accept="image/*"
+                      className="cursor-pointer max-w-[200px]"
+                      onChange={handleFileChange('favicon')}
+                    />
+                    {form.favicon && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleClearAsset('favicon')}
+                        disabled={clearingAsset === 'favicon'}
+                        className="gap-1"
+                      >
+                        <Trash2 className="h-4 w-4" /> {clearingAsset === 'favicon' ? 'Eliminando...' : 'Eliminar'}
+                      </Button>
+                    )}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Imagen SEO (Open Graph / Twitter)</Label>
+                  {seoImageSrc ? (
+                    <AssetPreview src={seoImageSrc} alt="Imagen SEO" variant="wide" />
+                  ) : (
+                    <div className="flex items-center justify-center rounded-lg border border-dashed bg-muted/20 p-6 min-h-[100px]">
+                      <p className="text-xs text-muted-foreground">Sin imagen SEO</p>
+                    </div>
+                  )}
+                  {previews.seoImage && <p className="text-[11px] text-muted-foreground">Nuevo archivo seleccionado</p>}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Input
+                      ref={seoImageRef}
+                      type="file"
+                      accept="image/*"
+                      className="cursor-pointer max-w-[200px]"
+                      onChange={handleFileChange('seoImage')}
+                    />
+                    {form.seoImage && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleClearAsset('seoImage')}
+                        disabled={clearingAsset === 'seoImage'}
+                        className="gap-1"
+                      >
+                        <Trash2 className="h-4 w-4" /> {clearingAsset === 'seoImage' ? 'Eliminando...' : 'Eliminar'}
+                      </Button>
+                    )}
+                  </div>
+                </div>
               </div>
-              <Input
-                ref={logoRef}
-                type="file"
-                accept="image/*"
-                className="cursor-pointer"
-                onChange={handleFileChange('logo')}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Banner principal</Label>
-              <div className="mb-2 rounded-lg border bg-muted/30 p-3 min-h-[160px]">
-                {mainBannerSrc ? (
-                  <img src={mainBannerSrc} alt="Banner principal" className="h-28 w-full object-cover rounded" />
-                ) : (
-                  <p className="text-xs text-muted-foreground">Sin banner principal cargado</p>
-                )}
-                {previews.mainBanner && <p className="mt-2 text-[11px] text-muted-foreground">Previsualización</p>}
+            </section>
+
+            <section className="space-y-4">
+              <h3 className="text-lg font-semibold border-b pb-2">Banners del carrusel</h3>
+              <p className="text-sm text-muted-foreground">
+                Banners secundarios que se muestran en el carrusel. Podés agregar o eliminar.
+              </p>
+              <div className="rounded-lg border bg-muted/20 p-4 space-y-4">
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-sm font-medium">Listado de banners</span>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      ref={bannersRef}
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="hidden"
+                      onChange={handleAddBanners}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => bannersRef.current?.click()}
+                      className="gap-2"
+                    >
+                      <Plus className="h-4 w-4" /> Agregar banner
+                    </Button>
+                  </div>
+                </div>
+                <div className="rounded-md border overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-[140px]">Vista previa</TableHead>
+                        <TableHead className="w-[60px]">#</TableHead>
+                        <TableHead className="text-right">Acciones</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {form.banners.map((banner: BusinessBanner, index: number) => (
+                        <TableRow key={`saved-${banner.url}-${index}`}>
+                          <TableCell className="p-2">
+                            <div className="rounded border bg-muted/30 p-1.5 w-[120px] h-[64px] flex items-center justify-center overflow-hidden">
+                              <img
+                                src={banner.url}
+                                alt={`Banner ${index + 1}`}
+                                className="max-h-full max-w-full object-contain"
+                              />
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">{index + 1}</TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => removeCarouselBanner(index)}
+                              className="gap-1"
+                            >
+                              <Trash2 className="h-4 w-4" /> Eliminar
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {pendingBannerFiles.map((_, index) => (
+                        <TableRow key={`pending-${index}`}>
+                          <TableCell className="p-2">
+                            <div className="rounded border border-dashed bg-muted/20 p-1.5 w-[120px] h-[64px] flex items-center justify-center overflow-hidden">
+                              {pendingBannerPreviews[index] ? (
+                                <img
+                                  src={pendingBannerPreviews[index]}
+                                  alt={`Nuevo ${index + 1}`}
+                                  className="max-h-full max-w-full object-contain"
+                                />
+                              ) : (
+                                <span className="text-xs text-muted-foreground">…</span>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">{form.banners.length + index + 1}</TableCell>
+                          <TableCell className="text-right">
+                            <span className="text-xs text-muted-foreground mr-2">Se guardará al enviar</span>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => removePendingBanner(index)}
+                              className="gap-1"
+                            >
+                              <Trash2 className="h-4 w-4" /> Quitar
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {form.banners.length === 0 && pendingBannerFiles.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={3} className="text-center text-muted-foreground py-6">
+                            No hay banners. Usá &quot;Agregar&quot; para subir imágenes.
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
               </div>
-              <Input
-                ref={mainBannerRef}
-                type="file"
-                accept="image/*"
-                className="cursor-pointer"
-                onChange={handleFileChange('mainBanner')}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Banner</Label>
-              <div className="mb-2 rounded-lg border bg-muted/30 p-3 min-h-[160px]">
-                {bannerSrc ? (
-                  <img src={bannerSrc} alt="Banner actual" className="h-28 w-full object-cover rounded" />
-                ) : (
-                  <p className="text-xs text-muted-foreground">Sin banner cargado</p>
-                )}
-                {previews.banner && <p className="mt-2 text-[11px] text-muted-foreground">Previsualización</p>}
-              </div>
-              <Input
-                ref={bannerRef}
-                type="file"
-                accept="image/*"
-                className="cursor-pointer"
-                onChange={handleFileChange('banner')}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Banners secundarios (carousel)</Label>
-              <Input
-                ref={bannersRef}
-                type="file"
-                accept="image/*"
-                className="cursor-pointer"
-                multiple
-              />
-              {form.banners.length > 0 && (
-                <p className="text-xs text-muted-foreground">
-                  Actualmente hay {form.banners.length} banners secundarios cargados.
-                </p>
-              )}
-            </div>
-            <div className="space-y-2">
-              <Label>Imagen SEO (Open Graph/Twitter)</Label>
-              <div className="mb-2 rounded-lg border bg-muted/30 p-3 min-h-[160px]">
-                {seoImageSrc ? (
-                  <img src={seoImageSrc} alt="Imagen SEO" className="h-28 w-full object-cover rounded" />
-                ) : (
-                  <p className="text-xs text-muted-foreground">Sin imagen SEO cargada</p>
-                )}
-                {previews.seoImage && <p className="mt-2 text-[11px] text-muted-foreground">Previsualización</p>}
-              </div>
-              <Input
-                ref={seoImageRef}
-                type="file"
-                accept="image/*"
-                className="cursor-pointer"
-                onChange={handleFileChange('seoImage')}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Favicon</Label>
-              <div className="mb-2 rounded-lg border bg-muted/30 p-3 min-h-[72px]">
-                {faviconSrc ? (
-                  <img src={faviconSrc} alt="Favicon actual" className="h-10 w-10 object-contain rounded bg-white" />
-                ) : (
-                  <p className="text-xs text-muted-foreground">Sin favicon cargado</p>
-                )}
-                {previews.favicon && <p className="mt-2 text-[11px] text-muted-foreground">Previsualización</p>}
-              </div>
-              <Input
-                ref={faviconRef}
-                type="file"
-                accept="image/*"
-                className="cursor-pointer"
-                onChange={handleFileChange('favicon')}
-              />
-            </div>
+            </section>
           </div>
 
           <div className="space-y-5">

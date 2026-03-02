@@ -55,7 +55,6 @@ openApiRegistry.registerPath({
             }),
             logo: z.any().optional().openapi({ type: "string", format: "binary" }),
             banner: z.any().optional().openapi({ type: "string", format: "binary" }),
-            mainBanner: z.any().optional().openapi({ type: "string", format: "binary" }),
             banners: z.any().optional().openapi({ type: "string", format: "binary" }),
             seoImage: z.any().optional().openapi({ type: "string", format: "binary" }),
             favicon: z.any().optional().openapi({ type: "string", format: "binary" })
