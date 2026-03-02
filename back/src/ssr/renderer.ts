@@ -23,8 +23,12 @@ type FrontServerModule = {
         id: string;
         name: string;
         slug: string;
+        description?: string;
+        seoDescription?: string;
         logo?: string;
         banner?: string;
+        mainBanner?: string;
+        seoImage?: string;
         favicon?: string;
         socialLinks?: { facebook?: string; instagram?: string; whatsapp?: string };
       } | null;
@@ -503,8 +507,11 @@ async function resolveTenantFromHostname(hostname: string) {
     tenantId: string;
     businessName: string;
     description?: string | null;
+    seoDescription?: string | null;
     logo?: string | null;
     banner?: string | null;
+    mainBanner?: string | null;
+    seoImage?: string | null;
     favicon?: string | null;
     socialMedia?: unknown;
   };
@@ -516,8 +523,11 @@ async function resolveTenantFromHostname(hostname: string) {
         name: capitalizeWords(data.businessName),
         slug: slugify(data.businessName),
         description: data.description ?? undefined,
+        seoDescription: data.seoDescription ?? data.description ?? undefined,
         logo: data.logo ?? undefined,
         banner: data.banner ?? undefined,
+        mainBanner: data.mainBanner ?? data.banner ?? undefined,
+        seoImage: data.seoImage ?? undefined,
         favicon: data.favicon ?? undefined,
         socialLinks: toTenantSocialLinks(data.socialMedia),
       },
