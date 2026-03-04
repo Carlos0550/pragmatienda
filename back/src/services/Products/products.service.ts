@@ -68,8 +68,9 @@ export class ProductsService {
   ): Promise<ServiceResponse> {
     try {
       const skipGenericCheck = (data as { skipGenericCheck?: boolean }).skipGenericCheck === true;
+      let nameAnalysis: Awaited<ReturnType<typeof analyzeProductName>> = null;
       if (!skipGenericCheck) {
-        const nameAnalysis = await analyzeProductName(normalizeProductName(data.name));
+        nameAnalysis = await analyzeProductName(normalizeProductName(data.name));
         logger.info("Name analysis", { nameAnalysis });
         if (nameAnalysis?.isGeneric) {
           return {
