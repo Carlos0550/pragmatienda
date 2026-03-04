@@ -67,14 +67,17 @@ export class ProductsService {
     file?: Express.Multer.File
   ): Promise<ServiceResponse> {
     try {
-      const nameAnalysis = await analyzeProductName(normalizeProductName(data.name));
-      logger.info("Name analysis", { nameAnalysis });
-      if (nameAnalysis?.isGeneric) {
-        return {
-          status: 400,
-          message: nameAnalysis.message,
-          data: { suggestions: nameAnalysis.suggestions ?? [] }
-        };
+      const skipGenericCheck = (data as { skipGenericCheck?: boolean }).skipGenericCheck === true;
+      if (!skipGenericCheck) {
+        const nameAnalysis = await analyzeProductName(normalizeProductName(data.name));
+        logger.info("Name analysis", { nameAnalysis });
+        if (nameAnalysis?.isGeneric) {
+          return {
+            status: 400,
+            message: nameAnalysis.message,
+            data: { suggestions: nameAnalysis.suggestions ?? [] }
+          };
+        }
       }
 
       const normalizedName = normalizeProductName(data.name);

@@ -16,6 +16,10 @@ export const listProductsQuerySchema = z.object({
 
 export const createProductSchema = z.object({
   name: z.string().min(1, "Nombre requerido").trim(),
+  skipGenericCheck: z
+    .union([z.boolean(), z.string()])
+    .optional()
+    .transform((v) => v === true || v === "true"),
   description: z.string().optional(),
   barCode: z.string().trim().optional().nullable(),
   metaTitle: z.string().max(120).optional(),

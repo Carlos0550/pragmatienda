@@ -170,7 +170,7 @@ export default function AdminProductsPage() {
     setDialogOpen(true);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent, skipGenericCheck = false) => {
     e.preventDefault();
     setErrors({});
     setFormSuggestions([]);
@@ -182,6 +182,7 @@ export default function AdminProductsPage() {
     formData.append('status', form.status);
     if (form.categoryId) formData.append('categoryId', form.categoryId);
     formData.append('barCode', form.barCode?.trim() ?? '');
+    if (skipGenericCheck) formData.append('skipGenericCheck', 'true');
     if (imageFile) formData.append('image', imageFile);
     if (editing) {
       formData.append('description', form.description ?? '');
@@ -202,6 +203,7 @@ export default function AdminProductsPage() {
         await http.products.createAdmin(formData);
         sileo.success({ title: 'Producto creado' });
       }
+      setFormSuggestions([]);
       setDialogOpen(false);
       await loadProducts();
     } catch (err) {
@@ -395,6 +397,11 @@ export default function AdminProductsPage() {
                         ))}
                       </div>
                     )}
+                    {!editing && (
+                      <p className="text-xs text-muted-foreground pt-1">
+                        Si querés guardar el nombre tal cual, usá &quot;Guardar igual&quot;.
+                      </p>
+                    )}
                   </div>
                 )}
                 <div className="space-y-2">
@@ -522,9 +529,25 @@ export default function AdminProductsPage() {
                     </div>
                   </>
                 )}
-                <Button type="submit" className="w-full" disabled={saving}>
-                  {saving ? 'Guardando...' : 'Guardar'}
-                </Button>
+                <div className="flex gap-2">
+                  <Button type="submit" className="flex-1" disabled={saving}>
+                    {saving ? 'Guardando...' : 'Guardar'}
+                  </Button>
+                  {!editing && errors._form && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="flex-1"
+                      disabled={saving}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        void handleSubmit(e as unknown as React.FormEvent, true);
+                      }}
+                    >
+                      {saving ? 'Guardando...' : 'Guardar igual'}
+                    </Button>
+                  )}
+                </div>
               </form>
             </DialogContent>
           </Dialog>
