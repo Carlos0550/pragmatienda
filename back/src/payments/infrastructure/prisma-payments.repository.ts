@@ -117,7 +117,7 @@ export class PrismaPaymentsRepository {
   }
 
   async getOrderForCheckout(storeId: string, orderId: string) {
-    return prisma.order.findFirst({
+    const order = await prisma.order.findFirst({
       where: {
         id: orderId,
         tenantId: storeId
@@ -125,8 +125,6 @@ export class PrismaPaymentsRepository {
       select: {
         id: true,
         tenantId: true,
-        currency: true,
-        total: true,
         user: {
           select: {
             email: true
@@ -147,6 +145,16 @@ export class PrismaPaymentsRepository {
         }
       }
     });
+    if (!order) return null;
+    const total = order.items.reduce(
+      (sum, item) => sum + Number(item.unitPrice) * item.quantity,
+      0
+    );
+    return {
+      ...order,
+      currency: "ARS",
+      total
+    };
   }
 
   async getOrderById(orderId: string) {
@@ -159,20 +167,10 @@ export class PrismaPaymentsRepository {
     });
   }
 
-  async setOrderPaymentStatus(
-    orderId: string,
-    paymentStatus: PaymentStatus,
-    paymentReference?: string | null,
-    paymentMethod?: string | null
-  ) {
-    return prisma.order.update({
-      where: { id: orderId },
-      data: {
-        paymentStatus,
-        paymentReference: paymentReference ?? null,
-        paymentMethod: paymentMethod ?? null,
-        ...(paymentStatus === PaymentStatus.PAID ? { paidAt: new Date() } : {})
-      }
+  async setSalesPaymentStatusForOrder(orderId: string, paymentStatus: PaymentStatus) {
+    await prisma.sales.updateMany({
+      where: { orderId },
+      data: { status: paymentStatus }
     });
   }
 

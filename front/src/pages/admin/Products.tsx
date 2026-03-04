@@ -39,6 +39,7 @@ const PRODUCT_STATUS_OPTIONS: { value: ProductStatus; label: string }[] = [
 const emptyForm: ProductFormState = {
   name: '',
   price: '',
+  barCode: '',
   categoryId: '',
   stock: '',
   status: 'PUBLISHED',
@@ -67,7 +68,9 @@ export default function AdminProductsPage() {
   const [bulkSaving, setBulkSaving] = useState(false);
   const [statusFilter, setStatusFilter] = useState<ProductStatus | ''>('PUBLISHED');
   const [formSuggestions, setFormSuggestions] = useState<string[]>([]);
+  const [barCodeSearching, setBarCodeSearching] = useState(false);
   const imagePreviewRef = useRef(imagePreview);
+  const barCodeInputRef = useRef<HTMLInputElement>(null);
 
   const loadCategories = useCallback(async () => {
     const items = await http.categories.listAdmin().catch(() => []);
@@ -127,6 +130,13 @@ export default function AdminProductsPage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (dialogOpen) {
+      const t = setTimeout(() => barCodeInputRef.current?.focus(), 100);
+      return () => clearTimeout(t);
+    }
+  }, [dialogOpen]);
+
   const openCreate = () => {
     setEditing(null);
     setForm(emptyForm);
@@ -144,6 +154,7 @@ export default function AdminProductsPage() {
     setForm({
       name: p.name,
       price: String(p.price),
+      barCode: p.barCode ?? '',
       categoryId: p.categoryId || p.category?.id || '',
       stock: String(p.stock),
       status: p.status ?? 'PUBLISHED',
@@ -170,6 +181,7 @@ export default function AdminProductsPage() {
     formData.append('stock', form.stock);
     formData.append('status', form.status);
     if (form.categoryId) formData.append('categoryId', form.categoryId);
+    formData.append('barCode', form.barCode?.trim() ?? '');
     if (imageFile) formData.append('image', imageFile);
     if (editing) {
       formData.append('description', form.description ?? '');
@@ -275,6 +287,37 @@ export default function AdminProductsPage() {
     });
   };
 
+  const handleBarCodeScan = async () => {
+    const code = form.barCode?.trim();
+    if (!code || barCodeSearching) return;
+    setBarCodeSearching(true);
+    try {
+      const response = await http.products.listAdmin({
+        page: 1,
+        limit: 1,
+        barCode: code,
+      });
+      const product = response.items[0];
+      if (product) {
+        openEdit(product);
+        sileo.success({ title: 'Producto encontrado' });
+      } else {
+        sileo.error({ title: 'Producto no encontrado con ese código' });
+      }
+    } catch {
+      sileo.error({ title: 'Error al buscar' });
+    } finally {
+      setBarCodeSearching(false);
+    }
+  };
+
+  const handleBarCodeKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      void handleBarCodeScan();
+    }
+  };
+
   const from = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
   const to = Math.min(page * PAGE_SIZE, total);
 
@@ -358,6 +401,22 @@ export default function AdminProductsPage() {
                   <Label>Nombre</Label>
                   <Input value={form.name} onChange={handleChange('name')} required />
                   {errors.name && <p className="text-xs text-primary">{errors.name}</p>}
+                </div>
+                <div className="space-y-2">
+                  <Label>Código de barras</Label>
+                  <Input
+                    ref={barCodeInputRef}
+                    value={form.barCode}
+                    onChange={handleChange('barCode')}
+                    onKeyDown={handleBarCodeKeyDown}
+                    placeholder="Escanear o escribir código. Enter para buscar producto existente."
+                    disabled={barCodeSearching}
+                  />
+                  {form.barCode && (
+                    <p className="text-xs text-muted-foreground">
+                      Presioná Enter para buscar y autocompletar con un producto existente
+                    </p>
+                  )}
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">

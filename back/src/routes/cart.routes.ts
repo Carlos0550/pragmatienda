@@ -102,12 +102,12 @@ const router = Router();
 
 router.use(requireTenant);
 
-router.get("/", requireRole([2]), cartController.getCart);
-router.delete("/items", requireRole([2]), cartController.deleteItems);
-router.patch("/items", requireRole([2]), cartController.patchItems);
+router.get("/", requireRole([1, 2]), cartController.getCart);
+router.delete("/items", requireRole([1, 2]), cartController.deleteItems);
+router.patch("/items", requireRole([1, 2]), cartController.patchItems);
 router.post(
   "/checkout",
-  requireRole([2]),
+  requireRole([1, 2]),
   requireIdempotencyKey("cart.checkout"),
   uploadComprobanteOptionalMiddleware,
   requireComprobante,

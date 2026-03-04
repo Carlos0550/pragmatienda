@@ -118,6 +118,7 @@ export class ProductsService {
           name: normalizedName,
           slug,
           description,
+          barCode: data.barCode?.trim() || null,
           metaTitle: data.metaTitle?.trim() || generated?.title || undefined,
           metaDescription: data.metaDescription?.trim() || generated?.description || undefined,
           image: imageUrl,
@@ -180,6 +181,7 @@ export class ProductsService {
         updatePayload.slug = await getUniqueSlug(tenantId, baseSlug, id);
       }
       if (data.description !== undefined) updatePayload.description = data.description.trim();
+      if (data.barCode !== undefined) updatePayload.barCode = data.barCode?.trim() || null;
       if (data.metaTitle !== undefined) updatePayload.metaTitle = data.metaTitle.trim();
       if (data.metaDescription !== undefined) updatePayload.metaDescription = data.metaDescription.trim();
       if (data.price !== undefined) updatePayload.price = data.price;
@@ -229,7 +231,7 @@ export class ProductsService {
     isPublic: boolean
   ): Promise<ServiceResponse> {
     try {
-      const { page, limit, name, categoryId, status, sortBy, sortOrder } = query;
+      const { page, limit, name, barCode, categoryId, status, sortBy, sortOrder } = query;
       const categorySlug = query.categorySlug?.trim();
       const skip = (page - 1) * limit;
 
@@ -238,6 +240,7 @@ export class ProductsService {
         ...(name?.trim()
           ? { name: { contains: normalizeText(name), mode: "insensitive" as const } }
           : {}),
+        ...(barCode?.trim() ? { barCode: barCode.trim() } : {}),
         ...(categoryId ? { categoryId } : {}),
         ...(categorySlug ? { category: { slug: slugify(categorySlug) } } : {}),
         ...(isPublic ? { status: ProductsStatus.PUBLISHED, stock: { gt: 0 } } : {}),

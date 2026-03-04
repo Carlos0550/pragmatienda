@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import { logger } from "../config/logger";
 import { persistIdempotencyResponse } from "../middlewares";
 import { cartService } from "../services/Cart/cart.service";
-import { patchCartItemsSchema, deleteCartItemsSchema } from "../services/Cart/cart.zod";
+import { patchCartItemsSchema, deleteCartItemsSchema, checkoutOriginSchema } from "../services/Cart/cart.zod";
 import { PaymentProvider } from "@prisma/client";
 
 class CartController {
@@ -77,17 +77,27 @@ class CartController {
     try {
       const userId = req.user?.id;
       const tenantId = req.tenantId;
-      const paymentProvider = req.body.paymentProvider;
+      const paymentProviderRaw = req.body.paymentProvider;
       const origin = req.body.origin;
       if (!userId || !tenantId) {
         return res.status(400).json({ message: "Usuario y tenant requeridos." });
       }
 
-      if (paymentProvider && !Object.values(PaymentProvider).includes(paymentProvider)) {
-        return res.status(400).json({ message: "Proveedor o método de pago inválido." });
+      const originParsed = checkoutOriginSchema.safeParse(origin);
+      if (!originParsed.success) {
+        return res.status(400).json({ message: "Origen de checkout inválido. Use 'cart' o 'sale'." });
       }
 
-      const result = await cartService.checkout(userId, tenantId, req.file ?? null, paymentProvider, origin);
+      if (originParsed.data === "sale" && (!paymentProviderRaw || !Object.values(PaymentProvider).includes(paymentProviderRaw))) {
+        return res.status(400).json({ message: "Proveedor de pago requerido para venta POS." });
+      }
+
+      const paymentProvider: PaymentProvider =
+        paymentProviderRaw && Object.values(PaymentProvider).includes(paymentProviderRaw)
+          ? paymentProviderRaw
+          : PaymentProvider.BANK_TRANSFER;
+
+      const result = await cartService.checkout(userId, tenantId, req.file ?? null, paymentProvider, originParsed.data);
       await persistIdempotencyResponse(req, result.status, result);
       return res.status(result.status).json(result);
     } catch (error) {

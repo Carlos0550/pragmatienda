@@ -6,6 +6,7 @@ export const listProductsQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(10),
   name: z.string().trim().optional(),
+  barCode: z.string().trim().optional(),
   categoryId: z.string().cuid().optional(),
   categorySlug: z.string().trim().min(1).optional(),
   status: z.nativeEnum(ProductsStatus).optional(),
@@ -16,6 +17,7 @@ export const listProductsQuerySchema = z.object({
 export const createProductSchema = z.object({
   name: z.string().min(1, "Nombre requerido").trim(),
   description: z.string().optional(),
+  barCode: z.string().trim().optional().nullable(),
   metaTitle: z.string().max(120).optional(),
   metaDescription: z.string().max(255).optional(),
   price: z.coerce.number().positive("Precio debe ser positivo"),
@@ -28,6 +30,7 @@ export const createProductSchema = z.object({
 export const updateProductSchema = z.object({
   name: z.string().min(1).optional(),
   description: z.string().optional(),
+  barCode: z.string().trim().optional().nullable(),
   metaTitle: z.string().max(120).optional(),
   metaDescription: z.string().max(255).optional(),
   price: z.coerce.number().positive().optional(),

@@ -32,7 +32,7 @@ class FakeRepository {
   async findStoreAccountByMpUserId() {
     return {
       storeId: "store-1",
-      provider: PaymentProviderEnum.MERCADOPAGO,
+      provider: PaymentProviderEnum.MERCADOPAGO_INTEGRATION,
       mpUserId: "123",
       accessToken: encryptString("access-token"),
       refreshToken: encryptString("refresh-token"),
@@ -48,7 +48,7 @@ class FakeRepository {
   async findStoreAccount() {
     return {
       storeId: "store-1",
-      provider: PaymentProviderEnum.MERCADOPAGO,
+      provider: PaymentProviderEnum.MERCADOPAGO_INTEGRATION,
       mpUserId: "123",
       accessToken: encryptString("access-token"),
       refreshToken: encryptString("refresh-token"),
@@ -77,7 +77,7 @@ class FakeRepository {
     this.payments.set(`${input.provider}:${input.externalPaymentId}`, input);
   }
 
-  async setOrderPaymentStatus() {
+  async setSalesPaymentStatusForOrder() {
     return;
   }
 }

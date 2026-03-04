@@ -4,6 +4,7 @@ import { businessController } from "../controllers/business.controller";
 import { categoriesController } from "../controllers/categories.controller";
 import { paymentsController } from "../controllers/payments.controller";
 import { productsController } from "../controllers/products.controller";
+import { salesRouter } from "./sales.routes";
 import { openApiRegistry } from "../docs/swagger";
 import {
   requireRole,
@@ -398,5 +399,7 @@ router.patch(
   requireRole([1]),
   productsController.patchBulkStatus
 );
+
+router.use("/sales", salesRouter);
 
 export { router as adminRouter };

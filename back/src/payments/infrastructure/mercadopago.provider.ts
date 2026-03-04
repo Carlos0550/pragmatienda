@@ -153,7 +153,7 @@ export class MercadoPagoProvider implements PaymentProvider {
 
     await this.repository.upsertStoreAccount({
       storeId: input.storeId,
-      provider: PaymentProviderEnum.MERCADOPAGO,
+      provider: PaymentProviderEnum.MERCADOPAGO_INTEGRATION,
       mpUserId: tokens.user_id ? String(tokens.user_id) : null,
       accessTokenEncrypted: encryptString(tokens.access_token),
       refreshTokenEncrypted: tokens.refresh_token ? encryptString(tokens.refresh_token) : null,
@@ -174,7 +174,7 @@ export class MercadoPagoProvider implements PaymentProvider {
   }
 
   private async getStoreAccessToken(storeId: string): Promise<string> {
-    const account = await this.repository.findStoreAccount(storeId, PaymentProviderEnum.MERCADOPAGO);
+    const account = await this.repository.findStoreAccount(storeId, PaymentProviderEnum.MERCADOPAGO_INTEGRATION);
     if (!account) {
       throw new PaymentError(404, "ACCOUNT_NOT_CONNECTED", "La tienda no tiene Mercado Pago conectado.");
     }
@@ -203,7 +203,7 @@ export class MercadoPagoProvider implements PaymentProvider {
 
     await this.repository.upsertStoreAccount({
       storeId,
-      provider: PaymentProviderEnum.MERCADOPAGO,
+      provider: PaymentProviderEnum.MERCADOPAGO_INTEGRATION,
       mpUserId: refreshed.user_id ? String(refreshed.user_id) : account.mpUserId,
       accessTokenEncrypted: encryptString(refreshed.access_token),
       refreshTokenEncrypted: refreshed.refresh_token
@@ -217,7 +217,7 @@ export class MercadoPagoProvider implements PaymentProvider {
   }
 
   async refreshToken(input: RefreshTokenInput): Promise<RefreshTokenResult> {
-    const account = await this.repository.findStoreAccount(input.storeId, PaymentProviderEnum.MERCADOPAGO);
+    const account = await this.repository.findStoreAccount(input.storeId, PaymentProviderEnum.MERCADOPAGO_INTEGRATION);
     if (!account || !account.refreshToken) {
       return { refreshed: false };
     }
@@ -234,7 +234,7 @@ export class MercadoPagoProvider implements PaymentProvider {
 
     await this.repository.upsertStoreAccount({
       storeId: input.storeId,
-      provider: PaymentProviderEnum.MERCADOPAGO,
+      provider: PaymentProviderEnum.MERCADOPAGO_INTEGRATION,
       mpUserId: refreshed.user_id ? String(refreshed.user_id) : account.mpUserId,
       accessTokenEncrypted: encryptString(refreshed.access_token),
       refreshTokenEncrypted: refreshed.refresh_token
@@ -298,19 +298,19 @@ export class MercadoPagoProvider implements PaymentProvider {
     let account = input.providerUserId
       ? await this.repository.findStoreAccountByMpUserId(
           input.providerUserId,
-          PaymentProviderEnum.MERCADOPAGO
+          PaymentProviderEnum.MERCADOPAGO_INTEGRATION
         )
       : null;
 
     if (!account) {
       const existingPayment = await this.repository.findPaymentByExternalPaymentId(
-        PaymentProviderEnum.MERCADOPAGO,
+        PaymentProviderEnum.MERCADOPAGO_INTEGRATION,
         input.paymentId
       );
       if (existingPayment) {
         account = await this.repository.findStoreAccount(
           existingPayment.storeId,
-          PaymentProviderEnum.MERCADOPAGO
+          PaymentProviderEnum.MERCADOPAGO_INTEGRATION
         );
       }
     }
@@ -361,7 +361,7 @@ export class MercadoPagoProvider implements PaymentProvider {
     await this.repository.upsertPayment({
       storeId: order.tenantId,
       orderId: order.id,
-      provider: PaymentProviderEnum.MERCADOPAGO,
+      provider: PaymentProviderEnum.MERCADOPAGO_INTEGRATION,
       externalPaymentId: String(payment.id ?? input.paymentId),
       status: mapMercadoPagoStatusToPublicPaymentStatus(payment.status),
       statusDetail: payment.status_detail ?? null,
@@ -370,11 +370,9 @@ export class MercadoPagoProvider implements PaymentProvider {
       rawResponse: toInputJson(payment)
     });
 
-    await this.repository.setOrderPaymentStatus(
+    await this.repository.setSalesPaymentStatusForOrder(
       order.id,
-      mapMercadoPagoStatusToOrderPaymentStatus(payment.status),
-      payment.id ? String(payment.id) : null,
-      payment.payment_method_id ?? null
+      mapMercadoPagoStatusToOrderPaymentStatus(payment.status)
     );
 
     logger.info("MercadoPago webhook processed", {

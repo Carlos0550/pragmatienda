@@ -12,10 +12,12 @@ import type {
   CategoriesListResponse,
   ListCategoriesParams,
   ListProductsParams,
+  ListSalesParams,
   LoginPayload,
   CustomerLoginResponse,
   MercadoPagoConnectUrl,
   MercadoPagoStatus,
+  PatchSaleItemsPayload,
   PaymentsCheckoutResponse,
   Plan,
   PlanMutationPayload,
@@ -28,6 +30,8 @@ import type {
   CreateBusinessPayload,
   RecoverPasswordPayload,
   RegisterCustomerPayload,
+  Sale,
+  SaleMetrics,
   Subscription,
   SuperadminPlansListResponse,
   Tenant,
@@ -41,6 +45,7 @@ function buildProductParams(params?: ListProductsParams): QueryParams {
   if (params.page != null) query.page = String(params.page);
   if (params.limit != null) query.limit = String(params.limit);
   if (params.name) query.name = params.name;
+  if (params.barCode) query.barCode = params.barCode;
   if (params.categoryId) query.categoryId = params.categoryId;
   if (params.categorySlug) query.categorySlug = params.categorySlug;
   if (params.status) query.status = params.status;
@@ -55,6 +60,18 @@ function buildCategoryParams(params?: ListCategoriesParams): QueryParams {
   if (params.page != null) query.page = String(params.page);
   if (params.limit != null) query.limit = String(params.limit);
   if (params.name) query.name = params.name;
+  return query;
+}
+
+function buildSalesParams(params?: ListSalesParams): QueryParams {
+  const query: QueryParams = {};
+  if (!params) return query;
+  if (params.page != null) query.page = String(params.page);
+  if (params.limit != null) query.limit = String(params.limit);
+  if (params.from) query.from = params.from;
+  if (params.to) query.to = params.to;
+  if (params.sortBy) query.sortBy = params.sortBy;
+  if (params.sortOrder) query.sortOrder = params.sortOrder;
   return query;
 }
 
@@ -142,15 +159,46 @@ export const http = {
       return response.data;
     },
     patchItemDelta: (productId: string, delta: number) => api.patch('/cart/items', { productId, delta }),
-    checkout: async (comprobante: File) => {
+    checkout: async (comprobante?: File | null, origin: 'cart' | 'sale' = 'cart', paymentProvider?: string) => {
       const formData = new FormData();
-      formData.append('comprobante', comprobante);
+      formData.append('origin', origin);
+      if (origin === 'sale' && paymentProvider) {
+        formData.append('paymentProvider', paymentProvider);
+      }
+      if (comprobante && comprobante.size > 0) formData.append('comprobante', comprobante);
       const idempotencyKey = crypto.randomUUID();
       const response = await api.postMultipart<CartCheckoutResponse>('/cart/checkout', formData, {
         'Idempotency-Key': idempotencyKey,
       });
-      return { orderId: response.data.order };
+      const data = response.data as { order?: string; saleIds?: string[] };
+      if (data.order) return { orderId: data.order };
+      return { saleIds: data.saleIds ?? [] };
     },
+  },
+
+  sales: {
+    list: async (params?: ListSalesParams) => {
+      const response = await api.get<ApiEnvelope<{ items: Sale[]; pagination: { page: number; limit: number; total: number; totalPages: number } }>>(
+        '/admin/sales',
+        buildSalesParams(params)
+      );
+      return response.data;
+    },
+    getOne: async (id: string) => {
+      const response = await api.get<ApiEnvelope<Sale>>(`/admin/sales/${id}`);
+      return response.data;
+    },
+    getMetrics: async (from: string, to: string, groupBy: 'day' | 'week' | 'month' = 'day') => {
+      const response = await api.get<ApiEnvelope<SaleMetrics>>(
+        `/admin/sales/metrics?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&groupBy=${groupBy}`
+      );
+      return response.data;
+    },
+    update: (id: string, payload: { discount?: number; status?: string }) =>
+      api.put<ApiEnvelope<unknown>>(`/admin/sales/${id}`, payload),
+    patchItems: (id: string, payload: PatchSaleItemsPayload) =>
+      api.patch<ApiEnvelope<unknown>>(`/admin/sales/${id}/items`, payload),
+    delete: (id: string) => api.delete<ApiEnvelope<unknown>>(`/admin/sales/${id}`),
   },
 
   billing: {

@@ -205,7 +205,7 @@ export class PaymentsService {
   }
 
   async getMercadoPagoStatus(storeId: string): Promise<{ connected: boolean }> {
-    const account = await this.repository.findStoreAccount(storeId, PaymentProvider.MERCADOPAGO);
+    const account = await this.repository.findStoreAccount(storeId, PaymentProvider.MERCADOPAGO_INTEGRATION);
     return { connected: !!account };
   }
 }

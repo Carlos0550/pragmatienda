@@ -115,6 +115,7 @@ export interface Product {
   name: string;
   slug: string;
   description: string;
+  barCode?: string | null;
   price: number;
   compareAtPrice?: number;
   image?: string;
@@ -225,6 +226,7 @@ export interface ListProductsParams {
   page?: number;
   limit?: number;
   name?: string;
+  barCode?: string;
   categoryId?: string;
   categorySlug?: string;
   status?: ProductStatus;
@@ -309,7 +311,68 @@ export type PaymentsCheckoutResponse = { message: string; data: PaymentsCheckout
 export type SuperadminPlansListResponse = { data: Plan[] };
 export type CartResponse = ApiEnvelope<Cart>;
 export type CartItemPatchResponse = ApiEnvelope<{ id?: string; quantity: number; productId?: string }>;
-export type CartCheckoutResponse = ApiEnvelope<{ order: string }>;
+export type CartCheckoutResponse = ApiEnvelope<{ order: string } | { saleIds: string[] }>;
+
+export type PaymentProvider = 'MERCADOPAGO_INTEGRATION' | 'BANK_TRANSFER' | 'CASH' | 'DEBIT_CARD' | 'CREDIT_CARD' | 'OTHER';
+
+export interface SaleItemProduct {
+  id: string;
+  name: string;
+  image?: string | null;
+  stock?: number;
+}
+
+export interface SaleOrderItem {
+  id: string;
+  quantity: number;
+  unitPrice: number;
+  product: SaleItemProduct;
+}
+
+export interface Sale {
+  id: string;
+  total: number;
+  saleDate: string;
+  status: string;
+  paymentProvider: string;
+  currency: string;
+  orderId?: string | null;
+  orderItemId?: string | null;
+  order?: {
+    id: string;
+    user?: { email?: string; name?: string };
+    items: SaleOrderItem[];
+  } | null;
+  orderItem?: {
+    id: string;
+    quantity: number;
+    unitPrice: number;
+    product: SaleItemProduct;
+  } | null;
+}
+
+export interface SaleMetricsPoint {
+  date: string;
+  total: number;
+}
+
+export interface SaleMetrics {
+  series: SaleMetricsPoint[];
+}
+
+export interface ListSalesParams {
+  page?: number;
+  limit?: number;
+  from?: string;
+  to?: string;
+  sortBy?: 'saleDate' | 'total' | 'createdAt';
+  sortOrder?: 'asc' | 'desc';
+}
+
+export interface PatchSaleItemsPayload {
+  removeItemIds?: string[];
+  replaceItems?: { orderItemId: string; productId: string; quantity: number }[];
+}
 
 export interface ProtectedRouteProps {
   children: ReactNode;
@@ -353,6 +416,7 @@ export interface CategoryFormState {
 export interface ProductFormState {
   name: string;
   price: string;
+  barCode: string;
   categoryId: string;
   stock: string;
   status: ProductStatus;
