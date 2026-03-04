@@ -3,6 +3,7 @@ import { logger } from "../config/logger";
 import { persistIdempotencyResponse } from "../middlewares";
 import { cartService } from "../services/Cart/cart.service";
 import { patchCartItemsSchema, deleteCartItemsSchema } from "../services/Cart/cart.zod";
+import { PaymentProvider } from "@prisma/client";
 
 class CartController {
   async getCart(req: Request, res: Response): Promise<Response> {
@@ -76,15 +77,17 @@ class CartController {
     try {
       const userId = req.user?.id;
       const tenantId = req.tenantId;
+      const paymentProvider = req.body.paymentProvider;
+      const origin = req.body.origin;
       if (!userId || !tenantId) {
         return res.status(400).json({ message: "Usuario y tenant requeridos." });
       }
 
-      if (!req.file) {
-        return res.status(400).json({ message: "Comprobante de pago requerido." });
+      if (paymentProvider && !Object.values(PaymentProvider).includes(paymentProvider)) {
+        return res.status(400).json({ message: "Proveedor o método de pago inválido." });
       }
 
-      const result = await cartService.checkout(userId, tenantId, req.file);
+      const result = await cartService.checkout(userId, tenantId, req.file ?? null, paymentProvider, origin);
       await persistIdempotencyResponse(req, result.status, result);
       return res.status(result.status).json(result);
     } catch (error) {

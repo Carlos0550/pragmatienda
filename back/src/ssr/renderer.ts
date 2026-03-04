@@ -27,6 +27,8 @@ type FrontServerModule = {
         seoDescription?: string;
         logo?: string;
         banner?: string;
+        banners?: Array<{ url: string; order?: number; objectPositionX?: number; objectPositionY?: number }>;
+        bannerOverlayPosition?: string;
         seoImage?: string;
         favicon?: string;
         socialLinks?: { facebook?: string; instagram?: string; whatsapp?: string };
@@ -509,10 +511,35 @@ async function resolveTenantFromHostname(hostname: string) {
     seoDescription?: string | null;
     logo?: string | null;
     banner?: string | null;
+    banners?: Array<{ url: string; order?: number }> | null;
+    bannerOverlayPosition?: string | null;
     seoImage?: string | null;
     favicon?: string | null;
     socialMedia?: unknown;
   };
+
+  const rawBanners = data.banners;
+  const banners = Array.isArray(rawBanners)
+    ? rawBanners
+        .filter((item): item is { url: string; order?: number; objectPositionX?: number; objectPositionY?: number } =>
+          item != null && typeof (item as { url?: string }).url === "string"
+        )
+        .map((item, index) => {
+          const obj = item as { url: string; order?: number; objectPositionX?: number; objectPositionY?: number };
+          const x = typeof obj.objectPositionX === "number" && obj.objectPositionX >= 0 && obj.objectPositionX <= 100
+            ? obj.objectPositionX
+            : 50;
+          const y = typeof obj.objectPositionY === "number" && obj.objectPositionY >= 0 && obj.objectPositionY <= 100
+            ? obj.objectPositionY
+            : 50;
+          return {
+            url: obj.url,
+            order: typeof obj.order === "number" && Number.isFinite(obj.order) ? obj.order : index,
+            objectPositionX: x,
+            objectPositionY: y,
+          };
+        })
+    : [];
 
   return {
     tenantState: {
@@ -524,6 +551,8 @@ async function resolveTenantFromHostname(hostname: string) {
         seoDescription: data.seoDescription ?? data.description ?? undefined,
         logo: data.logo ?? undefined,
         banner: data.banner ?? undefined,
+        banners,
+        bannerOverlayPosition: data.bannerOverlayPosition ?? undefined,
         seoImage: data.seoImage ?? undefined,
         favicon: data.favicon ?? undefined,
         socialLinks: toTenantSocialLinks(data.socialMedia),

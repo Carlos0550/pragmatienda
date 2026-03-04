@@ -42,6 +42,8 @@ type BankOption = {
 type BusinessBanner = {
   url: string;
   order: number;
+  objectPositionX?: number;
+  objectPositionY?: number;
 };
 
 class BusinessService {
@@ -226,6 +228,7 @@ class BusinessService {
           logo: true,
           banner: true,
           banners: true,
+          bannerOverlayPosition: true,
           favicon: true,
           seoImage: true,
           seoDescription: true,
@@ -256,6 +259,7 @@ class BusinessService {
           logo: business.logo,
           banner: business.banner,
           banners: business.banners,
+          bannerOverlayPosition: business.bannerOverlayPosition,
           favicon: business.favicon,
           seoImage: business.seoImage,
           seoDescription: business.seoDescription ?? business.description,
@@ -296,6 +300,7 @@ class BusinessService {
               logo: true,
               banner: true,
               banners: true,
+              bannerOverlayPosition: true,
               seoImage: true,
               favicon: true,
               socialMedia: true,
@@ -356,14 +361,23 @@ class BusinessService {
         : [];
       const banners = Array.isArray(rawBanners)
         ? rawBanners
-            .filter((item) => item && typeof item.url === "string")
-            .map((item, index) => ({
-              url: item.url,
-              order:
-                typeof item.order === "number" && Number.isFinite(item.order)
-                  ? item.order
-                  : index,
-            }))
+            .filter((item) => item && typeof (item as { url?: string }).url === "string")
+            .map((item, index) => {
+              const b = item as { url: string; order?: number; objectPositionX?: number; objectPositionY?: number };
+              return {
+                url: b.url,
+                order:
+                  typeof b.order === "number" && Number.isFinite(b.order)
+                    ? b.order
+                    : index,
+                objectPositionX: typeof b.objectPositionX === "number" && b.objectPositionX >= 0 && b.objectPositionX <= 100
+                  ? b.objectPositionX
+                  : 50,
+                objectPositionY: typeof b.objectPositionY === "number" && b.objectPositionY >= 0 && b.objectPositionY <= 100
+                  ? b.objectPositionY
+                  : 50,
+              };
+            })
         : [];
 
       return {
@@ -381,6 +395,7 @@ class BusinessService {
           logo: b.logo ?? undefined,
           banner: b.banner ?? undefined,
           banners,
+          bannerOverlayPosition: b.bannerOverlayPosition ?? undefined,
           seoImage: b.seoImage ?? undefined,
           favicon: b.favicon ?? undefined,
           socialLinks,
@@ -436,6 +451,7 @@ class BusinessService {
       const bannerUrl = await uploadAsset("banners", data.banner);
       const faviconUrl = await uploadAsset("favicons", data.favicon);
       const seoImageUrl = await uploadAsset("seo-images", data.seoImage);
+      const hasBannerDataPayload = data.bannerData !== undefined && Array.isArray(data.bannerData);
       const hasBannerUrlsPayload = data.bannerUrls !== undefined && Array.isArray(data.bannerUrls);
       const existingBannerUrls = hasBannerUrlsPayload
         ? (data.bannerUrls as string[]).filter((u): u is string => typeof u === "string" && u.length > 0)
@@ -445,19 +461,46 @@ class BusinessService {
         newBannerFiles.map(async (file, index) => {
           const url = await uploadAsset("banners", file);
           if (!url) return null;
-          return { url, order: existingBannerUrls.length + index };
+          const baseOrder = hasBannerDataPayload
+            ? (data.bannerData as { url: string; order: number }[]).length
+            : existingBannerUrls.length;
+          return {
+            url,
+            order: baseOrder + index,
+            objectPositionX: 50,
+            objectPositionY: 50,
+          };
         })
       );
       const normalizedNew = uploadedNewBanners.filter(
-        (item): item is BusinessBanner => Boolean(item?.url)
-      );
-      const shouldUpdateBanners = hasBannerUrlsPayload || normalizedNew.length > 0;
-      const finalBanners: BusinessBanner[] = shouldUpdateBanners
-        ? [
-            ...existingBannerUrls.map((url, order) => ({ url, order })),
-            ...normalizedNew,
-          ]
-        : [];
+        (item): item is NonNullable<typeof item> => item != null && Boolean(item.url)
+      ) as BusinessBanner[];
+      const shouldUpdateBanners = hasBannerDataPayload || hasBannerUrlsPayload || normalizedNew.length > 0;
+      let finalBanners: BusinessBanner[];
+      if (hasBannerDataPayload) {
+        const bannerDataArr = data.bannerData as { url: string; order: number; objectPositionX?: number; objectPositionY?: number }[];
+        finalBanners = [
+          ...bannerDataArr.map((item) => ({
+            url: item.url,
+            order: item.order,
+            objectPositionX: item.objectPositionX ?? 50,
+            objectPositionY: item.objectPositionY ?? 50,
+          })),
+          ...normalizedNew,
+        ];
+      } else if (shouldUpdateBanners) {
+        finalBanners = [
+          ...existingBannerUrls.map((url, order) => ({
+            url,
+            order,
+            objectPositionX: 50,
+            objectPositionY: 50,
+          })),
+          ...normalizedNew,
+        ];
+      } else {
+        finalBanners = [];
+      }
 
       const socialMediaPayload = Array.isArray(data.socialMedia)
         ? data.socialMedia.reduce<Record<string, string>>((acc, item) => {
@@ -487,6 +530,7 @@ class BusinessService {
         ...(logoUrl ? { logo: logoUrl } : data.clearLogo ? { logo: null } : {}),
         ...(bannerUrl ? { banner: bannerUrl } : {}),
         ...(shouldUpdateBanners ? { banners: finalBanners } : {}),
+        ...(data.bannerOverlayPosition !== undefined ? { bannerOverlayPosition: data.bannerOverlayPosition } : {}),
         ...(seoImageUrl ? { seoImage: seoImageUrl } : data.clearSeoImage ? { seoImage: null } : {}),
         ...(faviconUrl ? { favicon: faviconUrl } : data.clearFavicon ? { favicon: null } : {}),
       };

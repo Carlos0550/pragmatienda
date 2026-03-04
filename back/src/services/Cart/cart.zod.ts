@@ -8,3 +8,5 @@ export const patchCartItemsSchema = z.object({
 export const deleteCartItemsSchema = z.object({
   productIds: z.array(z.string().cuid()).optional()
 }).strict();
+
+export const checkoutOriginSchema = z.enum(["cart", "sale"]);

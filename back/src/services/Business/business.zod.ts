@@ -45,12 +45,23 @@ export const updateBusinessSchema = z.object({
     clearFavicon: z.union([z.boolean(), z.literal("true"), z.literal("1")]).optional(),
     clearSeoImage: z.union([z.boolean(), z.literal("true"), z.literal("1")]).optional(),
     bannerUrls: z.array(z.string().url()).max(20).optional(),
+    bannerData: z.array(z.object({
+        url: z.string().url(),
+        order: z.number().int().min(0),
+        objectPositionX: z.number().min(0).max(100).optional(),
+        objectPositionY: z.number().min(0).max(100).optional(),
+    })).max(20).optional(),
     seoImage: uploadedFileSchema.optional(),
     socialMedia: z.array(z.object({
         name: z.string().min(3),
         url: z.string().url()
     })).optional(),
     bankOptions: z.array(bankOptionSchema).max(20).optional(),
+    bannerOverlayPosition: z.enum([
+      "bottom-left", "bottom-right", "bottom-center",
+      "top-left", "top-right", "top-center",
+      "center"
+    ]).optional(),
 }).strict();
 
 export const loginBusinessSchema = z.object({

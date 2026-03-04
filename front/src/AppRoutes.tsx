@@ -13,6 +13,7 @@ import CustomerProfilePage from "@/pages/storefront/Profile";
 import CustomerLoginPage from "@/pages/storefront/CustomerLogin";
 import CustomerRegisterPage from "@/pages/storefront/CustomerRegister";
 import AdminLoginPage from "@/pages/admin/AdminLogin";
+import AdminRegisterPage from "@/pages/admin/AdminRegister";
 import AdminDashboard from "@/pages/admin/Dashboard";
 import BusinessPage from "@/pages/admin/Business";
 import CategoriesPage from "@/pages/admin/Categories";
@@ -52,6 +53,7 @@ export function AppRoutes() {
       </Route>
 
       <Route path="/admin/login" element={<AdminLoginPage />} />
+      <Route path="/admin/register" element={<AdminRegisterPage />} />
       <Route
         path="/admin"
         element={

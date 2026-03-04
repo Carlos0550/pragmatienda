@@ -68,7 +68,12 @@ enum FulfillmentStatus {
 }
 
 enum PaymentProvider {
-  MERCADOPAGO
+  MERCADOPAGO_INTEGRATION
+  BANK_TRANSFER
+  CASH
+  DEBIT_CARD
+  CREDIT_CARD
+  OTHER
 }
 
 enum BillingStatus {
@@ -104,6 +109,7 @@ model Tenant {
   payments           Payment[]         @relation("TenantPayments")
   subscriptions      Subscription[]    @relation("TenantSubscriptions")
   currentSubscription Subscription?    @relation("TenantCurrentSubscription", fields: [currentSubscriptionId], references: [id])
+  sales Sales[] @relation("TenantSales")
 }
 
 
@@ -121,6 +127,7 @@ model BusinessData {
   favicon String?
   banner String?
   banners Json?
+  bannerOverlayPosition String?
   seoImage String?
   seoDescription String?
   socialMedia Json?
@@ -187,6 +194,7 @@ model Products {
   id        String   @id @default(cuid())
   name      String
   description String?
+  barCode String?
   image String?
   metadata Json?
   slug String?
@@ -244,29 +252,22 @@ model Order{
   id String @id @default(cuid())
   tenantId String
   userId String
-  paymentProofImage String
+  
   status OrderStatus @default(PENDING)
-  paymentStatus PaymentStatus @default(PENDING)
   fulfillmentStatus FulfillmentStatus @default(UNFULFILLED)
-  subtotal Decimal @default(0)
   shippingCost Decimal @default(0)
   tax Decimal @default(0)
-  discount Decimal @default(0)
-  total Decimal @default(0)
-  currency String @default("ARS")
-  paymentProvider String?
-  paymentReference String?
-  paymentMethod String?
+  
   shippingProvider String?
   shippingService String?
   trackingCode String?
   shippingAddress Json?
   billingAddress Json?
   customerNote String?
-  paidAt DateTime?
   shippedAt DateTime?
   deliveredAt DateTime?
   items OrderItem[] @relation("OrderItems")
+  sales Sales[] @relation("OrderSales")
   user User @relation("UserOrder", fields: [userId], references: [id], onDelete: Cascade)
   tenant Tenant @relation("TenantOrder", fields: [tenantId], references: [id], onDelete: Cascade)
   paymentEvents PaymentEvent[] @relation("OrderPaymentEvents")
@@ -277,18 +278,17 @@ model Order{
   @@index([tenantId])
   @@index([userId])
   @@index([status])
-  @@index([paymentStatus])
   @@index([fulfillmentStatus])
-  @@index([paymentProvider])
   @@index([trackingCode])
 }
 
 model OrderItem{
   id String @id @default(cuid())
-  orderId String
-  order Order @relation("OrderItems", fields: [orderId], references: [id], onDelete: Cascade)
+  orderId String?
+  order Order? @relation("OrderItems", fields: [orderId], references: [id], onDelete: SetNull)
   productId String
   product Products @relation("ProductOrderItems", fields: [productId], references: [id], onDelete: Cascade)
+  sales Sales[] @relation("OrderItemSales")
   quantity Int
   unitPrice Decimal @default(0)
   createdAt DateTime @default(now())
@@ -440,4 +440,29 @@ model SubscriptionEvent {
   createdAt DateTime @default(now())
 
   @@index([subscriptionId])
+}
+
+
+model Sales{
+  id String @id @default(cuid())
+
+  total Decimal @default(0)
+  saleDate DateTime @default(now())
+  status PaymentStatus @default(PENDING)
+  paymentProofImage String?
+  discount Decimal @default(0)
+  currency String @default("ARS")
+  paymentProvider PaymentProvider
+  
+  orderId String?
+  orderItemId String?
+  tenantId String
+  
+  order Order? @relation("OrderSales", fields: [orderId], references: [id], onDelete: SetNull)
+  tenant Tenant @relation("TenantSales", fields: [tenantId], references: [id], onDelete: Cascade)
+  orderItem OrderItem? @relation("OrderItemSales", fields: [orderItemId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
 }

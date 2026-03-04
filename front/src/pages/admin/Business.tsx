@@ -13,8 +13,15 @@ import {
 } from '@/components/ui/dialog';
 import { sileo } from 'sileo';
 import { toFormErrors } from '@/lib/api-utils';
-import type { ApiError, BankOption, BusinessBanner, BusinessFormState, BusinessPreviewsState, FormErrors } from '@/types';
+import type { ApiError, BankOption, BannerOverlayPosition, BusinessBanner, BusinessFormState, BusinessPreviewsState, FormErrors } from '@/types';
 import { Landmark, Plus, Trash2 } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   Table,
   TableBody,
@@ -23,6 +30,54 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+
+const GRID_VALUES = [0, 25, 50, 75, 100];
+
+function BannerPositionGrid({
+  src,
+  objectPositionX,
+  objectPositionY,
+  onSelect,
+}: {
+  src: string;
+  objectPositionX: number;
+  objectPositionY: number;
+  onSelect: (x: number, y: number) => void;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <div
+        className="relative w-16 h-10 rounded border overflow-hidden bg-muted/30 flex-shrink-0"
+        title="Vista previa con posición actual"
+      >
+        <img
+          src={src}
+          alt=""
+          className="absolute inset-0 w-full h-full object-contain"
+          style={{ objectPosition: `${objectPositionX}% ${objectPositionY}%` }}
+        />
+      </div>
+      <div className="grid grid-cols-5 gap-0.5 w-[70px]">
+        {GRID_VALUES.map((yVal) =>
+          GRID_VALUES.map((xVal) => (
+            <button
+              key={`${xVal}-${yVal}`}
+              type="button"
+              onClick={() => onSelect(xVal, yVal)}
+              className={`w-3 h-3 rounded-sm border transition-colors ${
+                objectPositionX === xVal && objectPositionY === yVal
+                  ? 'bg-primary border-primary'
+                  : 'bg-muted/50 border-muted-foreground/30 hover:bg-muted'
+              }`}
+              title={`${xVal}%, ${yVal}%`}
+              aria-label={`Posición ${xVal}% ${yVal}%`}
+            />
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
 
 /** Previsualización que respeta el formato de la imagen (sin recortar). */
 function AssetPreview({
@@ -95,6 +150,7 @@ export default function BusinessPage() {
     facebook: '', instagram: '', whatsapp: '',
     banners: [],
     bankOptions: [],
+    bannerOverlayPosition: '',
   });
   const [previews, setPreviews] = useState<BusinessPreviewsState>({
     logo: '', banner: '', seoImage: '', favicon: ''
@@ -133,8 +189,16 @@ export default function BusinessPage() {
         facebook: data.socialLinks?.facebook || '',
         instagram: data.socialLinks?.instagram || '',
         whatsapp: data.socialLinks?.whatsapp || '',
-        banners: Array.isArray(data.banners) ? data.banners : [],
+        banners: Array.isArray(data.banners)
+          ? data.banners.map((b) => ({
+              url: b.url,
+              order: b.order ?? 0,
+              objectPositionX: b.objectPositionX ?? 50,
+              objectPositionY: b.objectPositionY ?? 50,
+            }))
+          : [],
         bankOptions: Array.isArray(data.bankOptions) ? data.bankOptions : [],
+        bannerOverlayPosition: (data.bannerOverlayPosition ?? '') as BannerOverlayPosition | '',
       };
       setForm(next);
       setInitial(next);
@@ -208,14 +272,28 @@ export default function BusinessPage() {
         formData.append('seoDescription', form.seoDescription.trim());
         hasChanges = true;
       }
-      const currentBannerUrls = form.banners.map((b) => b.url);
-      const initialBannerUrls = (initial?.banners ?? []).map((b) => b.url);
-      if (
-        JSON.stringify(currentBannerUrls) !== JSON.stringify(initialBannerUrls) ||
-        pendingBannerFiles.length > 0
-      ) {
-        formData.append('bannerUrls', JSON.stringify(currentBannerUrls));
+      const currentBannerData = form.banners.map((b, i) => ({
+        url: b.url,
+        order: i,
+        objectPositionX: b.objectPositionX ?? 50,
+        objectPositionY: b.objectPositionY ?? 50,
+      }));
+      const initialBannerData = (initial?.banners ?? []).map((b, i) => ({
+        url: b.url,
+        order: i,
+        objectPositionX: b.objectPositionX ?? 50,
+        objectPositionY: b.objectPositionY ?? 50,
+      }));
+      const bannersChanged =
+        JSON.stringify(currentBannerData) !== JSON.stringify(initialBannerData) ||
+        pendingBannerFiles.length > 0;
+      if (bannersChanged) {
+        formData.append('bannerData', JSON.stringify(currentBannerData));
         pendingBannerFiles.forEach((file) => formData.append('banners', file));
+        hasChanges = true;
+      }
+      if (form.bannerOverlayPosition !== (initial?.bannerOverlayPosition ?? '')) {
+        formData.append('bannerOverlayPosition', form.bannerOverlayPosition || 'bottom-left');
         hasChanges = true;
       }
       if (logoFile) {
@@ -251,8 +329,16 @@ export default function BusinessPage() {
         facebook: data.socialLinks?.facebook || '',
         instagram: data.socialLinks?.instagram || '',
         whatsapp: data.socialLinks?.whatsapp || '',
-        banners: Array.isArray(data.banners) ? data.banners : [],
+        banners: Array.isArray(data.banners)
+          ? data.banners.map((b) => ({
+              url: b.url,
+              order: b.order ?? 0,
+              objectPositionX: b.objectPositionX ?? 50,
+              objectPositionY: b.objectPositionY ?? 50,
+            }))
+          : [],
         bankOptions: Array.isArray(data.bankOptions) ? data.bankOptions : [],
+        bannerOverlayPosition: (data.bannerOverlayPosition ?? '') as BannerOverlayPosition | '',
       };
       setForm(next);
       setInitial(next);
@@ -310,6 +396,15 @@ export default function BusinessPage() {
     }));
   };
 
+  const updateBannerPosition = (index: number, x: number, y: number) => {
+    setForm((prev) => ({
+      ...prev,
+      banners: prev.banners.map((b, i) =>
+        i === index ? { ...b, objectPositionX: x, objectPositionY: y } : b
+      ),
+    }));
+  };
+
   const removePendingBanner = (index: number) => {
     setPendingBannerPreviews((prev) => {
       const url = prev[index];
@@ -364,8 +459,16 @@ export default function BusinessPage() {
         facebook: data.socialLinks?.facebook || '',
         instagram: data.socialLinks?.instagram || '',
         whatsapp: data.socialLinks?.whatsapp || '',
-        banners: Array.isArray(data.banners) ? data.banners : [],
+        banners: Array.isArray(data.banners)
+          ? data.banners.map((b) => ({
+              url: b.url,
+              order: b.order ?? 0,
+              objectPositionX: b.objectPositionX ?? 50,
+              objectPositionY: b.objectPositionY ?? 50,
+            }))
+          : [],
         bankOptions: Array.isArray(data.bankOptions) ? data.bankOptions : [],
+        bannerOverlayPosition: (data.bannerOverlayPosition ?? '') as BannerOverlayPosition | '',
       };
       setForm(next);
       setInitial(next);
@@ -534,6 +637,32 @@ export default function BusinessPage() {
               <p className="text-sm text-muted-foreground">
                 Banners secundarios que se muestran en el carrusel. Podés agregar o eliminar.
               </p>
+              <p className="text-xs text-muted-foreground">
+                Usá la grilla 5×5 para elegir el punto de anclaje de cada imagen (qué parte se muestra cuando se recorta).
+              </p>
+              <div className="space-y-2">
+                <Label>Posición del texto sobre el banner</Label>
+                <Select
+                  value={form.bannerOverlayPosition || 'bottom-left'}
+                  onValueChange={(v) => setForm((prev) => ({ ...prev, bannerOverlayPosition: v as BannerOverlayPosition }))}
+                >
+                  <SelectTrigger className="max-w-xs">
+                    <SelectValue placeholder="Elegir posición" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="bottom-left">Abajo izquierda</SelectItem>
+                    <SelectItem value="bottom-center">Abajo centro</SelectItem>
+                    <SelectItem value="bottom-right">Abajo derecha</SelectItem>
+                    <SelectItem value="top-left">Arriba izquierda</SelectItem>
+                    <SelectItem value="top-center">Arriba centro</SelectItem>
+                    <SelectItem value="top-right">Arriba derecha</SelectItem>
+                    <SelectItem value="center">Centro</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Elegí dónde aparece el texto de bienvenida para que no se superponga con la imagen.
+                </p>
+              </div>
               <div className="rounded-lg border bg-muted/20 p-4 space-y-4">
                 <div className="flex items-center justify-between gap-4">
                   <span className="text-sm font-medium">Listado de banners</span>
@@ -563,6 +692,7 @@ export default function BusinessPage() {
                       <TableRow>
                         <TableHead className="w-[140px]">Vista previa</TableHead>
                         <TableHead className="w-[60px]">#</TableHead>
+                        <TableHead>Posición X,Y</TableHead>
                         <TableHead className="text-right">Acciones</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -575,10 +705,21 @@ export default function BusinessPage() {
                                 src={banner.url}
                                 alt={`Banner ${index + 1}`}
                                 className="max-h-full max-w-full object-contain"
+                                style={{
+                                  objectPosition: `${banner.objectPositionX ?? 50}% ${banner.objectPositionY ?? 50}%`,
+                                }}
                               />
                             </div>
                           </TableCell>
                           <TableCell className="text-muted-foreground">{index + 1}</TableCell>
+                          <TableCell>
+                            <BannerPositionGrid
+                              src={banner.url}
+                              objectPositionX={banner.objectPositionX ?? 50}
+                              objectPositionY={banner.objectPositionY ?? 50}
+                              onSelect={(x, y) => updateBannerPosition(index, x, y)}
+                            />
+                          </TableCell>
                           <TableCell className="text-right">
                             <Button
                               type="button"
@@ -608,6 +749,7 @@ export default function BusinessPage() {
                             </div>
                           </TableCell>
                           <TableCell className="text-muted-foreground">{form.banners.length + index + 1}</TableCell>
+                          <TableCell className="text-muted-foreground text-sm">Centro (50%, 50%)</TableCell>
                           <TableCell className="text-right">
                             <span className="text-xs text-muted-foreground mr-2">Se guardará al enviar</span>
                             <Button
@@ -624,7 +766,7 @@ export default function BusinessPage() {
                       ))}
                       {form.banners.length === 0 && pendingBannerFiles.length === 0 && (
                         <TableRow>
-                          <TableCell colSpan={3} className="text-center text-muted-foreground py-6">
+                          <TableCell colSpan={4} className="text-center text-muted-foreground py-6">
                             No hay banners. Usá &quot;Agregar&quot; para subir imágenes.
                           </TableCell>
                         </TableRow>

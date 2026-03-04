@@ -131,7 +131,9 @@ export default function AdminLoginPage() {
                   Olvidé mi contraseña
                 </button>
               </p>
-              <p className="text-left text-sm text-muted-foreground">
+              <p className="flex flex-wrap justify-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+                <Link to="/admin/register" className="text-primary hover:underline font-medium">Crear mi tienda</Link>
+                <span>·</span>
                 <Link to="/" className="text-primary hover:underline font-medium">Ir a la tienda</Link>
               </p>
             </form>

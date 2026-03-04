@@ -45,7 +45,7 @@ export function LandingPage() {
                 Crea tu catálogo, gestiona pedidos y cobra con Mercado Pago. Sin conocimientos técnicos.
               </p>
               <div className="flex flex-wrap justify-center gap-3 pt-4">
-                <Link to="/admin/login">
+                <Link to="/admin/register">
                   <Button size="lg" className="gap-2">
                     <Store className="h-5 w-5" />
                     Crear mi tienda
@@ -128,7 +128,7 @@ export function LandingPage() {
                           {plan.trialDays} días de prueba
                         </p>
                       )}
-                      <Link to="/admin/login" className="mt-6 block">
+                      <Link to="/admin/register" className="mt-6 block">
                         <Button variant="outline" className="w-full">
                           Empezar
                         </Button>

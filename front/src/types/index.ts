@@ -57,7 +57,14 @@ export interface SocialLinks {
 export interface BusinessBanner {
   url: string;
   order: number;
+  objectPositionX?: number;
+  objectPositionY?: number;
 }
+
+export type BannerOverlayPosition =
+  | 'bottom-left' | 'bottom-right' | 'bottom-center'
+  | 'top-left' | 'top-right' | 'top-center'
+  | 'center';
 
 export interface Tenant {
   id: string;
@@ -66,6 +73,7 @@ export interface Tenant {
   logo?: string;
   banner?: string;
   banners?: BusinessBanner[];
+  bannerOverlayPosition?: BannerOverlayPosition;
   seoImage?: string;
   favicon?: string;
   description?: string;
@@ -245,6 +253,15 @@ export interface RegisterCustomerPayload {
   phone?: string;
 }
 
+export interface CreateBusinessPayload {
+  name: string;
+  phone: string;
+  address?: string;
+  province?: string;
+  adminEmail: string;
+  adminName: string;
+}
+
 export interface BillingSelectPlanPayload {
   planId: string;
 }
@@ -273,8 +290,9 @@ export type TenantResolveResponse = ApiEnvelope<{
   description?: string | null;
   logo?: string | null;
   banner?: string | null;
-  favicon?: string | null;
   banners?: BusinessBanner[] | null;
+  bannerOverlayPosition?: string | null;
+  favicon?: string | null;
   seoImage?: string | null;
   seoDescription?: string | null;
   address?: string | null;
@@ -317,6 +335,7 @@ export interface BusinessFormState {
   whatsapp: string;
   banners: BusinessBanner[];
   bankOptions: BankOption[];
+  bannerOverlayPosition: BannerOverlayPosition | '';
 }
 
 export interface BusinessPreviewsState {

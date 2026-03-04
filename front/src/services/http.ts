@@ -25,6 +25,7 @@ import type {
   ProductsListResponse,
   PublicPlan,
   QueryParams,
+  CreateBusinessPayload,
   RecoverPasswordPayload,
   RegisterCustomerPayload,
   Subscription,
@@ -72,6 +73,11 @@ export const http = {
   },
 
   business: {
+    createBusiness: (payload: CreateBusinessPayload) =>
+      api.post<{ status: number; message: string; data?: { tenantId: string; adminEmail: string } }>(
+        '/public/platform/businesses',
+        payload
+      ),
     getAdminBusiness: () => api.get<Tenant>('/admin/business'),
     updateAdminBusiness: (formData: FormData) => api.putMultipart('/admin/business/manage', formData),
     improveSeoDescription: (payload?: {

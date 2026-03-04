@@ -3,10 +3,11 @@ import { z } from "zod";
 import { cartController } from "../controllers/cart.controller";
 import { openApiRegistry } from "../docs/swagger";
 import {
+  requireComprobante,
   requireIdempotencyKey,
   requireRole,
   requireTenant,
-  uploadComprobanteMiddleware
+  uploadComprobanteOptionalMiddleware
 } from "../middlewares";
 import { patchCartItemsSchema, deleteCartItemsSchema } from "../services/Cart/cart.zod";
 
@@ -108,7 +109,8 @@ router.post(
   "/checkout",
   requireRole([2]),
   requireIdempotencyKey("cart.checkout"),
-  uploadComprobanteMiddleware,
+  uploadComprobanteOptionalMiddleware,
+  requireComprobante,
   cartController.checkout
 );
 

@@ -55,6 +55,35 @@ export const uploadAndConvertImageMiddleware = [
   }
 ];
 
+/** Comprobante de pago opcional (campo "comprobante"). Si viene archivo, se procesa. Para exigir comprobante según origen usar requireComprobante. */
+export const uploadComprobanteOptionalMiddleware = [
+  upload.single("comprobante"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!req.file) return next();
+
+      const optimized = await sharp(req.file.buffer)
+        .rotate()
+        .resize(512, 512, { fit: "inside", withoutEnlargement: true })
+        .webp({ quality: 85 })
+        .toBuffer();
+
+      req.file = {
+        ...req.file,
+        buffer: optimized,
+        mimetype: "image/webp",
+        originalname: req.file.originalname.replace(/\.\w+$/, ".webp")
+      };
+
+      return next();
+    } catch (error) {
+      const err = error as Error;
+      logger.error("Error en uploadComprobanteOptionalMiddleware: ", err.message);
+      return res.status(500).json({ message: "Error al procesar el comprobante." });
+    }
+  }
+];
+
 /** Comprobante de pago requerido (campo "comprobante"). */
 export const uploadComprobanteMiddleware = [
   upload.single("comprobante"),

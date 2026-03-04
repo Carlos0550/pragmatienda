@@ -5,6 +5,8 @@ export {
   uploadAndConvertImageMiddleware,
   uploadAndConvertImageOptionalMiddleware,
   uploadBusinessAssetsMiddleware,
-  uploadComprobanteMiddleware
+  uploadComprobanteMiddleware,
+  uploadComprobanteOptionalMiddleware
 } from "./upload.middleware";
+export { requireComprobante } from "./cart.middleware";
 export { requireIdempotencyKey, persistIdempotencyResponse } from "./idempotency.middleware";

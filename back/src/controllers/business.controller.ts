@@ -135,11 +135,24 @@ class BusinessController {
         }
       }
 
+      let bannerData: unknown = req.body.bannerData;
+      if (typeof bannerData === "string" && bannerData.trim().length > 0) {
+        try {
+          bannerData = JSON.parse(bannerData);
+        } catch {
+          return res.status(400).json({
+            message: "Datos invalidos.",
+            err: { bannerData: ["bannerData debe ser JSON valido."] }
+          });
+        }
+      }
+
       const parsed = updateBusinessSchema.safeParse({
         ...req.body,
         socialMedia,
         bankOptions,
         bannerUrls,
+        bannerData,
         clearLogo,
         clearFavicon,
         clearSeoImage,

@@ -7,6 +7,27 @@ import { motion } from 'framer-motion';
 import { capitalizeName } from '@/lib/utils';
 import { useStorefrontCategories, useStorefrontProducts } from '@/hooks/storefront-queries';
 import { Carousel, CarouselContent, CarouselItem, type CarouselApi } from '@/components/ui/carousel';
+import type { BannerOverlayPosition } from '@/types';
+
+const OVERLAY_POSITION_CLASSES: Record<BannerOverlayPosition, string> = {
+  'bottom-left': 'md:absolute md:bottom-0 md:left-0 md:p-10',
+  'bottom-center': 'md:absolute md:bottom-0 md:left-1/2 md:-translate-x-1/2 md:p-10',
+  'bottom-right': 'md:absolute md:bottom-0 md:right-0 md:p-10',
+  'top-left': 'md:absolute md:top-0 md:left-0 md:p-10',
+  'top-center': 'md:absolute md:top-0 md:left-1/2 md:-translate-x-1/2 md:p-10',
+  'top-right': 'md:absolute md:top-0 md:right-0 md:p-10',
+  center: 'md:absolute md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:p-10',
+};
+
+const OVERLAY_INNER_ALIGN: Record<BannerOverlayPosition, string> = {
+  'bottom-left': '',
+  'bottom-center': 'mx-auto',
+  'bottom-right': 'ml-auto',
+  'top-left': '',
+  'top-center': 'mx-auto',
+  'top-right': 'ml-auto',
+  center: 'mx-auto',
+};
 
 export default function StorefrontHome() {
   const { tenant } = useTenant();
@@ -20,6 +41,9 @@ export default function StorefrontHome() {
   const hasBanners = (tenant?.banners?.length ?? 0) > 0;
   const bannerCount = tenant?.banners?.length ?? 0;
   const canNavigateBanners = bannerCount > 1;
+  const overlayPos = (tenant?.bannerOverlayPosition || 'bottom-left') as BannerOverlayPosition;
+  const overlayClasses = OVERLAY_POSITION_CLASSES[overlayPos] ?? OVERLAY_POSITION_CLASSES['bottom-left'];
+  const overlayAlign = OVERLAY_INNER_ALIGN[overlayPos] ?? '';
 
   React.useEffect(() => {
     if (!carouselApi) return;
@@ -51,12 +75,12 @@ export default function StorefrontHome() {
       transition={{ duration: 0.6 }}
       className={
         hasBanners
-          ? 'relative z-10 p-4 sm:p-6 md:absolute md:bottom-0 md:left-0 md:right-0 md:p-10'
+          ? `relative z-10 p-4 sm:p-6 ${overlayClasses}`
           : 'max-w-2xl space-y-6'
       }
     >
       {hasBanners ? (
-        <div className="backdrop-blur-md bg-black/45 md:bg-white/20 border border-white/30 rounded-2xl p-5 md:p-8 max-w-2xl shadow-xl">
+        <div className={`backdrop-blur-md bg-black/45 md:bg-white/20 border border-white/30 rounded-2xl p-5 md:p-8 max-w-2xl shadow-xl ${overlayAlign}`}>
           <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight leading-tight text-white drop-shadow-lg">
             Bienvenido a{' '}
             <span className="text-white">{capitalizeName(tenant?.name) || 'Nuestra Tienda'}</span>
@@ -99,28 +123,33 @@ export default function StorefrontHome() {
     <div>
       {hasBanners ? (
         <section className="relative w-full overflow-hidden">
-          <div className="relative h-[220px] sm:h-[300px] md:h-[62vh] md:min-h-[420px] md:max-h-[700px]">
+          <div className="relative h-[240px] sm:h-[320px] md:h-[78vh] lg:h-[82vh] md:min-h-[560px] md:max-h-[940px]">
             <Carousel opts={{ align: 'start', loop: canNavigateBanners }} setApi={setCarouselApi} className="absolute inset-0">
               <CarouselContent className="h-full ml-0">
-                {(tenant?.banners ?? []).map((item, index) => (
-                  <CarouselItem key={`${item.url}-${index}`} className="basis-full h-full pl-0">
-                    <div className="relative w-full h-full">
-                      <img
-                        src={item.url}
-                        alt=""
-                        aria-hidden="true"
-                        className="absolute inset-0 w-full h-full object-cover blur-md scale-105 opacity-60"
-                        loading={index === 0 ? 'eager' : 'lazy'}
-                      />
-                      <img
-                        src={item.url}
-                        alt={`Banner ${index + 1}`}
-                        className="relative z-[1] w-full h-full object-contain object-center"
-                        loading={index === 0 ? 'eager' : 'lazy'}
-                      />
-                    </div>
-                  </CarouselItem>
-                ))}
+                {(tenant?.banners ?? []).map((item, index) => {
+                  const objPos = `${item.objectPositionX ?? 50}% ${item.objectPositionY ?? 50}%`;
+                  return (
+                    <CarouselItem key={`${item.url}-${index}`} className="basis-full h-full pl-0">
+                      <div className="relative w-full h-full">
+                        <img
+                          src={item.url}
+                          alt=""
+                          aria-hidden="true"
+                          className="absolute inset-0 w-full h-full object-cover blur-md scale-105 opacity-60"
+                          style={{ objectPosition: objPos }}
+                          loading={index === 0 ? 'eager' : 'lazy'}
+                        />
+                        <img
+                          src={item.url}
+                          alt={`Banner ${index + 1}`}
+                          className="relative z-[1] w-full h-full object-cover"
+                          style={{ objectPosition: objPos }}
+                          loading={index === 0 ? 'eager' : 'lazy'}
+                        />
+                      </div>
+                    </CarouselItem>
+                  );
+                })}
               </CarouselContent>
             </Carousel>
             {canNavigateBanners && (
