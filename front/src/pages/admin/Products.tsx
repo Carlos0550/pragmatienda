@@ -278,6 +278,14 @@ export default function AdminProductsPage() {
 
   const handleChange = (field: keyof ProductFormState) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setForm((p) => ({ ...p, [field]: e.target.value }));
+    if (field === 'barCode') {
+      setErrors((prev) => {
+        if (!prev.barCode) return prev;
+        const next = { ...prev };
+        delete next.barCode;
+        return next;
+      });
+    }
   };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -293,6 +301,12 @@ export default function AdminProductsPage() {
     const code = form.barCode?.trim();
     if (!code || barCodeSearching) return;
     setBarCodeSearching(true);
+    setErrors((prev) => {
+      if (!prev.barCode) return prev;
+      const next = { ...prev };
+      delete next.barCode;
+      return next;
+    });
     try {
       const response = await http.products.listAdmin({
         page: 1,
@@ -300,6 +314,21 @@ export default function AdminProductsPage() {
         barCode: code,
       });
       const product = response.items[0];
+      if (editing) {
+        if (!product) {
+          sileo.success({ title: 'Código disponible' });
+          return;
+        }
+        if (product.id === editing.id) {
+          sileo.success({ title: 'Este código ya pertenece a este producto' });
+          return;
+        }
+        const msg = `El código ya está asignado a "${capitalizeName(product.name)}".`;
+        setErrors((prev) => ({ ...prev, barCode: msg }));
+        sileo.error({ title: msg });
+        return;
+      }
+
       if (product) {
         openEdit(product);
         sileo.success({ title: 'Producto encontrado' });
@@ -416,12 +445,19 @@ export default function AdminProductsPage() {
                     value={form.barCode}
                     onChange={handleChange('barCode')}
                     onKeyDown={handleBarCodeKeyDown}
-                    placeholder="Escanear o escribir código. Enter para buscar producto existente."
+                    placeholder={
+                      editing
+                        ? 'Escanear o escribir código. Enter para validar disponibilidad.'
+                        : 'Escanear o escribir código. Enter para buscar producto existente.'
+                    }
                     disabled={barCodeSearching}
                   />
+                  {errors.barCode && <p className="text-xs text-primary">{errors.barCode}</p>}
                   {form.barCode && (
                     <p className="text-xs text-muted-foreground">
-                      Presioná Enter para buscar y autocompletar con un producto existente
+                      {editing
+                        ? 'Presioná Enter para validar que el código no esté asignado a otro producto'
+                        : 'Presioná Enter para buscar y autocompletar con un producto existente'}
                     </p>
                   )}
                 </div>

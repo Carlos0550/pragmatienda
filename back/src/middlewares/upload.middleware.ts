@@ -36,7 +36,7 @@ export const uploadAndConvertImageMiddleware = [
       const optimized = await sharp(req.file.buffer)
         .rotate()
         .resize(512, 512, { fit: "inside", withoutEnlargement: true })
-        .webp({ quality: 85 })
+        .webp()
         .toBuffer();
 
       req.file = {
@@ -124,8 +124,7 @@ export const uploadAndConvertImageOptionalMiddleware = [
 
       const optimized = await sharp(req.file.buffer)
         .rotate()
-        .resize(512, 512, { fit: "inside", withoutEnlargement: true })
-        .webp({ quality: 85 })
+        .webp()
         .toBuffer();
 
       req.file = {

@@ -35,7 +35,10 @@ import {
   ShoppingCart,
   Search,
   Barcode,
+  Minus,
+  Plus,
   Trash2,
+  Loader2,
   Pencil,
   Eye,
   ChevronLeft,
@@ -48,6 +51,7 @@ import type {
   Sale,
   SaleMetricsPoint,
   PaymentProvider,
+  ApiError,
 } from '@/types';
 
 const PAGE_SIZE = 12;
@@ -75,6 +79,19 @@ function formatDateShort(d: string) {
   return new Date(d).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
+function getApiErrorMessage(err: unknown, fallback: string) {
+  const apiErr = err as Partial<ApiError> | undefined;
+  return apiErr?.message || fallback;
+}
+
+function normalizeBarCode(value: string | null | undefined): string {
+  return (value ?? '').trim().toLowerCase();
+}
+
+const MIN_SCANNER_CODE_LENGTH = 6;
+const SCANNER_KEY_INTERVAL_MS = 120;
+const SCANNER_BUFFER_TIMEOUT_MS = 180;
+
 export default function AdminSalesPage() {
   const [activeTab, setActiveTab] = useState<'pos' | 'history'>('pos');
 
@@ -91,7 +108,13 @@ export default function AdminSalesPage() {
   const [posTotalPages, setPosTotalPages] = useState(1);
   const [posCart, setPosCart] = useState<{ items: { productId: string; quantity: number; product: Product }[] } | null>(null);
   const [posCartLoading, setPosCartLoading] = useState(false);
+  const [posAddingProductId, setPosAddingProductId] = useState<string | null>(null);
+  const [posItemUpdating, setPosItemUpdating] = useState<{ productId: string; action: 'inc' | 'dec' | 'remove' } | null>(null);
+  const [posRemovingProductId, setPosRemovingProductId] = useState<string | null>(null);
+  const [posClearingCart, setPosClearingCart] = useState(false);
   const [posCheckoutLoading, setPosCheckoutLoading] = useState(false);
+  const [posBarCodeSearching, setPosBarCodeSearching] = useState(false);
+  const [posError, setPosError] = useState<string | null>(null);
   const [posPaymentProvider, setPosPaymentProvider] = useState<PaymentProvider>('CASH');
   const [posPostSaleOpen, setPosPostSaleOpen] = useState(false);
   const [posLastSaleIds, setPosLastSaleIds] = useState<string[]>([]);
@@ -101,6 +124,7 @@ export default function AdminSalesPage() {
     paymentProvider: string;
   } | null>(null);
   const [posDeleteSaleLoading, setPosDeleteSaleLoading] = useState(false);
+  const [posCartModalOpen, setPosCartModalOpen] = useState(false);
   const barCodeInputRef = useRef<HTMLInputElement>(null);
 
   // History state
@@ -117,6 +141,8 @@ export default function AdminSalesPage() {
   const [salesTo, setSalesTo] = useState(() => new Date().toISOString().slice(0, 10));
   const [metrics, setMetrics] = useState<SaleMetricsPoint[]>([]);
   const [metricsLoading, setMetricsLoading] = useState(true);
+  const [salesError, setSalesError] = useState<string | null>(null);
+  const [metricsError, setMetricsError] = useState<string | null>(null);
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -127,6 +153,13 @@ export default function AdminSalesPage() {
   const [editSaving, setEditSaving] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const posProductsRequestIdRef = useRef(0);
+  const salesRequestIdRef = useRef(0);
+  const metricsRequestIdRef = useRef(0);
+  const barCodeCacheRef = useRef<Map<string, Product>>(new Map());
+  const scannerBufferRef = useRef('');
+  const scannerLastKeyTimeRef = useRef(0);
+  const scannerBufferTimeoutRef = useRef<number | null>(null);
 
   const fetchPosCart = useCallback(async () => {
     setPosCartLoading(true);
@@ -141,23 +174,30 @@ export default function AdminSalesPage() {
   }, []);
 
   const loadPosProducts = useCallback(async () => {
+    const requestId = ++posProductsRequestIdRef.current;
     setPosLoading(true);
+    setPosError(null);
     try {
       const response = await http.products.listAdmin({
         page: posPage,
         limit: PAGE_SIZE,
         name: posDebouncedSearch.trim() || undefined,
-        barCode: posBarCodeInput.trim() || undefined,
         categoryId: posCategoryFilter || undefined,
         status: 'PUBLISHED',
       });
+      if (requestId !== posProductsRequestIdRef.current) return;
       setPosProducts(response.items);
       setPosTotal(response.pagination.total);
       setPosTotalPages(response.pagination.totalPages);
+    } catch (err) {
+      if (requestId !== posProductsRequestIdRef.current) return;
+      setPosError(getApiErrorMessage(err, 'No se pudieron cargar los productos del POS.'));
     } finally {
-      setPosLoading(false);
+      if (requestId === posProductsRequestIdRef.current) {
+        setPosLoading(false);
+      }
     }
-  }, [posPage, posDebouncedSearch, posBarCodeInput, posCategoryFilter]);
+  }, [posPage, posDebouncedSearch, posCategoryFilter]);
 
   const loadPosCategories = useCallback(async () => {
     const items = await http.categories.listAdmin().catch(() => []);
@@ -185,27 +225,64 @@ export default function AdminSalesPage() {
     }
   }, [activeTab, loadPosProducts]);
 
-  const handlePosAddProduct = async (product: Product, qty: number = 1) => {
+  useEffect(() => {
+    posProducts.forEach((product) => {
+      const code = normalizeBarCode(product.barCode);
+      if (code) barCodeCacheRef.current.set(code, product);
+    });
+  }, [posProducts]);
+
+  useEffect(() => {
+    (posCart?.items ?? []).forEach((item) => {
+      const code = normalizeBarCode(item.product.barCode);
+      if (code) barCodeCacheRef.current.set(code, item.product);
+    });
+  }, [posCart]);
+
+  const findLocalProductByBarcode = useCallback((code: string) => {
+    const normalized = normalizeBarCode(code);
+    if (!normalized) return null;
+
+    const fromProducts = posProducts.find((p) => normalizeBarCode(p.barCode) === normalized);
+    if (fromProducts) return fromProducts;
+
+    const fromCart = posCart?.items.find((i) => normalizeBarCode(i.product.barCode) === normalized)?.product;
+    if (fromCart) return fromCart;
+
+    return barCodeCacheRef.current.get(normalized) ?? null;
+  }, [posProducts, posCart]);
+
+  const handlePosAddProduct = useCallback(async (product: Product, qty: number = 1) => {
     if (product.stock < qty) {
       sileo.error({ title: `Stock insuficiente. Disponible: ${product.stock}` });
       return;
     }
     setPosCartLoading(true);
+    setPosAddingProductId(product.id);
     try {
       await http.cart.patchItemDelta(product.id, qty);
       await fetchPosCart();
-    } catch {
-      sileo.error({ title: 'Error al agregar' });
+    } catch (err) {
+      sileo.error({ title: getApiErrorMessage(err, 'Error al agregar el producto') });
     } finally {
       setPosCartLoading(false);
+      setPosAddingProductId(null);
     }
-  };
+  }, [fetchPosCart]);
 
-  const handlePosBarCodeSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const code = posBarCodeInput.trim();
+  const handleScanCode = useCallback(async (rawCode: string) => {
+    if (posBarCodeSearching) return;
+    const code = rawCode.trim();
     if (!code) return;
-    setPosLoading(true);
+    const normalizedCode = normalizeBarCode(code);
+    const localProduct = findLocalProductByBarcode(normalizedCode);
+
+    if (localProduct) {
+      await handlePosAddProduct(localProduct, 1);
+      return;
+    }
+
+    setPosBarCodeSearching(true);
     try {
       const response = await http.products.listAdmin({
         page: 1,
@@ -215,36 +292,89 @@ export default function AdminSalesPage() {
       });
       const product = response.items[0];
       if (product) {
+        barCodeCacheRef.current.set(normalizeBarCode(product.barCode) || normalizedCode, product);
         await handlePosAddProduct(product, 1);
-        setPosBarCodeInput('');
-        barCodeInputRef.current?.focus();
       } else {
         sileo.error({ title: 'Producto no encontrado' });
       }
+    } catch (err) {
+      sileo.error({ title: getApiErrorMessage(err, 'Error al buscar producto') });
     } finally {
-      setPosLoading(false);
+      setPosBarCodeSearching(false);
     }
+  }, [findLocalProductByBarcode, handlePosAddProduct, posBarCodeSearching]);
+
+  const handlePosBarCodeSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const code = posBarCodeInput.trim();
+    if (!code) return;
+    await handleScanCode(code);
+    setPosBarCodeInput('');
+    barCodeInputRef.current?.focus();
   };
 
   const handlePosRemoveItem = async (productId: string) => {
     const item = posCart?.items.find((i) => i.productId === productId);
     if (!item) return;
     setPosCartLoading(true);
+    setPosRemovingProductId(productId);
+    setPosItemUpdating({ productId, action: 'remove' });
     try {
       await http.cart.patchItemDelta(productId, -item.quantity);
       await fetchPosCart();
-    } catch {
-      sileo.error({ title: 'Error al quitar' });
+    } catch (err) {
+      sileo.error({ title: getApiErrorMessage(err, 'Error al quitar el producto') });
     } finally {
       setPosCartLoading(false);
+      setPosRemovingProductId(null);
+      setPosItemUpdating(null);
     }
   };
 
-  const handlePosCheckout = async () => {
+  const handlePosChangeItemQuantity = async (productId: string, delta: 1 | -1) => {
+    const item = posCart?.items.find((i) => i.productId === productId);
+    if (!item) return;
+    setPosCartLoading(true);
+    setPosItemUpdating({ productId, action: delta > 0 ? 'inc' : 'dec' });
+    try {
+      await http.cart.patchItemDelta(productId, delta);
+      await fetchPosCart();
+    } catch (err) {
+      sileo.error({ title: getApiErrorMessage(err, 'No se pudo actualizar la cantidad') });
+    } finally {
+      setPosCartLoading(false);
+      setPosItemUpdating(null);
+    }
+  };
+
+  const handlePosClearCart = async () => {
+    if (!posCart?.items?.length || posClearingCart) return;
+    setPosClearingCart(true);
+    setPosCartLoading(true);
+    try {
+      await Promise.all(
+        posCart.items.map((item) => http.cart.patchItemDelta(item.productId, -item.quantity))
+      );
+      await fetchPosCart();
+      sileo.success({ title: 'Carrito limpiado' });
+    } catch (err) {
+      sileo.error({ title: getApiErrorMessage(err, 'No se pudo limpiar el carrito') });
+    } finally {
+      setPosCartLoading(false);
+      setPosClearingCart(false);
+    }
+  };
+
+  const handlePosCheckout = useCallback(async () => {
+    if (posCheckoutLoading) return;
     if (!posCart?.items?.length) {
       sileo.error({ title: 'Carrito vacío' });
       return;
     }
+    const currentCartTotal = posCart.items.reduce(
+      (sum, i) => sum + i.product.price * i.quantity,
+      0
+    );
     setPosCheckoutLoading(true);
     try {
       const result = await http.cart.checkout(
@@ -256,14 +386,18 @@ export default function AdminSalesPage() {
         setPosLastSaleIds(result.saleIds);
         setPosLastSaleDetails({
           items: posCart?.items ?? [],
-          total: posCartTotal,
+          total: currentCartTotal,
           paymentProvider: posPaymentProvider,
         });
+        setPosCartModalOpen(false);
         setPosPostSaleOpen(true);
         await fetchPosCart();
+        await loadPosProducts();
       } else {
         sileo.success({ title: 'Venta registrada' });
+        setPosCartModalOpen(false);
         await fetchPosCart();
+        await loadPosProducts();
       }
     } catch (err: unknown) {
       const apiErr = err as { message?: string };
@@ -271,11 +405,12 @@ export default function AdminSalesPage() {
     } finally {
       setPosCheckoutLoading(false);
     }
-  };
+  }, [fetchPosCart, loadPosProducts, posCart, posCheckoutLoading, posPaymentProvider]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (activeTab !== 'pos') return;
+      if (e.repeat) return;
       if (e.key === 'F9') {
         e.preventDefault();
         void handlePosCheckout();
@@ -283,7 +418,69 @@ export default function AdminSalesPage() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [activeTab, posCart?.items?.length, posCheckoutLoading]);
+  }, [activeTab, handlePosCheckout]);
+
+  useEffect(() => {
+    const clearBuffer = () => {
+      scannerBufferRef.current = '';
+      if (scannerBufferTimeoutRef.current) {
+        window.clearTimeout(scannerBufferTimeoutRef.current);
+        scannerBufferTimeoutRef.current = null;
+      }
+    };
+
+    const onGlobalBarCodeKeyDown = (e: KeyboardEvent) => {
+      if (activeTab !== 'pos') return;
+      if (e.ctrlKey || e.altKey || e.metaKey) return;
+      if (e.key === 'F9') return;
+
+      const target = e.target as HTMLElement | null;
+      const isBarcodeInputFocused = target === barCodeInputRef.current;
+      if (isBarcodeInputFocused) return;
+
+      const isContentEditable = Boolean(target?.isContentEditable);
+      if (isContentEditable || target?.tagName === 'TEXTAREA') return;
+
+      const now = Date.now();
+
+      if (e.key === 'Enter') {
+        const code = scannerBufferRef.current.trim();
+        if (code.length >= MIN_SCANNER_CODE_LENGTH) {
+          e.preventDefault();
+          void (async () => {
+            setPosBarCodeInput(code);
+            await handleScanCode(code);
+            setPosBarCodeInput('');
+          })();
+        }
+        clearBuffer();
+        return;
+      }
+
+      if (e.key.length !== 1) return;
+
+      const elapsed = now - scannerLastKeyTimeRef.current;
+      if (elapsed > SCANNER_KEY_INTERVAL_MS) {
+        scannerBufferRef.current = '';
+      }
+      scannerLastKeyTimeRef.current = now;
+      scannerBufferRef.current += e.key;
+
+      if (scannerBufferTimeoutRef.current) {
+        window.clearTimeout(scannerBufferTimeoutRef.current);
+      }
+      scannerBufferTimeoutRef.current = window.setTimeout(() => {
+        scannerBufferRef.current = '';
+        scannerBufferTimeoutRef.current = null;
+      }, SCANNER_BUFFER_TIMEOUT_MS);
+    };
+
+    window.addEventListener('keydown', onGlobalBarCodeKeyDown);
+    return () => {
+      window.removeEventListener('keydown', onGlobalBarCodeKeyDown);
+      clearBuffer();
+    };
+  }, [activeTab, handleScanCode]);
 
   const handlePosPostSaleContinue = () => {
     setPosPostSaleOpen(false);
@@ -302,6 +499,7 @@ export default function AdminSalesPage() {
       sileo.success({ title: 'Venta eliminada' });
       handlePosPostSaleContinue();
       await loadMetrics();
+      await loadPosProducts();
     } catch {
       sileo.error({ title: 'Error al eliminar' });
     } finally {
@@ -323,7 +521,9 @@ export default function AdminSalesPage() {
   }, [posPostSaleOpen]);
 
   const loadSales = useCallback(async () => {
+    const requestId = ++salesRequestIdRef.current;
     setSalesLoading(true);
+    setSalesError(null);
     try {
       const response = await http.sales.list({
         page: salesPage,
@@ -333,28 +533,43 @@ export default function AdminSalesPage() {
         sortBy: 'saleDate',
         sortOrder: 'desc',
       });
+      if (requestId !== salesRequestIdRef.current) return;
       setSales(response.items);
       setSalesTotal(response.pagination.total);
       setSalesTotalPages(response.pagination.totalPages);
+    } catch (err) {
+      if (requestId !== salesRequestIdRef.current) return;
+      setSalesError(getApiErrorMessage(err, 'No se pudo cargar el historial de ventas.'));
     } finally {
-      setSalesLoading(false);
+      if (requestId === salesRequestIdRef.current) {
+        setSalesLoading(false);
+      }
     }
   }, [salesPage, salesFrom, salesTo]);
 
   const loadMetrics = useCallback(async () => {
+    const requestId = ++metricsRequestIdRef.current;
     setMetricsLoading(true);
+    setMetricsError(null);
     try {
       const response = await http.sales.getMetrics(salesFrom, salesTo, 'day');
+      if (requestId !== metricsRequestIdRef.current) return;
       setMetrics(response.series);
+    } catch (err) {
+      if (requestId !== metricsRequestIdRef.current) return;
+      setMetricsError(getApiErrorMessage(err, 'No se pudieron cargar las métricas.'));
     } finally {
-      setMetricsLoading(false);
+      if (requestId === metricsRequestIdRef.current) {
+        setMetricsLoading(false);
+      }
     }
   }, [salesFrom, salesTo]);
 
   useEffect(() => {
+    if (activeTab !== 'history') return;
     void loadSales();
     void loadMetrics();
-  }, [loadSales, loadMetrics]);
+  }, [activeTab, loadSales, loadMetrics]);
 
   const openSaleDetail = (sale: Sale) => {
     setSelectedSale(sale);
@@ -471,6 +686,7 @@ export default function AdminSalesPage() {
       }
       await loadSales();
       await loadMetrics();
+      await loadPosProducts();
     } catch {
       sileo.error({ title: 'Error al eliminar' });
     }
@@ -480,6 +696,123 @@ export default function AdminSalesPage() {
     (sum, i) => sum + i.product.price * i.quantity,
     0
   ) ?? 0;
+  const posCartItemsCount = posCart?.items?.reduce((sum, i) => sum + i.quantity, 0) ?? 0;
+  const availablePosProducts = posProducts.filter((p) => (p.stock ?? 0) > 0);
+
+  const renderPosCartContent = (showTitle: boolean) => (
+    <>
+      {showTitle && (
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <h3 className="font-semibold">Carrito</h3>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => void handlePosClearCart()}
+            disabled={!posCart?.items?.length || posClearingCart || posCartLoading}
+            className="h-8 px-2 text-xs"
+          >
+            {posClearingCart ? (
+              <>
+                <Loader2 className="h-3 w-3 animate-spin" /> Limpiando...
+              </>
+            ) : 'Limpiar'}
+          </Button>
+        </div>
+      )}
+      {posCartLoading && (
+        <div className="mb-2 text-xs text-muted-foreground inline-flex items-center gap-1">
+          <Loader2 className="h-3 w-3 animate-spin" /> Actualizando carrito...
+        </div>
+      )}
+      <div className="flex-1 overflow-y-auto min-h-0 space-y-2">
+        {posCart?.items?.length ? (
+          posCart.items.map((i) => (
+            <div
+              key={i.productId}
+              className="flex items-center justify-between gap-2 text-sm border-b pb-2"
+            >
+              <span className="truncate flex-1">{capitalizeName(i.product.name)}</span>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 w-6 p-0"
+                  onClick={() => void handlePosChangeItemQuantity(i.productId, -1)}
+                  disabled={posCartLoading}
+                  aria-label="Disminuir cantidad"
+                >
+                  {posItemUpdating?.productId === i.productId && posItemUpdating.action === 'dec' ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <Minus className="h-3 w-3" />
+                  )}
+                </Button>
+                <span className="w-6 text-center">x{i.quantity}</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 w-6 p-0"
+                  onClick={() => void handlePosChangeItemQuantity(i.productId, 1)}
+                  disabled={posCartLoading}
+                  aria-label="Aumentar cantidad"
+                >
+                  {posItemUpdating?.productId === i.productId && posItemUpdating.action === 'inc' ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <Plus className="h-3 w-3" />
+                  )}
+                </Button>
+              </div>
+              <span>${(i.product.price * i.quantity).toLocaleString()}</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 w-7 p-0"
+                onClick={() => handlePosRemoveItem(i.productId)}
+                disabled={posCartLoading}
+              >
+                {posRemovingProductId === i.productId || (posItemUpdating?.productId === i.productId && posItemUpdating.action === 'remove') ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <Trash2 className="h-3 w-3" />
+                )}
+              </Button>
+            </div>
+          ))
+        ) : (
+          <p className="text-sm text-muted-foreground">Vacío</p>
+        )}
+      </div>
+      <div className="mt-4 pt-4 border-t">
+        <div className="flex justify-between font-semibold mb-3">
+          <span>Total</span>
+          <span>${posCartTotal.toLocaleString()}</span>
+        </div>
+        <Select
+          value={posPaymentProvider}
+          onValueChange={(v) => setPosPaymentProvider(v as PaymentProvider)}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Método de pago" />
+          </SelectTrigger>
+          <SelectContent>
+            {PAYMENT_PROVIDERS.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button
+          className="w-full mt-3"
+          onClick={() => void handlePosCheckout()}
+          disabled={!posCart?.items?.length || posCheckoutLoading}
+        >
+          {posCheckoutLoading ? 'Procesando...' : 'Cobrar (F9)'}
+        </Button>
+      </div>
+    </>
+  );
 
   return (
     <div className="space-y-6">
@@ -501,8 +834,8 @@ export default function AdminSalesPage() {
         </TabsList>
 
         <TabsContent value="pos" className="mt-6">
-          <div className="flex gap-6">
-            <div className="flex-1 min-w-0">
+          <div className="relative">
+            <div className="min-w-0 xl:pr-[22rem]">
               <form onSubmit={handlePosBarCodeSubmit} className="mb-4">
                 <div className="flex gap-2">
                   <div className="relative flex-1">
@@ -514,10 +847,15 @@ export default function AdminSalesPage() {
                       placeholder="Escanear código de barras..."
                       className="pl-9"
                       autoFocus
+                      disabled={posBarCodeSearching}
                     />
                   </div>
-                  <Button type="submit" variant="secondary">
-                    Buscar
+                  <Button type="submit" variant="secondary" disabled={posBarCodeSearching}>
+                    {posBarCodeSearching ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" /> Buscando...
+                      </>
+                    ) : 'Buscar'}
                   </Button>
                 </div>
               </form>
@@ -556,28 +894,32 @@ export default function AdminSalesPage() {
                 </Select>
               </div>
 
+              {posError && (
+                <div className="mb-3 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-sm text-primary">
+                  {posError}
+                </div>
+              )}
               {posLoading ? (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                   {[...Array(8)].map((_, i) => (
                     <div key={i} className="animate-pulse h-32 rounded-lg bg-muted" />
                   ))}
                 </div>
-              ) : posProducts.length === 0 ? (
+              ) : availablePosProducts.length === 0 ? (
                 <div className="text-center py-16 text-muted-foreground border rounded-xl bg-card">
                   <ShoppingCart className="h-12 w-12 mx-auto mb-4 opacity-30" />
-                  <p>No hay productos.</p>
+                  <p>No hay productos con stock disponible.</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                  {posProducts.map((p) => {
+                  {availablePosProducts.map((p) => {
                     const img = p.image || (p as { images?: string[] }).images?.[0];
-                    const canAdd = (p.stock ?? 0) > 0;
                     return (
                       <button
                         key={p.id}
                         type="button"
-                        onClick={() => canAdd && handlePosAddProduct(p, 1)}
-                        disabled={!canAdd || posCartLoading}
+                        onClick={() => handlePosAddProduct(p, 1)}
+                        disabled={posCartLoading}
                         className="flex flex-col rounded-lg border bg-card p-3 text-left hover:bg-muted/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <div className="aspect-square rounded-md bg-muted mb-2 overflow-hidden">
@@ -591,8 +933,10 @@ export default function AdminSalesPage() {
                         </div>
                         <span className="text-sm font-medium truncate">{capitalizeName(p.name)}</span>
                         <span className="text-xs text-muted-foreground">${p.price.toLocaleString()}</span>
-                        {!canAdd && (
-                          <span className="text-xs text-primary">Sin stock</span>
+                        {posAddingProductId === p.id && (
+                          <span className="mt-1 inline-flex items-center gap-1 text-xs text-muted-foreground">
+                            <Loader2 className="h-3 w-3 animate-spin" /> Agregando...
+                          </span>
                         )}
                       </button>
                     );
@@ -602,7 +946,7 @@ export default function AdminSalesPage() {
 
               <div className="flex items-center justify-between mt-4">
                 <p className="text-sm text-muted-foreground">
-                  {posTotal} producto(s)
+                  {availablePosProducts.length} con stock en esta página · {posTotal} total filtrados
                 </p>
                 <div className="flex gap-2">
                   <Button
@@ -626,63 +970,43 @@ export default function AdminSalesPage() {
               </div>
             </div>
 
-            <div className="w-80 shrink-0 border rounded-xl bg-card p-4 flex flex-col">
-              <h3 className="font-semibold mb-3">Carrito</h3>
-              <div className="flex-1 overflow-y-auto min-h-0 space-y-2">
-                {posCart?.items?.length ? (
-                  posCart.items.map((i) => (
-                    <div
-                      key={i.productId}
-                      className="flex items-center justify-between gap-2 text-sm border-b pb-2"
-                    >
-                      <span className="truncate flex-1">{capitalizeName(i.product.name)}</span>
-                      <span>x{i.quantity}</span>
-                      <span>${(i.product.price * i.quantity).toLocaleString()}</span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 w-7 p-0"
-                        onClick={() => handlePosRemoveItem(i.productId)}
-                        disabled={posCartLoading}
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-sm text-muted-foreground">Vacío</p>
-                )}
-              </div>
-              <div className="mt-4 pt-4 border-t">
-                <div className="flex justify-between font-semibold mb-3">
-                  <span>Total</span>
-                  <span>${posCartTotal.toLocaleString()}</span>
-                </div>
-                <Select
-                  value={posPaymentProvider}
-                  onValueChange={(v) => setPosPaymentProvider(v as PaymentProvider)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Método de pago" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {PAYMENT_PROVIDERS.map((opt) => (
-                      <SelectItem key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button
-                  className="w-full mt-3"
-                  onClick={() => void handlePosCheckout()}
-                  disabled={!posCart?.items?.length || posCheckoutLoading}
-                >
-                  {posCheckoutLoading ? 'Procesando...' : 'Cobrar (F9)'}
-                </Button>
-              </div>
+            <div className="hidden xl:flex w-80 fixed right-6 top-24 border rounded-xl bg-card p-4 flex-col max-h-[calc(100vh-7rem)] shadow-sm">
+              {renderPosCartContent(true)}
             </div>
           </div>
+
+          <Button
+            type="button"
+            className="xl:hidden fixed right-4 bottom-6 z-40 rounded-full shadow-lg px-4"
+            onClick={() => setPosCartModalOpen(true)}
+          >
+            <ShoppingCart className="h-4 w-4 mr-2" />
+            Carrito ({posCartItemsCount}) · ${posCartTotal.toLocaleString()}
+          </Button>
+
+          <Dialog open={posCartModalOpen} onOpenChange={setPosCartModalOpen}>
+            <DialogContent className="w-[95vw] max-w-md max-h-[85vh] overflow-hidden flex flex-col">
+              <DialogHeader className="pb-1">
+                <DialogTitle>Carrito</DialogTitle>
+              </DialogHeader>
+              <div className="mb-2 flex justify-end">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => void handlePosClearCart()}
+                  disabled={!posCart?.items?.length || posClearingCart || posCartLoading}
+                  className="h-8 px-2 text-xs"
+                >
+                  {posClearingCart ? (
+                    <>
+                      <Loader2 className="h-3 w-3 animate-spin" /> Limpiando...
+                    </>
+                  ) : 'Limpiar'}
+                </Button>
+              </div>
+              {renderPosCartContent(false)}
+            </DialogContent>
+          </Dialog>
         </TabsContent>
 
         <TabsContent value="history" className="mt-6">
@@ -692,7 +1016,10 @@ export default function AdminSalesPage() {
               <Input
                 type="date"
                 value={salesFrom}
-                onChange={(e) => setSalesFrom(e.target.value)}
+                onChange={(e) => {
+                  setSalesFrom(e.target.value);
+                  setSalesPage(1);
+                }}
               />
             </div>
             <div className="flex items-center gap-2">
@@ -700,10 +1027,19 @@ export default function AdminSalesPage() {
               <Input
                 type="date"
                 value={salesTo}
-                onChange={(e) => setSalesTo(e.target.value)}
+                onChange={(e) => {
+                  setSalesTo(e.target.value);
+                  setSalesPage(1);
+                }}
               />
             </div>
           </div>
+
+          {metricsError && (
+            <div className="mb-3 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-sm text-primary">
+              {metricsError}
+            </div>
+          )}
 
           {metricsLoading ? (
             <div className="h-64 animate-pulse rounded-xl bg-muted mb-6" />
@@ -726,6 +1062,11 @@ export default function AdminSalesPage() {
             </div>
           ) : null}
 
+          {salesError && (
+            <div className="mb-3 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-sm text-primary">
+              {salesError}
+            </div>
+          )}
           {salesLoading ? (
             <div className="space-y-3">
               {[...Array(5)].map((_, i) => (

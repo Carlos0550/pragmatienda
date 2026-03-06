@@ -211,10 +211,13 @@ model Products {
   orderItem OrderItem[] @relation("ProductOrderItems")
   tenant Tenant @relation("TenantProducts", fields: [tenantId], references: [id], onDelete: Cascade)
   category ProductsCategory? @relation("ProductsCategory", fields: [categoryId], references: [id], onDelete: SetNull)
-  cart CartItem[] @relation("ProductCartItems")
+  cart CartItem[] @relation("ProductCartItems") //pendiente hacer migracion de indices
   @@index([name])
   @@index([slug])
-  @@unique([tenantId, name])
+  @@index([barCode])
+  @@index([status])
+  @@index([barCode, tenantId])
+  @@index([status, tenantId])
   @@unique([tenantId, slug])
 }
 
