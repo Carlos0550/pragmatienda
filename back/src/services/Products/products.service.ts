@@ -83,8 +83,8 @@ export class ProductsService {
 
       const normalizedName = normalizeProductName(data.name);
 
-      const existing = await prisma.products.findUnique({
-        where: { tenantId_name: { tenantId, name: normalizedName } }
+      const existing = await prisma.products.findFirst({
+        where: { tenantId, name: normalizedName }
       });
       if (existing) {
         return { status: 409, message: "Ya existe un producto con ese nombre." };
