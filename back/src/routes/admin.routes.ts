@@ -399,6 +399,12 @@ router.patch(
   requireRole([1]),
   productsController.patchBulkStatus
 );
+router.delete(
+  "/products/:id",
+  requireTenant,
+  requireRole([1]),
+  productsController.deleteOne
+);
 
 router.use("/sales", salesRouter);
 

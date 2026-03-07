@@ -1,12 +1,91 @@
 import { UserStatus } from "@prisma/client";
-import { createSessionToken, decryptString, hashString, verifyHash } from "../../config/security";
+import { createSessionToken, decryptString, encryptString, hashString, verifyHash } from "../../config/security";
 import { logger } from "../../config/logger";
+import { env } from "../../config/env";
 import { prisma } from "../../db/prisma";
 import { sendMail } from "../../mail/mailer";
-import { generateSecureString, generateTemporaryPassword } from "../../utils/security.utils";
+import { generateSecureString } from "../../utils/security.utils";
 import { buildPasswordRecoveryEmailHtml, buildWelcomeUserEmailHtml } from "../../utils/template.utils";
-import { changePasswordSchema, loginSchema, publicRegisterUserSchema, recoverPasswordSchema, updateUserSchema } from "./user.zod";
+import { changePasswordSchema, loginSchema, publicRegisterUserSchema, recoverPasswordSchema, resetPasswordWithTokenSchema, updateUserSchema } from "./user.zod";
 import { z } from "zod";
+
+const PASSWORD_ACTION_TOKEN_TTL_MS = 1000 * 60 * 60;
+const ACCOUNT_SETUP_TOKEN_TTL_MS = 1000 * 60 * 60 * 24;
+
+type PasswordActionTokenPurpose = "PASSWORD_RESET" | "ACCOUNT_SETUP";
+
+type PasswordActionTokenPayload = {
+    id: string;
+    email: string;
+    tenantId: string;
+    role: number;
+    purpose: PasswordActionTokenPurpose;
+    exp: number;
+    nonce: string;
+};
+
+const resolveTenantBaseUrl = (business: { name?: string | null; website?: string | null }) => {
+    if (business.website) {
+        return business.website.replace(/\/$/, "");
+    }
+    if (business.name) {
+        return `https://${business.name}.pragmatienda.com`;
+    }
+    return env.FRONTEND_URL.replace(/\/$/, "");
+};
+
+const buildPasswordActionUrl = (
+    business: { name?: string | null; website?: string | null },
+    role: number,
+    token: string
+) => {
+    const baseUrl = resolveTenantBaseUrl(business);
+    const path = role === 1 ? "/admin/reset-password" : "/reset-password";
+    return `${baseUrl}${path}?token=${encodeURIComponent(token)}`;
+};
+
+const createPasswordActionToken = (input: {
+    id: string;
+    email: string;
+    tenantId: string;
+    role: number;
+    purpose: PasswordActionTokenPurpose;
+    ttlMs: number;
+}) => {
+    const payload: PasswordActionTokenPayload = {
+        id: input.id,
+        email: input.email,
+        tenantId: input.tenantId,
+        role: input.role,
+        purpose: input.purpose,
+        exp: Date.now() + input.ttlMs,
+        nonce: generateSecureString()
+    };
+    return encryptString(JSON.stringify(payload));
+};
+
+const parsePasswordActionToken = (token: string): PasswordActionTokenPayload | null => {
+    try {
+        const payloadRaw = decryptString(token);
+        const payload = JSON.parse(payloadRaw) as Partial<PasswordActionTokenPayload>;
+        if (
+            !payload.id ||
+            !payload.email ||
+            !payload.tenantId ||
+            typeof payload.role !== "number" ||
+            (payload.purpose !== "PASSWORD_RESET" && payload.purpose !== "ACCOUNT_SETUP") ||
+            typeof payload.exp !== "number"
+        ) {
+            return null;
+        }
+        if (payload.exp < Date.now()) {
+            return null;
+        }
+        return payload as PasswordActionTokenPayload;
+    } catch {
+        return null;
+    }
+};
 
 class UserService{
     async publicRegisterUser(
@@ -29,8 +108,7 @@ class UserService{
                 return { status: 404, message: "Negocio no encontrado para el tenant." };
             }
 
-            const secureString = generateSecureString()
-            const securePassword = await hashString(secureString)
+            const securePassword = await hashString(userData.password)
 
             const transactionResult = await prisma.$transaction(async (tx) => {
                 const existingUser = await tx.user.findFirst({
@@ -69,12 +147,25 @@ class UserService{
                 return { status: 409, message: "El usuario ya existe." };
             }
             createdUser = transactionResult.createdUser;
+            const setupPasswordToken = createPasswordActionToken({
+                id: createdUser.id,
+                email: createdUser.email,
+                tenantId,
+                role: 2,
+                purpose: "ACCOUNT_SETUP",
+                ttlMs: ACCOUNT_SETUP_TOKEN_TTL_MS
+            });
+            const setupPasswordUrl = buildPasswordActionUrl(
+                { name: tenant.businessData?.name, website: tenant.businessData?.website },
+                2,
+                setupPasswordToken
+            );
             const html = await buildWelcomeUserEmailHtml({
                 user: {
                     ...createdUser,
                     tenantId
                 },
-                plainPassword: secureString,
+                setupPasswordUrl,
                 business: tenant.businessData
             });
 
@@ -382,29 +473,30 @@ class UserService{
                 return { status: 200, message: "Si el correo existe, enviaremos instrucciones de recuperación." };
             }
 
-            const temporaryPassword = generateTemporaryPassword(10);
-            const passwordHash = await hashString(temporaryPassword);
-
-            await prisma.user.updateMany({
-                where: {
-                    tenantId,
-                    role,
-                    id: {
-                        in: users.map((user) => user.id)
-                    }
-                },
-                data: { password: passwordHash }
+            const targetUser = users[0];
+            const resetToken = createPasswordActionToken({
+                id: targetUser.id,
+                email: targetUser.email,
+                tenantId,
+                role,
+                purpose: "PASSWORD_RESET",
+                ttlMs: PASSWORD_ACTION_TOKEN_TTL_MS
             });
+            const resetPasswordUrl = buildPasswordActionUrl(
+                { name: tenant.businessData?.name, website: tenant.businessData?.website },
+                role,
+                resetToken
+            );
 
             const html = await buildPasswordRecoveryEmailHtml({
-                user: users[0],
-                temporaryPassword,
+                user: targetUser,
+                resetPasswordUrl,
                 business: tenant.businessData,
-                isAdminRecovery: role === 1
+                expiresInMinutes: Math.floor(PASSWORD_ACTION_TOKEN_TTL_MS / (1000 * 60))
             });
 
             await sendMail({
-                to: users[0].email,
+                to: targetUser.email,
                 subject: "Recuperacion de contraseña",
                 html
             });
@@ -414,6 +506,91 @@ class UserService{
             const err = error as Error
             logger.error("Error catched en recoverPassword service: ", err.message)
             return { status: 500, message: "No se pudo procesar la recuperación de contraseña.", err: err.message };
+        }
+    }
+
+    async validatePasswordToken(token: string, tenantId?: string | null): Promise<ServiceResponse> {
+        const payload = parsePasswordActionToken(token);
+        if (!payload) {
+            return { status: 400, message: "Token inválido o expirado." };
+        }
+        if (tenantId && payload.tenantId !== tenantId) {
+            return { status: 403, message: "Token no corresponde al tenant indicado." };
+        }
+
+        const user = await prisma.user.findFirst({
+            where: {
+                id: payload.id,
+                email: payload.email,
+                tenantId: payload.tenantId,
+                role: payload.role
+            },
+            select: { id: true }
+        });
+        if (!user) {
+            return { status: 404, message: "Usuario no encontrado para este token." };
+        }
+
+        return {
+            status: 200,
+            message: "Token válido.",
+            data: {
+                tenantId: payload.tenantId,
+                role: payload.role,
+                purpose: payload.purpose
+            }
+        };
+    }
+
+    async resetPasswordWithToken(
+        data: z.infer<typeof resetPasswordWithTokenSchema>,
+        tenantId?: string | null
+    ): Promise<ServiceResponse> {
+        try {
+            const payload = parsePasswordActionToken(data.token);
+            if (!payload) {
+                return { status: 400, message: "Token inválido o expirado." };
+            }
+            if (tenantId && payload.tenantId !== tenantId) {
+                return { status: 403, message: "Token no corresponde al tenant indicado." };
+            }
+
+            const user = await prisma.user.findFirst({
+                where: {
+                    id: payload.id,
+                    email: payload.email,
+                    tenantId: payload.tenantId,
+                    role: payload.role
+                },
+                select: {
+                    id: true,
+                    password: true
+                }
+            });
+            if (!user) {
+                return { status: 404, message: "Usuario no encontrado para este token." };
+            }
+
+            const newPassword = data.newPassword.trim();
+            const isSamePassword = await verifyHash(newPassword, user.password);
+            if (isSamePassword) {
+                return { status: 400, message: "La nueva contraseña no puede ser igual a la actual." };
+            }
+
+            const newPasswordHash = await hashString(newPassword);
+            await prisma.user.update({
+                where: { id: user.id },
+                data: {
+                    password: newPasswordHash,
+                    ...(payload.purpose === "ACCOUNT_SETUP" ? { status: UserStatus.ACTIVE } : {})
+                }
+            });
+
+            return { status: 200, message: "Contraseña actualizada correctamente." };
+        } catch (error) {
+            const err = error as Error;
+            logger.error("Error catched en resetPasswordWithToken service: ", err.message);
+            return { status: 500, message: "No se pudo restablecer la contraseña.", err: err.message };
         }
     }
 }

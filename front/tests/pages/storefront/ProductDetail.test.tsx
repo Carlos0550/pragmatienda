@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter, Routes, Route } from 'react-router-dom';
-import ProductDetailPage from './ProductDetail';
+import ProductDetailPage from '@/pages/storefront/ProductDetail';
+import { withRoute } from '../../utils/test-utils';
 
 vi.mock('@/services/http', () => ({
   http: {
@@ -21,11 +21,9 @@ const { http } = await import('@/services/http');
 
 function renderProductDetail(entry: string) {
   return render(
-    <MemoryRouter initialEntries={[entry]}>
-      <Routes>
-        <Route path="/products/:slug" element={<ProductDetailPage />} />
-      </Routes>
-    </MemoryRouter>
+    withRoute('/products/:slug', <ProductDetailPage />, {
+      initialEntries: [entry],
+    })
   );
 }
 

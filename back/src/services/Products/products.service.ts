@@ -23,6 +23,8 @@ import type {
   listProductsQuerySchema
 } from "./products.zod";
 import { ProductsStatus } from "@prisma/client";
+import { BillingError } from "../../billing/domain/billing-errors";
+import { planCapabilitiesService } from "../../billing/application/plan-capabilities.service";
 
 type ServiceResponse = { status: number; message: string; data?: unknown; err?: string };
 
@@ -67,6 +69,8 @@ export class ProductsService {
     file?: Express.Multer.File
   ): Promise<ServiceResponse> {
     try {
+      await planCapabilitiesService.assertCanCreateProduct(tenantId);
+
       const skipGenericCheck = (data as { skipGenericCheck?: boolean }).skipGenericCheck === true;
       let nameAnalysis: Awaited<ReturnType<typeof analyzeProductName>> = null;
       if (!skipGenericCheck) {
@@ -143,6 +147,9 @@ export class ProductsService {
         },
       };
     } catch (error) {
+      if (error instanceof BillingError) {
+        return { status: error.status, message: error.message, data: error.details };
+      }
       const err = error as Error;
       logger.error("Error en products create", { message: err.message });
       return { status: 500, message: "Error al crear producto.", err: err.message };

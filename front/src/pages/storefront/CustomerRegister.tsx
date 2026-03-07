@@ -32,6 +32,8 @@ export default function CustomerRegisterPage() {
         name: capitalizeName(form.name),
         email: form.email,
         phone: form.phone,
+        password: form.password,
+        passwordConfirmation: form.passwordConfirmation,
       });
       sileo.success({ title: '¡Cuenta creada! Iniciá sesión.' });
       navigate('/login');

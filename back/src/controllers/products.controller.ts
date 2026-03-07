@@ -191,6 +191,23 @@ class ProductsController {
     }
   }
 
+  async deleteOne(req: Request, res: Response): Promise<Response> {
+    try {
+      const tenantId = req.tenantId;
+      const id = req.params.id;
+      if (!tenantId || !id) {
+        return res.status(400).json({ message: "Tenant e id requeridos." });
+      }
+
+      const result = await productsService.deleteBulk([id], tenantId);
+      return res.status(result.status).json(result);
+    } catch (error) {
+      const err = error as Error;
+      logger.error("Error en deleteOne controller:", err.message);
+      return res.status(500).json({ message: "Error interno del servidor." });
+    }
+  }
+
   async patchBulkStatus(req: Request, res: Response): Promise<Response> {
     try {
       const tenantId = req.tenantId;

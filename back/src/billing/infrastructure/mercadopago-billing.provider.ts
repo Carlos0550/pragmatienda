@@ -9,6 +9,7 @@ import type {
   BillingSubscriptionResponse,
   BillingSubscriptionSnapshot
 } from "../domain/billing-provider";
+import { logger } from "../../config/logger";
 
 const toDate = (value: string | number | undefined) => {
   if (!value) return null;
@@ -34,9 +35,15 @@ const toNumber = (value: unknown) => {
 const toJsonRecord = (value: unknown) =>
   JSON.parse(JSON.stringify(value ?? {})) as Record<string, unknown>;
 
-const isPayerCollectorModeMismatch = (message: string) =>
-  message.toLowerCase().includes("payer and collector") &&
-  message.toLowerCase().includes("real or test users");
+/** Errores de MP donde conviene reintentar sin payer_email (mismo usuario cobrador/pagador o real vs test). */
+const isPayerCollectorError = (message: string) => {
+  const lower = message.toLowerCase();
+  const hasPayerCollector = lower.includes("payer") && lower.includes("collector");
+  return (
+    hasPayerCollector &&
+    (lower.includes("real or test users") || lower.includes("cannot be the same user"))
+  );
+};
 
 type PreApprovalCreateBody = Parameters<PreApproval["create"]>[0]["body"];
 
@@ -129,7 +136,7 @@ export class MercadoPagoBillingProvider implements BillingProvider {
     const body: PreApprovalCreateBody = {
       reason: `${reasonPrefix} - ${input.planName}`,
       external_reference: input.tenantId,
-      ...(shouldSendPayerEmail ? { payer_email: input.ownerEmail } : {}),
+      ...(shouldSendPayerEmail ? { payer_email: input.ownerEmail } : {payer_email:"test_user_1792633009@testuser.com"}),
       back_url: backUrl,
       status: "pending"
     };
@@ -142,7 +149,7 @@ export class MercadoPagoBillingProvider implements BillingProvider {
     };
 
     const created = await this.createPreApprovalWithFallback(preApproval, body);
-
+    logger.info("created subscription", { created });
     if (!created.id) {
       throw new BillingError(502, "PROVIDER_ERROR", "No se pudo crear la suscripción en Mercado Pago.");
     }
@@ -175,7 +182,7 @@ export class MercadoPagoBillingProvider implements BillingProvider {
     const body: PreApprovalCreateBody = {
       reason: `${reasonPrefix} - ${input.planName}`,
       external_reference: input.tenantId,
-      ...(shouldSendPayerEmail ? { payer_email: input.ownerEmail } : {}),
+      ...(shouldSendPayerEmail ? { payer_email: input.ownerEmail } : {payer_email:"test_user_1792633009@testuser.com"}),
       back_url: backUrl,
       status: "pending",
       auto_recurring: {
@@ -187,6 +194,7 @@ export class MercadoPagoBillingProvider implements BillingProvider {
     };
 
     const created = await this.createPreApprovalWithFallback(preApproval, body);
+    logger.info("created subscription from plan", { created });
 
     if (!created.id) {
       throw new BillingError(502, "PROVIDER_ERROR", "No se pudo crear la suscripción en Mercado Pago.");
@@ -210,10 +218,10 @@ export class MercadoPagoBillingProvider implements BillingProvider {
     } catch (error) {
       const message = this.getErrorMessage(error);
       const hasPayerEmail = Object.prototype.hasOwnProperty.call(body, "payer_email");
-      const shouldRetryWithoutPayerEmail =
-        hasPayerEmail && isPayerCollectorModeMismatch(message);
+      const doRetryWithoutPayerEmail =
+        hasPayerEmail && isPayerCollectorError(message);
 
-      if (!shouldRetryWithoutPayerEmail) {
+      if (!doRetryWithoutPayerEmail) {
         throw this.toProviderError(error);
       }
 
@@ -238,11 +246,11 @@ export class MercadoPagoBillingProvider implements BillingProvider {
     if (error instanceof BillingError) return error;
     const message = this.getErrorMessage(error);
     const status = this.getErrorStatus(error);
-    if (isPayerCollectorModeMismatch(message)) {
+    if (isPayerCollectorError(message)) {
       return new BillingError(
         400,
         "PROVIDER_ERROR",
-        "Mercado Pago rechazó el payer_email: cobrador y pagador deben ser ambos reales o ambos de prueba.",
+        "Mercado Pago rechazó el email del pagador: no puede ser la misma cuenta que el cobrador. En el checkout podés iniciar sesión con otro usuario de MP.",
         { providerMessage: message }
       );
     }

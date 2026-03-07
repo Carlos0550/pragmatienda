@@ -1,6 +1,18 @@
 import { BillingStatus, PlanType, Prisma } from "@prisma/client";
 import { prisma } from "../../db/prisma";
 
+const toNullableJsonInput = (
+  value: Prisma.InputJsonValue | null | undefined
+): Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput | undefined => {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (value === null) {
+    return Prisma.DbNull;
+  }
+  return value;
+};
+
 export class PrismaBillingRepository {
   async getTenantWithOwner(tenantId: string) {
     return prisma.tenant.findUnique({
@@ -105,6 +117,9 @@ export class PrismaBillingRepository {
     interval: string;
     trialDays: number;
     active?: boolean;
+    maxProducts?: number | null;
+    maxCategories?: number | null;
+    features?: Prisma.InputJsonValue | null;
   }) {
     return prisma.plan.create({
       data: {
@@ -115,7 +130,10 @@ export class PrismaBillingRepository {
         currency: data.currency,
         interval: data.interval,
         trialDays: data.trialDays,
-        active: data.active ?? true
+        active: data.active ?? true,
+        maxProducts: data.maxProducts ?? null,
+        maxCategories: data.maxCategories ?? null,
+        features: toNullableJsonInput(data.features) ?? Prisma.DbNull
       }
     });
   }
@@ -130,8 +148,12 @@ export class PrismaBillingRepository {
       interval?: string;
       trialDays?: number;
       active?: boolean;
+      maxProducts?: number | null;
+      maxCategories?: number | null;
+      features?: Prisma.InputJsonValue | null;
     }
   ) {
+    const parsedFeatures = toNullableJsonInput(data.features);
     return prisma.plan.update({
       where: { id },
       data: {
@@ -141,7 +163,10 @@ export class PrismaBillingRepository {
         ...(data.currency !== undefined && { currency: data.currency }),
         ...(data.interval !== undefined && { interval: data.interval }),
         ...(data.trialDays !== undefined && { trialDays: data.trialDays }),
-        ...(data.active !== undefined && { active: data.active })
+        ...(data.active !== undefined && { active: data.active }),
+        ...(data.maxProducts !== undefined && { maxProducts: data.maxProducts }),
+        ...(data.maxCategories !== undefined && { maxCategories: data.maxCategories }),
+        ...(parsedFeatures !== undefined && { features: parsedFeatures })
       }
     });
   }
@@ -301,6 +326,18 @@ export class PrismaBillingRepository {
       include: {
         plan: true
       }
+    });
+  }
+
+  async countProductsByTenant(tenantId: string): Promise<number> {
+    return prisma.products.count({
+      where: { tenantId }
+    });
+  }
+
+  async countCategoriesByTenant(tenantId: string): Promise<number> {
+    return prisma.productsCategory.count({
+      where: { tenantId }
     });
   }
 }

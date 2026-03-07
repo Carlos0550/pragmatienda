@@ -1,24 +1,29 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { http } from '@/services/http';
 import { Button } from '@/components/ui/button';
 import { sileo } from 'sileo';
-import { CheckCircle, ArrowRight, Loader2 } from 'lucide-react';
-import type { ApiError, Plan, Subscription } from '@/types';
+import { CheckCircle, ArrowRight, Loader2, AlertCircle } from 'lucide-react';
+import type { ApiError, Plan, Subscription, TenantCapabilitiesResponse } from '@/types';
 
 export default function BillingPage() {
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [plans, setPlans] = useState<Plan[]>([]);
+  const [capabilities, setCapabilities] = useState<TenantCapabilitiesResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionPlanId, setActionPlanId] = useState<string | null>(null);
 
   const fetchData = async () => {
     try {
-      const [sub, pls] = await Promise.all([
+      const [sub, pls, cap] = await Promise.all([
         http.billing.getCurrentSubscription().catch(() => null),
         http.billing.listPlansForBilling().catch(() => []),
+        http.billing.getCapabilities().catch(() => null),
       ]);
       setSubscription(sub);
       setPlans(Array.isArray(pls) ? pls.filter((p) => p.active) : []);
+      const capData = cap && 'planCode' in cap && cap.usage ? cap : null;
+      setCapabilities(capData as TenantCapabilitiesResponse | null);
     } finally { setLoading(false); }
   };
 
@@ -69,12 +74,47 @@ export default function BillingPage() {
               </p>
             </div>
           </div>
-          {subscription.plan.features && subscription.plan.features.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {subscription.plan.features.map((f, i) => (
-                <span key={i} className="text-xs px-2.5 py-1 rounded-full bg-muted text-muted-foreground">{f}</span>
-              ))}
+          {capabilities && (
+            <div className="rounded-lg border bg-muted/30 p-4 space-y-2">
+              <p className="text-sm font-medium">Uso del plan</p>
+              <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
+                <span>
+                  Productos: {capabilities.usage.productsCount}
+                  {capabilities.maxProducts != null && ` / ${capabilities.maxProducts}`}
+                </span>
+                <span>
+                  Categorías: {capabilities.usage.categoriesCount}
+                  {capabilities.maxCategories != null && ` / ${capabilities.maxCategories}`}
+                </span>
+              </div>
+              {(capabilities.maxProducts != null && capabilities.usage.productsCount >= capabilities.maxProducts) ||
+               (capabilities.maxCategories != null && capabilities.usage.categoriesCount >= capabilities.maxCategories) ? (
+                <div className="flex items-center gap-2 mt-2 text-amber-600 dark:text-amber-400 text-sm">
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                  <span>Alcanzaste el límite de tu plan.</span>
+                  <Button variant="link" className="p-0 h-auto text-amber-600 dark:text-amber-400" asChild>
+                    <Link to="/admin/billing">Actualizar plan</Link>
+                  </Button>
+                </div>
+              ) : null}
             </div>
+          )}
+          {subscription.plan.features && (
+            Array.isArray(subscription.plan.features) && subscription.plan.features.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {subscription.plan.features.map((f, i) => (
+                  <span key={i} className="text-xs px-2.5 py-1 rounded-full bg-muted text-muted-foreground">{f}</span>
+                ))}
+              </div>
+            ) : typeof subscription.plan.features === 'object' && !Array.isArray(subscription.plan.features) ? (
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(subscription.plan.features)
+                  .filter(([, v]) => v)
+                  .map(([k]) => (
+                    <span key={k} className="text-xs px-2.5 py-1 rounded-full bg-muted text-muted-foreground">{k}</span>
+                  ))}
+              </div>
+            ) : null
           )}
         </div>
       )}
@@ -103,14 +143,33 @@ export default function BillingPage() {
                       {!isFree && <span className="text-sm text-muted-foreground font-normal">/{plan.interval}</span>}
                     </p>
                   </div>
-                  {plan.features && plan.features.length > 0 && (
-                    <ul className="space-y-2">
-                      {plan.features.map((f, i) => (
-                        <li key={i} className="text-sm text-muted-foreground flex items-center gap-2">
-                          <CheckCircle className="h-3 w-3 text-success shrink-0" /> {f}
-                        </li>
-                      ))}
-                    </ul>
+                  {(plan.maxProducts != null || plan.maxCategories != null) && (
+                    <p className="text-xs text-muted-foreground">
+                      {plan.maxProducts != null && `Hasta ${plan.maxProducts} productos`}
+                      {plan.maxProducts != null && plan.maxCategories != null && ' · '}
+                      {plan.maxCategories != null && `Hasta ${plan.maxCategories} categorías`}
+                    </p>
+                  )}
+                  {plan.features && (
+                    Array.isArray(plan.features) && plan.features.length > 0 ? (
+                      <ul className="space-y-2">
+                        {plan.features.map((f, i) => (
+                          <li key={i} className="text-sm text-muted-foreground flex items-center gap-2">
+                            <CheckCircle className="h-3 w-3 text-success shrink-0" /> {f}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : typeof plan.features === 'object' && Object.keys(plan.features).length > 0 ? (
+                      <ul className="space-y-2">
+                        {Object.entries(plan.features)
+                          .filter(([, v]) => v)
+                          .map(([k]) => (
+                            <li key={k} className="text-sm text-muted-foreground flex items-center gap-2">
+                              <CheckCircle className="h-3 w-3 text-success shrink-0" /> {k}
+                            </li>
+                          ))}
+                      </ul>
+                    ) : null
                   )}
                   {isCurrent ? (
                     <Button disabled variant="outline" className="w-full">Plan actual</Button>

@@ -103,7 +103,9 @@ class CartController {
     } catch (error) {
       const err = error as Error;
       logger.error("Error en checkout controller:", err.message);
-      return res.status(500).json({ message: "Error interno del servidor." });
+      const responseBody = { message: "Error interno del servidor." };
+      await persistIdempotencyResponse(req, 500, responseBody);
+      return res.status(500).json(responseBody);
     }
   }
 

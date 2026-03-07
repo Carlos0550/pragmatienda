@@ -22,6 +22,7 @@ describe("BillingService.createSubscriptionForTenant", () => {
     };
 
     const repository = {
+      getCurrentSubscriptionForTenant: vi.fn(async () => null),
       getTenantWithOwner: vi.fn(async () => ({
         id: "tenant-1",
         owner: { id: "owner-1", email: "owner@test.com" },

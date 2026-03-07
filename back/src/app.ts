@@ -15,8 +15,9 @@ import { getFrontClientDistDir, robotsHandler, sitemapHandler, ssrHandler } from
 const app = express();
 
 const corsOrigins = env.CORS_ORIGIN
-  ? env.CORS_ORIGIN.split(",").map((origin) => origin.trim())
-  : true;
+  ? env.CORS_ORIGIN.split(",").map((origin) => origin.trim()).filter(Boolean)
+  : [env.FRONTEND_URL.replace(/\/$/, "")];
+const corsOriginSet = new Set(corsOrigins);
 
 const cspConnectSrc = ["'self'", "https:", "http:", "wss:", "ws:"];
 if (env.FRONTEND_URL) cspConnectSrc.push(env.FRONTEND_URL);
@@ -45,7 +46,19 @@ app.use(
 app.use(compression());
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
-app.use(cors({ origin: corsOrigins, credentials: true }));
+app.use(
+  cors({
+    credentials: true,
+    origin: (origin, callback) => {
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+      const normalized = origin.replace(/\/$/, "");
+      callback(null, corsOriginSet.has(normalized));
+    }
+  })
+);
 app.use(requestLogger);
 
 app.use("/api", apiRouter);
@@ -91,7 +104,11 @@ app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
     return res.status(400).json({ message: err.message });
   }
   logger.error("Unhandled error", { err });
-  res.status(500).json({ message: "Internal server error", err: err.message });
+  const responseBody =
+    env.NODE_ENV === "development"
+      ? { message: "Internal server error", error: err.message }
+      : { message: "Internal server error" };
+  res.status(500).json(responseBody);
   void next;
 });
 

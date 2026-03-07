@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { changePasswordSchema, loginSchema, publicRegisterUserSchema, recoverPasswordSchema, updateUserSchema } from "../services/Users/user.zod";
+import { changePasswordSchema, loginSchema, publicRegisterUserSchema, recoverPasswordSchema, resetPasswordWithTokenSchema, updateUserSchema, validatePasswordTokenSchema } from "../services/Users/user.zod";
 import z from "zod";
 import path from "path";
 import { capitalizeWords, normalizeText, toE164Argentina } from "../utils/normalization.utils";
@@ -27,13 +27,17 @@ class UserController{
             const {
                 name,
                 email,
-                phone
+                phone,
+                password,
+                passwordConfirmation
             } = parsed.data
 
             const payload = {
                 name: capitalizeWords(name),
                 email: email.toLowerCase(),
-                phone: phone ? toE164Argentina(normalizeText(phone)) ?? undefined : undefined
+                phone: phone ? toE164Argentina(normalizeText(phone)) ?? undefined : undefined,
+                password,
+                passwordConfirmation
             }
 
             const user = await userService.publicRegisterUser(payload, req.tenantId!);
@@ -302,6 +306,44 @@ class UserController{
         } catch (error) {
             const err = error as Error;
             logger.error("Error catched en recoverPassword controller: ", err.message);
+            return res.status(500).json({ message: "Error interno del servidor, por favor intente nuevamente." });
+        }
+    }
+
+    async validatePasswordResetToken(req: Request, res: Response): Promise<Response> {
+        try {
+            const parsed = validatePasswordTokenSchema.safeParse(req.body);
+            if (!parsed.success) {
+                return res.status(400).json({
+                    message: "Datos invalidos.",
+                    err: parsed.error.flatten().fieldErrors
+                });
+            }
+
+            const result = await userService.validatePasswordToken(parsed.data.token, req.tenantId ?? null);
+            return res.status(result.status).json(result);
+        } catch (error) {
+            const err = error as Error;
+            logger.error("Error catched en validatePasswordResetToken controller: ", err.message);
+            return res.status(500).json({ message: "Error interno del servidor, por favor intente nuevamente." });
+        }
+    }
+
+    async resetPasswordWithToken(req: Request, res: Response): Promise<Response> {
+        try {
+            const parsed = resetPasswordWithTokenSchema.safeParse(req.body);
+            if (!parsed.success) {
+                return res.status(400).json({
+                    message: "Datos invalidos.",
+                    err: parsed.error.flatten().fieldErrors
+                });
+            }
+
+            const result = await userService.resetPasswordWithToken(parsed.data, req.tenantId ?? null);
+            return res.status(result.status).json(result);
+        } catch (error) {
+            const err = error as Error;
+            logger.error("Error catched en resetPasswordWithToken controller: ", err.message);
             return res.status(500).json({ message: "Error interno del servidor, por favor intente nuevamente." });
         }
     }

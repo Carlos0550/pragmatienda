@@ -47,7 +47,10 @@ export class PlansService {
       price: data.price,
       currency: data.currency,
       interval: data.interval,
-      trialDays: data.trialDays
+      trialDays: data.trialDays,
+      maxProducts: data.maxProducts ?? null,
+      maxCategories: data.maxCategories ?? null,
+      features: data.features ?? undefined
     });
 
     if (data.price > 0) {
@@ -82,7 +85,10 @@ export class PlansService {
       currency: data.currency,
       interval: data.interval,
       trialDays: data.trialDays,
-      active: data.active
+      active: data.active,
+      maxProducts: data.maxProducts,
+      maxCategories: data.maxCategories,
+      features: data.features
     });
 
     const mpId = updated.mpPreapprovalPlanId;

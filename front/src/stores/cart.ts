@@ -10,7 +10,6 @@ export const useCartStore = create<CartState>((set) => ({
     set({ loading: true });
     try {
       const cart = await http.cart.get();
-      console.log("cart", cart);
       set({ cart });
     } catch (error) {
       console.error("Error fetching cart", error);
@@ -21,39 +20,52 @@ export const useCartStore = create<CartState>((set) => ({
 
   addItem: async (productId: string, quantity: number) => {
     set({ loading: true });
-    await http.cart.patchItemDelta(productId, quantity);
-    await useCartStore.getState().fetchCart();
-    set({ loading: false });
+    try {
+      await http.cart.patchItemDelta(productId, quantity);
+      await useCartStore.getState().fetchCart();
+    } finally {
+      set({ loading: false });
+    }
   },
 
   updateItem: async (productId: string, quantity: number) => {
     set({ loading: true });
-    const currentItem = useCartStore.getState().cart?.items.find((item) => item.productId === productId);
-    const currentQuantity = currentItem?.quantity ?? 0;
-    const delta = quantity - currentQuantity;
-    if (delta !== 0) {
-      await http.cart.patchItemDelta(productId, delta);
-      await useCartStore.getState().fetchCart();
+    try {
+      const currentItem = useCartStore.getState().cart?.items.find((item) => item.productId === productId);
+      const currentQuantity = currentItem?.quantity ?? 0;
+      const delta = quantity - currentQuantity;
+      if (delta !== 0) {
+        await http.cart.patchItemDelta(productId, delta);
+        await useCartStore.getState().fetchCart();
+      }
+    } finally {
+      set({ loading: false });
     }
-    set({ loading: false });
   },
 
   removeItem: async (productId: string) => {
     set({ loading: true });
-    const currentItem = useCartStore.getState().cart?.items.find((item) => item.productId === productId);
-    const delta = -(currentItem?.quantity ?? 0);
-    if (delta !== 0) {
-      await http.cart.patchItemDelta(productId, delta);
-      await useCartStore.getState().fetchCart();
+    try {
+      const currentItem = useCartStore.getState().cart?.items.find((item) => item.productId === productId);
+      const delta = -(currentItem?.quantity ?? 0);
+      if (delta !== 0) {
+        await http.cart.patchItemDelta(productId, delta);
+        await useCartStore.getState().fetchCart();
+      }
+    } finally {
+      set({ loading: false });
     }
-    set({ loading: false });
   },
 
   checkout: async (comprobante: File) => {
     set({ loading: true });
-    const result = await http.cart.checkout(comprobante);
-    set({ cart: null, loading: false });
-    return result;
+    try {
+      const result = await http.cart.checkout(comprobante);
+      set({ cart: null });
+      return result;
+    } finally {
+      set({ loading: false });
+    }
   },
 
   totalCartItems: () => {

@@ -386,16 +386,19 @@ model Payment {
 }
 
 model Plan {
-  id String @id @default(cuid())
-  code PlanType @unique
-  name String
-  description String?
-  price Decimal
-  currency String @default("ARS")
-  interval String @default("month")
-  trialDays Int @default(0)
+  id            String   @id @default(cuid())
+  code          PlanType @unique
+  name          String
+  description   String?
+  price         Decimal
+  currency      String   @default("ARS")
+  interval      String   @default("month")
+  trialDays     Int      @default(0)
   mpPreapprovalPlanId String?
-  active Boolean @default(true)
+  active        Boolean  @default(true)
+  maxProducts   Int?     // null = sin límite
+  maxCategories Int?     // null = sin límite
+  features      Json?    // ej: { "reports": true, "api": false }
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

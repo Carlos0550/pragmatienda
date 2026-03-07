@@ -154,6 +154,12 @@ router.get(
   billingController.getCurrentSubscription
 );
 router.get(
+  "/billing/capabilities",
+  requireTenant,
+  requireRole([1]),
+  billingController.getCapabilities
+);
+router.get(
   "/billing/plans",
   requireTenant,
   requireRole([1]),

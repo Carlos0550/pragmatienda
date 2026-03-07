@@ -30,13 +30,18 @@ import type {
   CreateBusinessPayload,
   RecoverPasswordPayload,
   RegisterCustomerPayload,
+  ResetPasswordWithTokenPayload,
+  ResetPasswordWithTokenResponse,
   Sale,
   SaleMetrics,
   Subscription,
   SuperadminPlansListResponse,
   Tenant,
+  TenantCapabilitiesResponse,
   TenantResolveResponse,
   UserMeResponse,
+  ValidateResetPasswordTokenPayload,
+  ValidateResetPasswordTokenResponse,
 } from '@/types';
 
 function buildProductParams(params?: ListProductsParams): QueryParams {
@@ -87,6 +92,10 @@ export const http = {
     recoverAdminPassword: (payload: RecoverPasswordPayload) => api.post('/public/admin/password/recovery', payload),
     recoverCustomerPassword: (payload: RecoverPasswordPayload) => api.post('/public/password/recovery', payload),
     registerCustomer: (payload: RegisterCustomerPayload) => api.post('/public/register', payload),
+    validateResetPasswordToken: (payload: ValidateResetPasswordTokenPayload) =>
+      api.post<ValidateResetPasswordTokenResponse>('/public/password/reset/validate', payload),
+    resetPasswordWithToken: (payload: ResetPasswordWithTokenPayload) =>
+      api.post<ResetPasswordWithTokenResponse>('/public/password/reset', payload),
   },
 
   business: {
@@ -203,6 +212,7 @@ export const http = {
 
   billing: {
     getCurrentSubscription: () => api.get<Subscription>('/payments/billing/subscriptions/current'),
+    getCapabilities: () => api.get<TenantCapabilitiesResponse | { message: string; data: null }>('/payments/billing/capabilities'),
     listPlansForBilling: () => api.get<Plan[]>('/payments/billing/plans'),
     listPublicPlans: () => api.get<PublicPlan[]>('/public/plans'),
     createSubscription: (payload: BillingSelectPlanPayload) => {

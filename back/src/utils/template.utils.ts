@@ -45,11 +45,11 @@ type PasswordRecoveryEmailUserData = {
 
 export const buildWelcomeUserEmailHtml = async ({
   user,
-  plainPassword,
+  setupPasswordUrl,
   business
 }: {
   user: WelcomeEmailUserData;
-  plainPassword: string;
+  setupPasswordUrl: string;
   business: WelcomeEmailBusinessData;
 }): Promise<string> => {
   const tokenPayload = JSON.stringify({
@@ -70,8 +70,8 @@ export const buildWelcomeUserEmailHtml = async ({
   return renderTemplate("welcome_user_business.html", {
     name: capitalizeWords(user?.name ?? ""),
     email: user.email,
-    password: plainPassword,
     verifyUrl,
+    setupPasswordUrl,
     businessName: capitalizeWords(business?.name ?? ""),
     businessDescription: business?.description ?? "",
     businessAddress: capitalizeWords(business?.address ?? ""),
@@ -86,28 +86,20 @@ export const buildWelcomeUserEmailHtml = async ({
 
 export const buildPasswordRecoveryEmailHtml = async ({
   user,
-  temporaryPassword,
+  resetPasswordUrl,
   business,
-  isAdminRecovery = true
+  expiresInMinutes
 }: {
   user: PasswordRecoveryEmailUserData;
-  temporaryPassword: string;
+  resetPasswordUrl: string;
   business: WelcomeEmailBusinessData;
-  isAdminRecovery?: boolean;
+  expiresInMinutes: number;
 }): Promise<string> => {
-  const baseUrl = business?.website
-    ? business.website.replace(/\/$/, "")
-    : business?.name
-      ? `https://${business.name}.pragmatienda.com`
-      : env.FRONTEND_URL.replace(/\/$/, "");
-  const loginPath = isAdminRecovery ? "/admin/login" : "/login";
-  const loginUrl = `${baseUrl}${loginPath}`;
-
   return renderTemplate("password_recovery_business.html", {
     name: capitalizeWords(user.name ?? ""),
     email: user.email,
-    temporaryPassword,
-    loginUrl,
+    resetPasswordUrl,
+    expiresInMinutes: String(expiresInMinutes),
     businessName: capitalizeWords(business?.name ?? ""),
     currentYear: dayjs().year().toString()
   });

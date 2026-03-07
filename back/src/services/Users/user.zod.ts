@@ -8,8 +8,13 @@ const optionalPhone = z.preprocess(
 export const publicRegisterUserSchema = z.object({
     name: z.string().min(3),
     email: z.string().email(),
-    phone: optionalPhone
-}).strict();
+    phone: optionalPhone,
+    password: z.string().min(8),
+    passwordConfirmation: z.string().min(8)
+}).strict().refine((data) => data.password === data.passwordConfirmation, {
+    message: "Las contraseñas no coinciden.",
+    path: ["passwordConfirmation"]
+});
 
 export const loginSchema = z.object({
     email: z.string().email(),
@@ -24,6 +29,19 @@ export const changePasswordSchema = z.object({
 export const recoverPasswordSchema = z.object({
     email: z.string().email()
 }).strict();
+
+export const validatePasswordTokenSchema = z.object({
+    token: z.string().min(16)
+}).strict();
+
+export const resetPasswordWithTokenSchema = z.object({
+    token: z.string().min(16),
+    newPassword: z.string().min(8),
+    newPasswordConfirmation: z.string().min(8)
+}).strict().refine((data) => data.newPassword === data.newPasswordConfirmation, {
+    message: "Las contraseñas no coinciden.",
+    path: ["newPasswordConfirmation"]
+});
 
 export const updateUserSchema = z.object({
     name: z.string().min(3).optional(),

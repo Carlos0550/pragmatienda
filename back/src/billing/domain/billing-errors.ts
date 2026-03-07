@@ -7,7 +7,9 @@ export type BillingErrorCode =
   | "SUBSCRIPTION_NOT_FOUND"
   | "PROVIDER_ERROR"
   | "INVALID_WEBHOOK"
-  | "ACCESS_DENIED";
+  | "ACCESS_DENIED"
+  | "PLAN_LIMIT_REACHED"
+  | "FEATURE_NOT_AVAILABLE";
 
 export class BillingError extends Error {
   status: number;

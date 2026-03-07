@@ -20,9 +20,11 @@ import CategoriesPage from "@/pages/admin/Categories";
 import AdminProductsPage from "@/pages/admin/Products";
 import AdminSalesPage from "@/pages/admin/Sales";
 import BillingPage from "@/pages/admin/Billing";
+import MercadoPagoPage from "@/pages/admin/MercadoPago";
 import PlansPage from "@/pages/superadmin/Plans";
 import ForbiddenPage from "@/pages/ForbiddenPage";
 import NotFound from "@/pages/NotFound";
+import ResetPasswordPage from "@/pages/auth/ResetPassword";
 
 export function AppRoutes() {
   return (
@@ -51,10 +53,12 @@ export function AppRoutes() {
         />
         <Route path="/login" element={<CustomerLoginPage />} />
         <Route path="/register" element={<CustomerRegisterPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage mode="customer" />} />
       </Route>
 
       <Route path="/admin/login" element={<AdminLoginPage />} />
       <Route path="/admin/register" element={<AdminRegisterPage />} />
+      <Route path="/admin/reset-password" element={<ResetPasswordPage mode="admin" />} />
       <Route
         path="/admin"
         element={
@@ -69,6 +73,8 @@ export function AppRoutes() {
         <Route path="products" element={<AdminProductsPage />} />
         <Route path="sales" element={<AdminSalesPage />} />
         <Route path="billing" element={<BillingPage />} />
+        <Route path="mercadopago" element={<MercadoPagoPage />} />
+        <Route path="integrations/mercadopago" element={<MercadoPagoPage />} />
       </Route>
 
       <Route

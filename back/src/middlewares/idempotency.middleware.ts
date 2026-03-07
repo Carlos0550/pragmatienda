@@ -5,9 +5,68 @@ import { prisma } from "../db/prisma";
 
 const IDEMPOTENCY_HEADER = "idempotency-key";
 
-const getRequestHash = (body: unknown) => {
-  const stableBody = JSON.stringify(body ?? {});
-  return createHash("sha256").update(stableBody).digest("hex");
+const sortValue = (value: unknown): unknown => {
+  if (Array.isArray(value)) {
+    return value.map(sortValue);
+  }
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    return Object.keys(record)
+      .sort()
+      .reduce<Record<string, unknown>>((acc, key) => {
+        acc[key] = sortValue(record[key]);
+        return acc;
+      }, {});
+  }
+  return value;
+};
+
+const summarizeFiles = (req: Request) => {
+  if (req.file) {
+    return [
+      {
+        fieldname: req.file.fieldname,
+        originalname: req.file.originalname,
+        mimetype: req.file.mimetype,
+        size: req.file.size
+      }
+    ];
+  }
+
+  const files = req.files;
+  if (!files) return [];
+
+  if (Array.isArray(files)) {
+    return files.map((file) => ({
+      fieldname: file.fieldname,
+      originalname: file.originalname,
+      mimetype: file.mimetype,
+      size: file.size
+    }));
+  }
+
+  return Object.entries(files as Record<string, Express.Multer.File[]>)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .flatMap(([field, group]) =>
+      group.map((file) => ({
+        fieldname: field,
+        originalname: file.originalname,
+        mimetype: file.mimetype,
+        size: file.size
+      }))
+    );
+};
+
+const getRequestHash = (req: Request) => {
+  const payload = {
+    method: req.method.toUpperCase(),
+    path: req.baseUrl ? `${req.baseUrl}${req.path}` : req.path,
+    params: sortValue(req.params ?? {}),
+    query: sortValue(req.query ?? {}),
+    body: sortValue(req.body ?? {}),
+    files: summarizeFiles(req)
+  };
+  return createHash("sha256").update(JSON.stringify(payload)).digest("hex");
 };
 
 const toSerializable = (body: unknown): Prisma.InputJsonValue => {
@@ -39,7 +98,11 @@ const resolveExistingRecord = async (
     return true;
   }
 
-  if (existing.responseStatus && existing.responseBody) {
+  if (existing.responseStatus !== null) {
+    if (existing.responseBody === null) {
+      res.status(existing.responseStatus).end();
+      return true;
+    }
     res.status(existing.responseStatus).json(existing.responseBody);
     return true;
   }
@@ -70,7 +133,7 @@ export const requireIdempotencyKey = (scope: string, ttlMinutes = 30) => {
       });
     }
 
-    const requestHash = getRequestHash(req.body);
+    const requestHash = getRequestHash(req);
     const existing = await prisma.idempotencyKey.findUnique({
       where: {
         tenantId_scope_key: {

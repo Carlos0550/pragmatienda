@@ -2,6 +2,7 @@ import { BillingStatus, PlanType, UserStatus } from "@prisma/client";
 import { logger } from "../../config/logger";
 import {
   createSessionToken,
+  encryptString,
   hashString,
   verifyHash,
 } from "../../config/security";
@@ -46,13 +47,34 @@ type BusinessBanner = {
   objectPositionY?: number;
 };
 
+const ACCOUNT_SETUP_TOKEN_TTL_MS = 1000 * 60 * 60 * 24;
+
+const createAccountSetupToken = (input: {
+  id: string;
+  email: string;
+  tenantId: string;
+  role: number;
+}) => {
+  return encryptString(
+    JSON.stringify({
+      id: input.id,
+      email: input.email,
+      tenantId: input.tenantId,
+      role: input.role,
+      purpose: "ACCOUNT_SETUP",
+      exp: Date.now() + ACCOUNT_SETUP_TOKEN_TTL_MS,
+      nonce: generateSecureString(),
+    })
+  );
+};
+
 class BusinessService {
   async createBusinessTenant(
     data: z.infer<typeof createBusinessTenantSchema>,
   ): Promise<ServiceResponse> {
     try {
-      const secureString = generateSecureString();
-      const securePassword = await hashString(secureString);
+      const bootstrapPassword = `${generateSecureString()}${generateSecureString()}${generateSecureString()}`;
+      const securePassword = await hashString(bootstrapPassword);
       const businessNameForWebsite = normalizeText(data.name);
       const website = businessNameForWebsite
         ? `https://${businessNameForWebsite}.pragmatienda.com`
@@ -132,13 +154,20 @@ class BusinessService {
       }
 
       const { adminUser, tenant, business } = transactionResult;
+      const setupPasswordToken = createAccountSetupToken({
+        id: adminUser.id,
+        email: adminUser.email,
+        tenantId: tenant.id,
+        role: 1,
+      });
+      const setupPasswordUrl = `${website ?? env.FRONTEND_URL.replace(/\/$/, "")}/admin/reset-password?token=${encodeURIComponent(setupPasswordToken)}`;
 
       const html = await buildWelcomeUserEmailHtml({
         user: {
           ...adminUser,
           tenantId: tenant.id
         },
-        plainPassword: secureString,
+        setupPasswordUrl,
         business: {
           name: capitalizeWords(data.name),
           address: data.address ? capitalizeWords(data.address) : "",
@@ -584,6 +613,12 @@ class BusinessService {
       const isPasswordValid = await verifyHash(data.password, user.password);
       if (!isPasswordValid) {
         return { status: 401, message: "Contraseña incorrecta." };
+      }
+      if (user.status !== UserStatus.ACTIVE) {
+        return { status: 403, message: "Cuenta no activa." };
+      }
+      if (!user.isVerified) {
+        return { status: 403, message: "Cuenta no verificada." };
       }
       const token = await createSessionToken({
         id: user.id,

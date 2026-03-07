@@ -9,7 +9,10 @@ const plans = [
     price: 0,
     currency: "ARS",
     interval: "month",
-    trialDays: 0
+    trialDays: 0,
+    maxProducts: 10,
+    maxCategories: 3,
+    features: { reports: false, api: false }
   },
   {
     code: PlanType.STARTER,
@@ -18,7 +21,10 @@ const plans = [
     price: 9999,
     currency: "ARS",
     interval: "month",
-    trialDays: 7
+    trialDays: 7,
+    maxProducts: 100,
+    maxCategories: 10,
+    features: { reports: true, api: false }
   },
   {
     code: PlanType.PRO,
@@ -27,7 +33,10 @@ const plans = [
     price: 24999,
     currency: "ARS",
     interval: "month",
-    trialDays: 7
+    trialDays: 7,
+    maxProducts: null,
+    maxCategories: null,
+    features: { reports: true, api: true }
   }
 ];
 
@@ -42,7 +51,10 @@ async function main() {
         currency: plan.currency,
         interval: plan.interval,
         trialDays: plan.trialDays,
-        active: true
+        active: true,
+        maxProducts: plan.maxProducts ?? null,
+        maxCategories: plan.maxCategories ?? null,
+        features: plan.features ?? undefined
       },
       create: {
         code: plan.code,
@@ -52,7 +64,10 @@ async function main() {
         currency: plan.currency,
         interval: plan.interval,
         trialDays: plan.trialDays,
-        active: true
+        active: true,
+        maxProducts: plan.maxProducts ?? null,
+        maxCategories: plan.maxCategories ?? null,
+        features: plan.features ?? undefined
       }
     });
   }

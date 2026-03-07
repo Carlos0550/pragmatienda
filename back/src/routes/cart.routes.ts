@@ -108,9 +108,9 @@ router.patch("/items", requireRole([1, 2]), cartController.patchItems);
 router.post(
   "/checkout",
   requireRole([1, 2]),
-  requireIdempotencyKey("cart.checkout"),
   uploadComprobanteOptionalMiddleware,
   requireComprobante,
+  requireIdempotencyKey("cart.checkout"),
   cartController.checkout
 );
 

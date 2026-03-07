@@ -1,5 +1,15 @@
 import React, { ReactElement } from 'react';
 import { MemoryRouter, MemoryRouterProps, Routes, Route } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+
+function createTestQueryClient() {
+  return new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, gcTime: 0 },
+      mutations: { retry: false },
+    },
+  });
+}
 
 /**
  * Envuelve el componente con MemoryRouter para tests que usan useParams, useSearchParams o Link.
@@ -9,10 +19,13 @@ export function withRouter(
   options: { initialEntries?: MemoryRouterProps['initialEntries']; initialIndex?: number } = {}
 ) {
   const { initialEntries = ['/'], initialIndex } = options;
+  const queryClient = createTestQueryClient();
   return (
-    <MemoryRouter initialEntries={initialEntries} initialIndex={initialIndex}>
-      {ui}
-    </MemoryRouter>
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={initialEntries} initialIndex={initialIndex}>
+        {ui}
+      </MemoryRouter>
+    </QueryClientProvider>
   );
 }
 
@@ -25,12 +38,15 @@ export function withRoute(
   options: { initialEntries?: MemoryRouterProps['initialEntries'] } = {}
 ) {
   const { initialEntries = [path.replace(':slug', 'test')] } = options;
+  const queryClient = createTestQueryClient();
   return (
-    <MemoryRouter initialEntries={initialEntries}>
-      <Routes>
-        <Route path={path} element={element} />
-      </Routes>
-    </MemoryRouter>
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={initialEntries}>
+        <Routes>
+          <Route path={path} element={element} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>
   );
 }
 

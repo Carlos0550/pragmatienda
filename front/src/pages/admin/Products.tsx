@@ -22,7 +22,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { sileo } from 'sileo';
 import { Eye, Plus, Pencil, Trash2, ShoppingBag, Search } from 'lucide-react';
 import { toFormErrors } from '@/lib/api-utils';
-import type { ApiError, Category, FormErrors, Product, ProductFormState, ProductStatus } from '@/types';
+import type { ApiError, Category, FormErrors, Product, ProductFormState, ProductStatus, TenantCapabilitiesResponse } from '@/types';
 import { capitalizeName } from '@/lib/utils';
 
 const PAGE_SIZE = 10;
@@ -69,12 +69,28 @@ export default function AdminProductsPage() {
   const [statusFilter, setStatusFilter] = useState<ProductStatus | ''>('PUBLISHED');
   const [formSuggestions, setFormSuggestions] = useState<string[]>([]);
   const [barCodeSearching, setBarCodeSearching] = useState(false);
+  const [capabilities, setCapabilities] = useState<TenantCapabilitiesResponse | null>(null);
   const imagePreviewRef = useRef(imagePreview);
   const barCodeInputRef = useRef<HTMLInputElement>(null);
+
+  const productsAtLimit =
+    capabilities != null &&
+    capabilities.maxProducts != null &&
+    capabilities.usage.productsCount >= capabilities.maxProducts;
 
   const loadCategories = useCallback(async () => {
     const items = await http.categories.listAdmin().catch(() => []);
     setCategories(items);
+  }, []);
+
+  const loadCapabilities = useCallback(async () => {
+    try {
+      const cap = await http.billing.getCapabilities();
+      if (cap && 'usage' in cap && cap.usage) setCapabilities(cap as TenantCapabilitiesResponse);
+      else setCapabilities(null);
+    } catch {
+      setCapabilities(null);
+    }
   }, []);
 
   const loadProducts = useCallback(async () => {
@@ -106,6 +122,10 @@ export default function AdminProductsPage() {
   useEffect(() => {
     void loadCategories();
   }, [loadCategories]);
+
+  useEffect(() => {
+    void loadCapabilities();
+  }, [loadCapabilities]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -358,6 +378,14 @@ export default function AdminProductsPage() {
         <div>
           <h2 className="text-2xl font-bold">Productos</h2>
           <p className="text-muted-foreground text-sm mt-1">Gestioná tu catálogo de productos</p>
+          {capabilities && capabilities.maxProducts != null && (
+            <p className="text-muted-foreground text-xs mt-0.5">
+              Usás {capabilities.usage.productsCount} / {capabilities.maxProducts} productos
+              {productsAtLimit && (
+                <Link to="/admin/billing" className="ml-1 text-primary hover:underline">· Actualizar plan</Link>
+              )}
+            </p>
+          )}
         </div>
         <div className="flex w-full flex-col gap-2 md:w-auto md:flex-row md:items-center md:gap-3">
           <div className="relative w-full md:w-72">
@@ -393,7 +421,12 @@ export default function AdminProductsPage() {
           </Select>
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
-              <Button onClick={openCreate} className="gap-2">
+              <Button
+                onClick={openCreate}
+                className="gap-2"
+                disabled={productsAtLimit}
+                title={productsAtLimit ? 'Límite de productos del plan alcanzado. Actualizá tu plan en Facturación.' : undefined}
+              >
                 <Plus className="h-4 w-4" /> Nuevo
               </Button>
             </DialogTrigger>

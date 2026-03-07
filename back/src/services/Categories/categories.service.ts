@@ -15,6 +15,8 @@ import type {
   updateCategorySchema,
   listCategoriesQuerySchema
 } from "./categories.zod";
+import { BillingError } from "../../billing/domain/billing-errors";
+import { planCapabilitiesService } from "../../billing/application/plan-capabilities.service";
 
 type ServiceResponse = { status: number; message: string; data?: unknown; err?: string };
 
@@ -105,6 +107,8 @@ export class CategoriesService {
     file?: Express.Multer.File
   ): Promise<ServiceResponse> {
     try {
+      await planCapabilitiesService.assertCanCreateCategory(tenantId);
+
       const normalizedName = normalizeText(data.name);
       const slug = await getUniqueCategorySlug(tenantId, slugify(normalizedName));
 
@@ -140,6 +144,9 @@ export class CategoriesService {
 
       return { status: 201, message: "Categoría creada.", data: category };
     } catch (error) {
+      if (error instanceof BillingError) {
+        return { status: error.status, message: error.message, data: error.details };
+      }
       const err = error as Error;
       logger.error("Error en categories create", { message: err.message });
       return { status: 500, message: "Error al crear categoría.", err: err.message };

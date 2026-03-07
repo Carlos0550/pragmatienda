@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
-import ProductsPage from './Products';
+import ProductsPage from '@/pages/storefront/Products';
 import {
   withRouter,
   buildMockProducts,
   buildMockCategories,
-} from '@/test/test-utils';
+} from '../../utils/test-utils';
 
 vi.mock('@/services/http', () => ({
   http: {

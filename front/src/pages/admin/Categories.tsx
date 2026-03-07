@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { http } from '@/services/http';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,7 +18,7 @@ import {
 import { sileo } from 'sileo';
 import { Plus, Pencil, Trash2, Loader2 } from 'lucide-react';
 import { toFormErrors } from '@/lib/api-utils';
-import type { ApiError, Category, CategoryFormState, FormErrors } from '@/types';
+import type { ApiError, Category, CategoryFormState, FormErrors, TenantCapabilitiesResponse } from '@/types';
 import { capitalizeName } from '@/lib/utils';
 
 export default function CategoriesPage() {
@@ -32,6 +33,12 @@ export default function CategoriesPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [capabilities, setCapabilities] = useState<TenantCapabilitiesResponse | null>(null);
+
+  const categoriesAtLimit =
+    capabilities != null &&
+    capabilities.maxCategories != null &&
+    capabilities.usage.categoriesCount >= capabilities.maxCategories;
 
   const fetchCategories = async () => {
     setLoading(true);
@@ -44,6 +51,15 @@ export default function CategoriesPage() {
   };
 
   useEffect(() => { fetchCategories(); }, []);
+
+  useEffect(() => {
+    http.billing.getCapabilities()
+      .then((cap) => {
+        if (cap && 'usage' in cap && cap.usage) setCapabilities(cap as TenantCapabilitiesResponse);
+        else setCapabilities(null);
+      })
+      .catch(() => setCapabilities(null));
+  }, []);
 
   const openCreate = () => {
     setEditing(null);
@@ -117,10 +133,25 @@ export default function CategoriesPage() {
         <div>
           <h2 className="text-2xl font-bold">Categorías</h2>
           <p className="text-muted-foreground text-sm mt-1">Gestioná las categorías de tus productos</p>
+          {capabilities && capabilities.maxCategories != null && (
+            <p className="text-muted-foreground text-xs mt-0.5">
+              Usás {capabilities.usage.categoriesCount} / {capabilities.maxCategories} categorías
+              {categoriesAtLimit && (
+                <Link to="/admin/billing" className="ml-1 text-primary hover:underline">· Actualizar plan</Link>
+              )}
+            </p>
+          )}
         </div>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
-            <Button onClick={openCreate} className="gap-2"><Plus className="h-4 w-4" /> Nueva</Button>
+            <Button
+              onClick={openCreate}
+              className="gap-2"
+              disabled={categoriesAtLimit}
+              title={categoriesAtLimit ? 'Límite de categorías del plan alcanzado. Actualizá tu plan en Facturación.' : undefined}
+            >
+              <Plus className="h-4 w-4" /> Nueva
+            </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader><DialogTitle>{editing ? 'Editar' : 'Nueva'} Categoría</DialogTitle></DialogHeader>

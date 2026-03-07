@@ -39,6 +39,12 @@ class PaymentsController {
       return res;
     } catch (error) {
       if (error instanceof PaymentError) {
+        const responseBody = {
+          message: error.message,
+          code: error.code,
+          details: error.details
+        };
+        await persistIdempotencyResponse(req, error.status, responseBody);
         return res.status(error.status).json({
           message: error.message,
           code: error.code,
@@ -145,7 +151,9 @@ class PaymentsController {
       logger.error("Error en createMercadoPagoCheckout controller", {
         message: err.message
       });
-      return res.status(500).json({ message: "Error interno del servidor." });
+      const responseBody = { message: "Error interno del servidor." };
+      await persistIdempotencyResponse(req, 500, responseBody);
+      return res.status(500).json(responseBody);
     }
   }
 

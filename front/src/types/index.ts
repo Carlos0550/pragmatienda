@@ -174,8 +174,12 @@ export interface Plan {
   interval: string;
   description?: string;
   trialDays?: number;
-  features: string[];
+  /** Objeto feature -> habilitado (backend). Para compatibilidad puede venir como string[] en respuestas antiguas. */
+  features: Record<string, boolean> | string[];
   active: boolean;
+  maxProducts?: number | null;
+  maxCategories?: number | null;
+  /** @deprecated Usar maxProducts */
   productLimit?: number;
 }
 
@@ -206,6 +210,19 @@ export interface BillingSubscriptionCreateData {
 export interface BillingChangePlanData {
   subscriptionId: string;
   externalSubscriptionId: string;
+}
+
+/** Respuesta de GET /payments/billing/capabilities */
+export interface TenantCapabilitiesResponse {
+  planCode: string;
+  planId: string;
+  maxProducts: number | null;
+  maxCategories: number | null;
+  features: Record<string, boolean>;
+  usage: {
+    productsCount: number;
+    categoriesCount: number;
+  };
 }
 
 export interface MercadoPagoStatus {
@@ -253,6 +270,26 @@ export interface RegisterCustomerPayload {
   name: string;
   email: string;
   phone?: string;
+  password: string;
+  passwordConfirmation: string;
+}
+
+export interface ValidateResetPasswordTokenPayload {
+  token: string;
+}
+
+export interface ResetPasswordWithTokenPayload {
+  token: string;
+  newPassword: string;
+  newPasswordConfirmation: string;
+}
+
+export type PasswordTokenPurpose = 'PASSWORD_RESET' | 'ACCOUNT_SETUP';
+
+export interface ValidateResetPasswordTokenData {
+  tenantId: string;
+  role: number;
+  purpose: PasswordTokenPurpose;
 }
 
 export interface CreateBusinessPayload {
@@ -269,12 +306,15 @@ export interface BillingSelectPlanPayload {
 }
 
 export interface PlanMutationPayload {
+  code?: 'FREE' | 'STARTER' | 'PRO';
   name: string;
   price: number;
-  interval: string;
-  features: string[];
-  active: boolean;
-  productLimit?: number;
+  interval?: string;
+  trialDays?: number;
+  active?: boolean;
+  maxProducts?: number | null;
+  maxCategories?: number | null;
+  features?: Record<string, boolean> | null;
 }
 
 export interface UserMeResponse {
@@ -305,6 +345,15 @@ export type TenantResolveResponse = ApiEnvelope<{
 export type ProductsListResponse = PaginatedResponse<Product>;
 export type ProductDetailResponse = ApiEnvelope<Product>;
 export type CategoriesListResponse = PaginatedResponse<Category>;
+export type ValidateResetPasswordTokenResponse = {
+  status: number;
+  message: string;
+  data?: ValidateResetPasswordTokenData;
+};
+export type ResetPasswordWithTokenResponse = {
+  status: number;
+  message: string;
+};
 export type BillingSubscriptionCreateResponse = { message: string; data: BillingSubscriptionCreateData };
 export type BillingChangePlanResponse = { message: string; data: BillingChangePlanData };
 export type PaymentsCheckoutResponse = { message: string; data: PaymentsCheckoutData };
@@ -428,12 +477,15 @@ export interface ProductFormState {
 }
 
 export interface PlanFormState {
+  code: string;
   name: string;
   price: string;
   interval: string;
+  trialDays: string;
   features: string;
   active: boolean;
-  productLimit: string;
+  maxProducts: string;
+  maxCategories: string;
 }
 
 export interface CustomerRegisterFormState {

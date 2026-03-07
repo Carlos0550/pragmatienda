@@ -16,7 +16,9 @@ import { listProductsQuerySchema } from "../services/Products/products.zod";
 import {
   loginSchema,
   publicRegisterUserSchema,
-  recoverPasswordSchema
+  recoverPasswordSchema,
+  resetPasswordWithTokenSchema,
+  validatePasswordTokenSchema
 } from "../services/Users/user.zod";
 
 const healthResponseSchema = z
@@ -169,6 +171,40 @@ openApiRegistry.registerPath({
 });
 
 openApiRegistry.registerPath({
+  method: "post",
+  path: "/public/password/reset/validate",
+  tags: ["User"],
+  summary: "Validar token de restablecimiento de contraseña",
+  request: {
+    body: {
+      content: {
+        "application/json": {
+          schema: validatePasswordTokenSchema
+        }
+      }
+    }
+  },
+  responses: {}
+});
+
+openApiRegistry.registerPath({
+  method: "post",
+  path: "/public/password/reset",
+  tags: ["User"],
+  summary: "Restablecer contraseña usando token",
+  request: {
+    body: {
+      content: {
+        "application/json": {
+          schema: resetPasswordWithTokenSchema
+        }
+      }
+    }
+  },
+  responses: {}
+});
+
+openApiRegistry.registerPath({
   method: "get",
   path: "/public/verify",
   tags: ["User"],
@@ -253,6 +289,8 @@ router.post("/platform/businesses", businessController.createBusinessTenant);
 router.post("/register", requireTenant, userController.publicRegisterUser);
 router.post("/login", requireTenant, userController.login);
 router.post("/password/recovery", requireTenant, userController.recoverPassword);
+router.post("/password/reset/validate", userController.validatePasswordResetToken);
+router.post("/password/reset", userController.resetPasswordWithToken);
 router.get("/verify", userController.verifyAccount);
 
 // Admin - público

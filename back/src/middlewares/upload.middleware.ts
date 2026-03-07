@@ -165,6 +165,7 @@ export const uploadBusinessAssetsMiddleware = [
           const file = files[i];
           const optimized = await sharp(file.buffer)
             .rotate()
+            .webp({ quality: 85 })
             .toBuffer();
 
           files[i] = {
