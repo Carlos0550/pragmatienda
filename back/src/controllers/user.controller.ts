@@ -65,6 +65,24 @@ class UserController{
                 (result.data as { tenantId?: string } | undefined)?.tenantId ?? null;
 
             if (result.status === 200) {
+                const redirectData = (result.data as {
+                    tenantId?: string;
+                    role?: number;
+                    sessionToken?: string;
+                    setupPasswordToken?: string | null;
+                    requiresPasswordSetup?: boolean;
+                } | undefined) ?? {};
+                const redirectPath = redirectData.role === 1 ? "/admin" : "/";
+                const params = new URLSearchParams();
+                if (redirectData.sessionToken) {
+                    params.set("sessionToken", redirectData.sessionToken);
+                }
+                if (redirectData.requiresPasswordSetup && redirectData.setupPasswordToken) {
+                    params.set("forcePasswordSetup", "1");
+                    params.set("setupPasswordToken", redirectData.setupPasswordToken);
+                }
+                params.set("verified", "1");
+
                 if (resolvedTenantId) {
                     const businessWebsite = await prisma.businessData.findUnique({
                         where: {
@@ -75,11 +93,14 @@ class UserController{
                         }
                     });
                     if (businessWebsite?.website) {
-                        res.redirect(businessWebsite.website);
+                        const baseUrl = businessWebsite.website.replace(/\/$/, "");
+                        res.redirect(`${baseUrl}${redirectPath}?${params.toString()}`);
                         return res;
                     }
                 }
-                return res.status(200).type("html").send(result.message);
+                const frontendBaseUrl = env.FRONTEND_URL.replace(/\/$/, "");
+                res.redirect(`${frontendBaseUrl}${redirectPath}?${params.toString()}`);
+                return res;
             }
 
             if (result.status === 409) {

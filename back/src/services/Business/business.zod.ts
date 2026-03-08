@@ -30,6 +30,10 @@ export const resolveTenantByStoreUrlSchema = z.object({
     url: z.string().min(3).trim()
 }).strict();
 
+export const checkBusinessNameAvailabilitySchema = z.object({
+    name: z.string().min(3).trim()
+}).strict();
+
 export const updateBusinessSchema = z.object({
     description: z.string().min(3).optional(),
     seoDescription: z.string().min(20).max(220).optional(),

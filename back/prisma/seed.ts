@@ -12,7 +12,7 @@ const plans = [
     trialDays: 0,
     maxProducts: 10,
     maxCategories: 3,
-    features: { reports: false, api: false }
+    features: { reports: false, api: false, seo: false }
   },
   {
     code: PlanType.STARTER,
@@ -24,7 +24,7 @@ const plans = [
     trialDays: 7,
     maxProducts: 100,
     maxCategories: 10,
-    features: { reports: true, api: false }
+    features: { reports: true, api: false, seo: true }
   },
   {
     code: PlanType.PRO,
@@ -36,7 +36,7 @@ const plans = [
     trialDays: 7,
     maxProducts: null,
     maxCategories: null,
-    features: { reports: true, api: true }
+    features: { reports: true, api: true, seo: true }
   }
 ];
 

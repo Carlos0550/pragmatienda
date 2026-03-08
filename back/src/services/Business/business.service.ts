@@ -1,8 +1,7 @@
-import { BillingStatus, PlanType, UserStatus } from "@prisma/client";
+import { BillingStatus, PlanType, Prisma, UserStatus } from "@prisma/client";
 import { logger } from "../../config/logger";
 import {
   createSessionToken,
-  encryptString,
   hashString,
   verifyHash,
 } from "../../config/security";
@@ -33,6 +32,8 @@ import {
   generateBusinessSeoDescription,
   improveBusinessSeoDescription,
 } from "../SEO/seo.service";
+import { BillingError } from "../../billing/domain/billing-errors";
+import { planCapabilitiesService } from "../../billing/application/plan-capabilities.service";
 
 type BankOption = {
   bankName: string;
@@ -47,28 +48,38 @@ type BusinessBanner = {
   objectPositionY?: number;
 };
 
-const ACCOUNT_SETUP_TOKEN_TTL_MS = 1000 * 60 * 60 * 24;
-
-const createAccountSetupToken = (input: {
-  id: string;
-  email: string;
-  tenantId: string;
-  role: number;
-}) => {
-  return encryptString(
-    JSON.stringify({
-      id: input.id,
-      email: input.email,
-      tenantId: input.tenantId,
-      role: input.role,
-      purpose: "ACCOUNT_SETUP",
-      exp: Date.now() + ACCOUNT_SETUP_TOKEN_TTL_MS,
-      nonce: generateSecureString(),
-    })
-  );
-};
-
 class BusinessService {
+  async checkBusinessNameAvailability(name: string): Promise<ServiceResponse> {
+    try {
+      const normalizedName = normalizeText(name);
+      const business = await prisma.businessData.findFirst({
+        where: { name: normalizedName },
+        select: { id: true }
+      });
+
+      return {
+        status: 200,
+        message: business ? "El nombre del negocio ya existe." : "Nombre disponible.",
+        data: {
+          available: !business,
+          normalizedName
+        }
+      };
+    } catch (error) {
+      const err = error as Error;
+      logger.error("Error en checkBusinessNameAvailability service", {
+        message: err?.message,
+        stack: err?.stack,
+      });
+
+      return {
+        status: 500,
+        message: "No se pudo validar el nombre del negocio.",
+        err: err.message,
+      };
+    }
+  }
+
   async createBusinessTenant(
     data: z.infer<typeof createBusinessTenantSchema>,
   ): Promise<ServiceResponse> {
@@ -97,6 +108,14 @@ class BusinessService {
           };
         }
 
+        const freePlan = await tx.plan.findUnique({
+          where: { code: PlanType.FREE },
+          select: { id: true, code: true }
+        });
+        if (!freePlan) {
+          throw new Error("El plan FREE no está configurado.");
+        }
+
         const adminUser = await tx.user.create({
           data: {
             name: capitalizeWords(data.adminName),
@@ -110,14 +129,13 @@ class BusinessService {
           select: { id: true, email: true, name: true },
         });
 
-        const trialEndsAt = dayjs().add(7, "day").toDate();
         const tenant = await tx.tenant.create({
           data: {
             ownerId: adminUser.id,
-            plan: PlanType.PRO,
-            billingStatus: BillingStatus.TRIALING,
-            trialEndsAt,
-            planEndsAt: trialEndsAt
+            plan: PlanType.FREE,
+            billingStatus: BillingStatus.ACTIVE,
+            trialEndsAt: null,
+            planEndsAt: null
           },
           select: { id: true, plan: true },
         });
@@ -142,6 +160,24 @@ class BusinessService {
           },
         });
 
+        const freeSubscription = await tx.subscription.create({
+          data: {
+            tenantId: tenant.id,
+            planId: freePlan.id,
+            externalSubscriptionId: `free-${tenant.id}`,
+            status: BillingStatus.ACTIVE,
+            currentPeriodStart: new Date(),
+            currentPeriodEnd: null,
+            cancelAtPeriodEnd: false,
+          },
+          select: { id: true }
+        });
+
+        await tx.tenant.update({
+          where: { id: tenant.id },
+          data: { currentSubscriptionId: freeSubscription.id }
+        });
+
         return {
           conflict: false as const,
           adminUser,
@@ -154,20 +190,12 @@ class BusinessService {
       }
 
       const { adminUser, tenant, business } = transactionResult;
-      const setupPasswordToken = createAccountSetupToken({
-        id: adminUser.id,
-        email: adminUser.email,
-        tenantId: tenant.id,
-        role: 1,
-      });
-      const setupPasswordUrl = `${website ?? env.FRONTEND_URL.replace(/\/$/, "")}/admin/reset-password?token=${encodeURIComponent(setupPasswordToken)}`;
 
       const html = await buildWelcomeUserEmailHtml({
         user: {
           ...adminUser,
           tenantId: tenant.id
         },
-        setupPasswordUrl,
         business: {
           name: capitalizeWords(data.name),
           address: data.address ? capitalizeWords(data.address) : "",
@@ -194,6 +222,27 @@ class BusinessService {
         },
       };
     } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        const target = Array.isArray(error.meta?.target)
+          ? error.meta.target.join(",")
+          : String(error.meta?.target ?? "");
+        const message = error.message.toLowerCase();
+
+        if (target.includes("phone") || message.includes("(`phone`)") || message.includes("phone")) {
+          return {
+            status: 409,
+            message: "Ya existe un negocio con ese teléfono en nuestros registros, por favor ingresa otro.",
+          };
+        }
+
+        if (target.includes("name") || message.includes("(`name`)") || message.includes("name")) {
+          return {
+            status: 409,
+            message: "Ya existe un negocio con ese nombre en nuestros registros, por favor ingresa otro.",
+          };
+        }
+      }
+
       const err = error as Error;
       logger.error("Error catched en createBusinessTenant service", {
         message: err?.message,
@@ -645,6 +694,8 @@ class BusinessService {
     input: z.infer<typeof improveBusinessSeoDescriptionSchema>,
   ): Promise<ServiceResponse> {
     try {
+      await planCapabilitiesService.assertFeature(tenantId, "seo");
+
       const business = await prisma.businessData.findUnique({
         where: { tenantId },
         select: {
@@ -723,6 +774,14 @@ class BusinessService {
         data: { seoDescription: improved },
       };
     } catch (error) {
+      if (error instanceof BillingError) {
+        return {
+          status: error.status,
+          message: error.message,
+          data: error.details,
+        };
+      }
+
       const err = error as Error;
       logger.error("Error catched en improveSeoDescriptionForTenant service", {
         message: err?.message,

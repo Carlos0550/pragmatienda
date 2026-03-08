@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTenant } from '@/contexts/TenantContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,6 +9,7 @@ import { sileo } from 'sileo';
 import { http } from '@/services/http';
 import { toFormErrors } from '@/lib/api-utils';
 import type { ApiError, FormErrors } from '@/types';
+import { getLandingUrl } from '@/lib/landing';
 
 export default function CustomerLoginPage() {
   const [email, setEmail] = useState('');
@@ -18,7 +20,14 @@ export default function CustomerLoginPage() {
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotLoading, setForgotLoading] = useState(false);
   const { loginCustomer } = useAuth();
+  const { tenant, loading: tenantLoading, isLandingDomain, storeNotFound } = useTenant();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (tenantLoading) return;
+    if (tenant || (!isLandingDomain && !storeNotFound)) return;
+    window.location.href = getLandingUrl();
+  }, [tenant, tenantLoading, isLandingDomain, storeNotFound]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

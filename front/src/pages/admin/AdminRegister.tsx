@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Store, User, ChevronRight, ChevronLeft } from 'lucide-react';
 import { http } from '@/services/http';
@@ -30,12 +30,59 @@ export default function AdminRegisterPage() {
   const [form, setForm] = useState(initialForm);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
+  const [nameAvailability, setNameAvailability] = useState<{
+    checking: boolean;
+    available: boolean | null;
+    message: string;
+  }>({
+    checking: false,
+    available: null,
+    message: '',
+  });
   const navigate = useNavigate();
+
+  const trimmedBusinessName = useMemo(() => form.name.trim(), [form.name]);
 
   const update = (field: keyof CreateBusinessPayload) => (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm((prev) => ({ ...prev, [field]: e.target.value }));
     if (errors[field]) setErrors((prev) => ({ ...prev, [field]: '' }));
+    if (field === 'name') {
+      setNameAvailability({ checking: false, available: null, message: '' });
+    }
   };
+
+  useEffect(() => {
+    if (step !== 1) return;
+
+    if (!trimmedBusinessName) {
+      setNameAvailability({ checking: false, available: null, message: '' });
+      return;
+    }
+
+    if (trimmedBusinessName.length < 3) {
+      setNameAvailability({ checking: false, available: null, message: 'Mínimo 3 caracteres' });
+      return;
+    }
+
+    const timeoutId = window.setTimeout(async () => {
+      setNameAvailability({ checking: true, available: null, message: '' });
+      try {
+        const response = await http.business.checkBusinessNameAvailability(trimmedBusinessName);
+        const available = response.data?.available === true;
+        const message = response.message || (available ? 'Nombre disponible' : 'El nombre del negocio ya existe');
+        setNameAvailability({ checking: false, available, message });
+        if (available) {
+          setErrors((prev) => ({ ...prev, name: '' }));
+        } else {
+          setErrors((prev) => ({ ...prev, name: message }));
+        }
+      } catch {
+        setNameAvailability({ checking: false, available: null, message: 'No se pudo validar el nombre ahora' });
+      }
+    }, 500);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [step, trimmedBusinessName]);
 
   const validateStep1 = (): boolean => {
     const next: FormErrors = {};
@@ -59,6 +106,19 @@ export default function AdminRegisterPage() {
 
   const handleNext = () => {
     if (step === 1 && !validateStep1()) return;
+
+    if (trimmedBusinessName.length >= 3) {
+      if (nameAvailability.checking) return;
+      if (nameAvailability.available === false) {
+        setErrors((prev) => ({ ...prev, name: nameAvailability.message || 'El nombre del negocio ya existe' }));
+        return;
+      }
+      if (nameAvailability.available !== true) {
+        setErrors((prev) => ({ ...prev, name: 'Validá que el nombre del negocio esté disponible' }));
+        return;
+      }
+    }
+
     setStep(2);
   };
 
@@ -83,13 +143,21 @@ export default function AdminRegisterPage() {
       await http.business.createBusiness(payload);
       sileo.success({
         title: '¡Tienda creada!',
-        description: 'Revisá tu email. Te enviamos tu contraseña para ingresar al panel.',
+        description: 'Revisá tu email y verificá tu cuenta para ingresar al panel.',
       });
       navigate('/admin/login');
     } catch (err) {
       const apiErr = err as ApiError;
       if (apiErr.errors) {
         setErrors(toFormErrors(apiErr.errors));
+        sileo.error({ title: apiErr.message || 'Error al crear la tienda' });
+      } else if (apiErr.message?.toLowerCase().includes('nombre del negocio')) {
+        setErrors((prev) => ({ ...prev, name: apiErr.message || 'El nombre del negocio ya existe' }));
+        
+        setStep(1);
+      } else if (apiErr.message?.toLowerCase().includes('teléfono del negocio')) {
+        setErrors((prev) => ({ ...prev, phone: apiErr.message || 'El teléfono del negocio ya está registrado' }));
+        setStep(1);
       } else {
         sileo.error({ title: apiErr.message || 'Error al crear la tienda' });
       }
@@ -130,6 +198,11 @@ export default function AdminRegisterPage() {
                     autoFocus
                   />
                   {errors.name && <p className="text-xs text-primary">{errors.name}</p>}
+                  {!errors.name && trimmedBusinessName.length >= 3 && nameAvailability.message && (
+                    <p className={`text-xs ${nameAvailability.available ? 'text-green-600' : 'text-muted-foreground'}`}>
+                      {nameAvailability.checking ? 'Validando nombre...' : nameAvailability.message}
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="phone">Teléfono</Label>
@@ -201,8 +274,8 @@ export default function AdminRegisterPage() {
                 </Button>
               )}
               {step === 1 ? (
-                <Button type="submit" className="flex-1 gap-1">
-                  Siguiente
+                <Button type="submit" className="flex-1 gap-1" disabled={nameAvailability.checking}>
+                  {nameAvailability.checking ? 'Validando...' : 'Siguiente'}
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               ) : (

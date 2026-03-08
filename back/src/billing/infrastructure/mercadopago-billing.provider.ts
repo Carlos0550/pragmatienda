@@ -124,6 +124,16 @@ export class MercadoPagoBillingProvider implements BillingProvider {
     });
   }
 
+  async setPreapprovalPlanStatus(preapprovalPlanId: string, active: boolean): Promise<void> {
+    const preApprovalPlan = new PreApprovalPlan(this.getConfig());
+    await preApprovalPlan.update({
+      id: preapprovalPlanId,
+      updatePreApprovalPlanRequest: {
+        status: active ? "active" : "inactive"
+      }
+    });
+  }
+
   async createSubscription(input: BillingSubscriptionInput): Promise<BillingSubscriptionResponse> {
     if (input.preapprovalPlanId) {
       return this.createSubscriptionFromPlan(input);

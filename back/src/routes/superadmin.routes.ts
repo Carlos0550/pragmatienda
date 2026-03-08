@@ -54,11 +54,14 @@ openApiRegistry.registerPath({
           schema: z.object({
             code: z.nativeEnum(PlanType),
             name: z.string(),
-            description: z.string().optional(),
+            description: z.string().optional().nullable(),
             price: z.number(),
             currency: z.string().default("ARS"),
             interval: z.string().default("month"),
-            trialDays: z.number().default(0)
+            trialDays: z.number().default(0),
+            maxProducts: z.number().int().min(0).nullable().optional(),
+            maxCategories: z.number().int().min(0).nullable().optional(),
+            features: z.record(z.string(), z.boolean()).nullable().optional()
           })
         }
       }
@@ -88,12 +91,15 @@ openApiRegistry.registerPath({
         "application/json": {
           schema: z.object({
             name: z.string().optional(),
-            description: z.string().optional(),
+            description: z.string().optional().nullable(),
             price: z.number().optional(),
             currency: z.string().optional(),
             interval: z.string().optional(),
             trialDays: z.number().optional(),
-            active: z.boolean().optional()
+            active: z.boolean().optional(),
+            maxProducts: z.number().int().min(0).nullable().optional(),
+            maxCategories: z.number().int().min(0).nullable().optional(),
+            features: z.record(z.string(), z.boolean()).nullable().optional()
           })
         }
       }

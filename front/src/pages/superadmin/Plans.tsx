@@ -6,8 +6,18 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { sileo } from 'sileo';
-import { Plus, Pencil, CreditCard } from 'lucide-react';
+import { Plus, Pencil, CreditCard, Trash2 } from 'lucide-react';
 import { toFormErrors } from '@/lib/api-utils';
 import type { ApiError, FormErrors, Plan, PlanFormState, PlanMutationPayload } from '@/types';
 
@@ -32,6 +42,8 @@ export default function PlansPage() {
   const [form, setForm] = useState(emptyForm);
   const [errors, setErrors] = useState<FormErrors>({});
   const [saving, setSaving] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [pendingDeletePlan, setPendingDeletePlan] = useState<Plan | null>(null);
 
   const fetchPlans = async () => {
     try {
@@ -102,7 +114,9 @@ export default function PlansPage() {
       const apiErr = err as ApiError;
       if (apiErr.errors) {
         setErrors(toFormErrors(apiErr.errors));
-      } else { sileo.error({ title: 'Error al guardar' }); }
+      } else {
+        sileo.error({ title: apiErr.message || 'Error al guardar' });
+      }
     } finally { setSaving(false); }
   };
 
@@ -111,7 +125,30 @@ export default function PlansPage() {
       await http.superadmin.updatePlan(plan.id, { active: !plan.active });
       sileo.success({ title: plan.active ? 'Plan desactivado' : 'Plan activado' });
       fetchPlans();
-    } catch { sileo.error({ title: 'Error' }); }
+    } catch (err) {
+      const apiErr = err as ApiError;
+      sileo.error({ title: apiErr.message || 'Error' });
+    }
+  };
+
+  const openDeleteDialog = (plan: Plan) => {
+    setPendingDeletePlan(plan);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!pendingDeletePlan) return;
+    try {
+      await http.superadmin.deletePlan(pendingDeletePlan.id);
+      sileo.success({ title: 'Plan desactivado' });
+      await fetchPlans();
+    } catch (err) {
+      const apiErr = err as ApiError;
+      sileo.error({ title: apiErr.message || 'Error al desactivar el plan' });
+    } finally {
+      setDeleteDialogOpen(false);
+      setPendingDeletePlan(null);
+    }
   };
 
   const handleChange = (field: keyof PlanFormState) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -203,7 +240,14 @@ export default function PlansPage() {
             <div key={plan.id} className={`rounded-xl border p-5 space-y-3 ${plan.active ? 'bg-card' : 'bg-muted/50 opacity-70'}`}>
               <div className="flex items-center justify-between">
                 <h3 className="font-semibold">{plan.name}</h3>
-                <Button variant="ghost" size="sm" onClick={() => openEdit(plan)}><Pencil className="h-4 w-4" /></Button>
+                <div className="flex items-center gap-1">
+                  <Button variant="ghost" size="sm" onClick={() => openEdit(plan)}>
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => openDeleteDialog(plan)}>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
               <p className="text-2xl font-bold">${plan.price}<span className="text-sm text-muted-foreground font-normal">/{plan.interval}</span></p>
               {(plan.maxProducts != null || plan.maxCategories != null) && (
@@ -228,6 +272,23 @@ export default function PlansPage() {
           ))}
         </div>
       )}
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Desactivar plan</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingDeletePlan
+                ? `Se desactivará el plan ${pendingDeletePlan.name}. Esta acción también se sincroniza con Mercado Pago.`
+                : 'Se desactivará el plan seleccionado.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setPendingDeletePlan(null)}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete}>Desactivar</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

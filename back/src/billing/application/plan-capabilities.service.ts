@@ -1,4 +1,4 @@
-import type { Plan } from "@prisma/client";
+import { BillingStatus, PlanType, type Plan } from "@prisma/client";
 import { BillingError } from "../domain/billing-errors";
 import type { PlanCapabilities, PlanUsage, TenantCapabilitiesResponse } from "../domain/plan-capabilities.types";
 import { PrismaBillingRepository } from "../infrastructure/prisma-billing.repository";
@@ -22,16 +22,38 @@ function planToCapabilities(plan: Plan): PlanCapabilities {
 export class PlanCapabilitiesService {
   constructor(private readonly repository: PrismaBillingRepository) {}
 
+  private async getFreePlan(): Promise<Plan | null> {
+    return this.repository.getPlanByCode(PlanType.FREE);
+  }
+
   /** Obtiene el plan efectivo del tenant (suscripción actual o plan por defecto del tenant). */
   async getEffectivePlanForTenant(tenantId: string): Promise<Plan | null> {
     const subscription = await this.repository.getCurrentSubscriptionForTenant(tenantId);
     if (subscription?.plan) {
-      return subscription.plan;
+      if (
+        !subscription.status ||
+        subscription.status === BillingStatus.ACTIVE ||
+        subscription.status === BillingStatus.TRIALING
+      ) {
+        return subscription.plan;
+      }
+
+      return this.getFreePlan();
     }
+
     const tenant = await this.repository.getTenantWithOwner(tenantId);
     if (!tenant?.plan) {
       return null;
     }
+
+    if (
+      tenant.plan !== PlanType.FREE &&
+      tenant.billingStatus !== BillingStatus.ACTIVE &&
+      tenant.billingStatus !== BillingStatus.TRIALING
+    ) {
+      return this.getFreePlan();
+    }
+
     return this.repository.getPlanByCode(tenant.plan);
   }
 

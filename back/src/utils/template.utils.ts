@@ -45,11 +45,9 @@ type PasswordRecoveryEmailUserData = {
 
 export const buildWelcomeUserEmailHtml = async ({
   user,
-  setupPasswordUrl,
   business
 }: {
   user: WelcomeEmailUserData;
-  setupPasswordUrl: string;
   business: WelcomeEmailBusinessData;
 }): Promise<string> => {
   const tokenPayload = JSON.stringify({
@@ -71,7 +69,6 @@ export const buildWelcomeUserEmailHtml = async ({
     name: capitalizeWords(user?.name ?? ""),
     email: user.email,
     verifyUrl,
-    setupPasswordUrl,
     businessName: capitalizeWords(business?.name ?? ""),
     businessDescription: business?.description ?? "",
     businessAddress: capitalizeWords(business?.address ?? ""),

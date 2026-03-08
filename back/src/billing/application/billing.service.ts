@@ -55,7 +55,13 @@ export class BillingService {
     }
 
     const currentSubscription = await this.repository.getCurrentSubscriptionForTenant(tenantId);
-    if (currentSubscription && REUSABLE_SUBSCRIPTION_STATUSES.has(currentSubscription.status)) {
+    const canReuseCurrentSubscription =
+      currentSubscription &&
+      currentSubscription.plan.code !== PlanType.FREE &&
+      currentSubscription.plan.code === plan.code &&
+      REUSABLE_SUBSCRIPTION_STATUSES.has(currentSubscription.status);
+
+    if (canReuseCurrentSubscription) {
       logger.info("Billing: se reutiliza suscripción existente", {
         tenantId,
         subscriptionId: currentSubscription.id,
@@ -307,6 +313,15 @@ export class BillingService {
       throw new BillingError(404, "SUBSCRIPTION_NOT_FOUND", "No hay suscripción activa para cambiar plan.");
     }
 
+    if (current.plan.code === PlanType.FREE) {
+      const createdSubscription = await this.createSubscriptionForTenant(tenantId, planCode);
+      return {
+        subscriptionId: createdSubscription.subscriptionId,
+        externalSubscriptionId: createdSubscription.externalSubscriptionId,
+        initPoint: createdSubscription.initPoint ?? null
+      };
+    }
+
     await this.provider.changeSubscriptionPlanAmount(
       current.externalSubscriptionId,
       Number(plan.price),
@@ -333,6 +348,26 @@ export class BillingService {
     );
 
     return { subscriptionId: current.id, externalSubscriptionId: current.externalSubscriptionId };
+  }
+
+  async resumeCurrentSubscription(tenantId: string) {
+    const current = await this.repository.getCurrentSubscriptionForTenant(tenantId);
+    if (!current) {
+      throw new BillingError(404, "SUBSCRIPTION_NOT_FOUND", "No hay suscripción para reanudar.");
+    }
+
+    if (
+      current.status === BillingStatus.ACTIVE ||
+      current.status === BillingStatus.TRIALING
+    ) {
+      throw new BillingError(400, "SUBSCRIPTION_ALREADY_ACTIVE", "La suscripción actual ya está activa.");
+    }
+
+    if (current.plan.code === PlanType.FREE) {
+      throw new BillingError(400, "PLAN_UNAVAILABLE", "El plan FREE no requiere reanudación.");
+    }
+
+    return this.createSubscriptionForTenant(tenantId, current.plan.code);
   }
 
   async syncActiveSubscriptionsJob() {

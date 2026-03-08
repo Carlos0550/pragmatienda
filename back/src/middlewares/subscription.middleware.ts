@@ -7,6 +7,7 @@ const BILLING_BYPASS_PREFIXES = [
   "/api/payments/mercadopago/callback",
   "/api/payments/webhooks/mercadopago",
   "/api/payments/billing",
+  "/api/user",
   "/api/superadmin"
 ];
 

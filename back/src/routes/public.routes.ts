@@ -8,6 +8,7 @@ import { userController } from "../controllers/user.controller";
 import { openApiRegistry } from "../docs/swagger";
 import { requireTenant } from "../middlewares";
 import {
+  checkBusinessNameAvailabilitySchema,
   createBusinessTenantSchema,
   loginBusinessSchema,
   resolveTenantByStoreUrlSchema
@@ -64,6 +65,20 @@ openApiRegistry.registerPath({
   },
   responses: {
     "201": { description: "Negocio y tenant creados" },
+    "400": { description: "Datos invalidos" }
+  }
+});
+
+openApiRegistry.registerPath({
+  method: "get",
+  path: "/public/platform/businesses/availability",
+  tags: ["Business"],
+  summary: "Validar disponibilidad del nombre del negocio",
+  request: {
+    query: checkBusinessNameAvailabilitySchema
+  },
+  responses: {
+    "200": { description: "Disponibilidad validada" },
     "400": { description: "Datos invalidos" }
   }
 });
@@ -262,6 +277,7 @@ router.get("/health", (req, res) => {
 
 // Platform / Business
 router.get("/tenant/resolve", businessController.resolveTenantByStoreUrl);
+router.get("/platform/businesses/availability", businessController.checkBusinessNameAvailability);
 router.get("/plans", billingController.listPublicPlans);
 router.get("/categories", requireTenant, categoriesController.getMany);
 router.get("/categories/:slug", requireTenant, categoriesController.getOneBySlug);

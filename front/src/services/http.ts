@@ -5,6 +5,7 @@ import type {
   AdminLoginResponse,
   Category,
   BillingChangePlanResponse,
+  BusinessNameAvailabilityResponse,
   BillingSelectPlanPayload,
   BillingSubscriptionCreateResponse,
   CartCheckoutResponse,
@@ -104,6 +105,8 @@ export const http = {
         '/public/platform/businesses',
         payload
       ),
+    checkBusinessNameAvailability: (name: string) =>
+      api.get<BusinessNameAvailabilityResponse>('/public/platform/businesses/availability', { name }),
     getAdminBusiness: () => api.get<Tenant>('/admin/business'),
     updateAdminBusiness: (formData: FormData) => api.putMultipart('/admin/business/manage', formData),
     improveSeoDescription: (payload?: {
@@ -221,6 +224,8 @@ export const http = {
         'Idempotency-Key': idempotencyKey,
       });
     },
+    resumeCurrentSubscription: () =>
+      api.post<BillingSubscriptionCreateResponse>('/payments/billing/subscriptions/current/resume'),
     changeCurrentPlan: (payload: BillingSelectPlanPayload) =>
       api.patch<BillingChangePlanResponse>('/payments/billing/subscriptions/current/plan', payload),
   },

@@ -99,7 +99,9 @@ export default function CategoriesPage() {
       fetchCategories();
     } catch (err) {
       const apiErr = err as ApiError;
-      if (apiErr.errors) {
+      if (apiErr.status === 402 && apiErr.message) {
+        sileo.error({ title: apiErr.message });
+      } else if (apiErr.errors) {
         setErrors(toFormErrors(apiErr.errors));
       } else { sileo.error({ title: 'Error al guardar' }); }
     } finally { setSaving(false); }

@@ -182,10 +182,16 @@ export class PrismaBillingRepository {
     });
   }
 
-  async updatePlanMpPreapprovalId(planId: string, mpPreapprovalPlanId: string) {
+  async updatePlanMpPreapprovalId(planId: string, mpPreapprovalPlanId: string | null) {
     return prisma.plan.update({
       where: { id: planId },
       data: { mpPreapprovalPlanId }
+    });
+  }
+
+  async deletePlanById(planId: string) {
+    return prisma.plan.delete({
+      where: { id: planId }
     });
   }
 

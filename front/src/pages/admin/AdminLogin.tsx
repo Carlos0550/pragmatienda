@@ -10,6 +10,7 @@ import { toFormErrors } from '@/lib/api-utils';
 import type { ApiError, FormErrors } from '@/types';
 import { useTenant } from '@/contexts/TenantContext';
 import { capitalizeName } from '@/lib/utils';
+import { getLandingUrl } from '@/lib/landing';
 
 export default function AdminLoginPage() {
   const [email, setEmail] = useState('');
@@ -21,8 +22,14 @@ export default function AdminLoginPage() {
   const [forgotLoading, setForgotLoading] = useState(false);
   const { loginAdmin, user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
-  const { tenant } = useTenant();
+  const { tenant, loading: tenantLoading, isLandingDomain, storeNotFound } = useTenant();
   const name = tenant?.name;
+
+  useEffect(() => {
+    if (tenantLoading) return;
+    if (tenant || (!isLandingDomain && !storeNotFound)) return;
+    window.location.href = getLandingUrl();
+  }, [tenant, tenantLoading, isLandingDomain, storeNotFound]);
 
   useEffect(() => {
     if (authLoading) return;

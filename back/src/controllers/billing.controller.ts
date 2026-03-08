@@ -91,6 +91,37 @@ class BillingController {
     }
   }
 
+  async resumeCurrentSubscription(req: Request, res: Response): Promise<Response> {
+    try {
+      const tenantId = req.tenantId;
+      if (!tenantId) {
+        return res.status(400).json({ message: "Tenant requerido." });
+      }
+
+      const result = await billingService.resumeCurrentSubscription(tenantId);
+      const responseBody = {
+        message: result.created ? "Suscripción reanudada." : "Suscripción existente reutilizada.",
+        data: {
+          subscriptionId: result.subscriptionId,
+          externalSubscriptionId: result.externalSubscriptionId,
+          initPoint: result.initPoint
+        }
+      };
+      return res.status(result.created ? 201 : 200).json(responseBody);
+    } catch (error) {
+      if (error instanceof BillingError) {
+        return res.status(error.status).json({
+          message: error.message,
+          code: error.code,
+          details: error.details
+        });
+      }
+      const err = error as Error;
+      logger.error("Error en resumeCurrentSubscription controller", { message: err.message });
+      return res.status(500).json({ message: "Error interno del servidor." });
+    }
+  }
+
   async listPublicPlans(_req: Request, res: Response): Promise<Response> {
     try {
       const plans = await billingService.listPublicPlans();

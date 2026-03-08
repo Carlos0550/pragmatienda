@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { logger } from "../config/logger";
 import { businessService } from "../services/Business/business.service";
 import {
+  checkBusinessNameAvailabilitySchema,
   createBusinessTenantSchema,
   improveBusinessSeoDescriptionSchema,
   loginBusinessSchema,
@@ -13,6 +14,25 @@ import { changePasswordSchema, recoverPasswordSchema } from "../services/Users/u
 import { userService } from "../services/Users/user.service";
 
 class BusinessController {
+  async checkBusinessNameAvailability(req: Request, res: Response): Promise<Response> {
+    try {
+      const parsed = checkBusinessNameAvailabilitySchema.safeParse(req.query);
+      if (!parsed.success) {
+        return res.status(400).json({
+          message: "Datos invalidos.",
+          err: parsed.error.flatten().fieldErrors
+        });
+      }
+
+      const result = await businessService.checkBusinessNameAvailability(parsed.data.name);
+      return res.status(result.status).json(result);
+    } catch (error) {
+      const err = error as Error;
+      logger.error("Error catched en checkBusinessNameAvailability controller: ", err.message);
+      return res.status(500).json({ message: "Error interno del servidor, por favor intente nuevamente." });
+    }
+  }
+
   async createBusinessTenant(req: Request, res: Response): Promise<Response> {
     try {
       const parsed = createBusinessTenantSchema.safeParse(req.body);

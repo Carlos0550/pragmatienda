@@ -4,6 +4,22 @@ import { http } from '@/services/http';
 import { capitalizeName } from '@/lib/utils';
 import type { AuthState, AuthUser, User } from '@/types';
 
+const PASSWORD_SETUP_STORAGE_KEY = 'pragmatienda_password_setup_token';
+
+function readPasswordSetupToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  return window.sessionStorage.getItem(PASSWORD_SETUP_STORAGE_KEY);
+}
+
+function writePasswordSetupToken(token: string | null) {
+  if (typeof window === 'undefined') return;
+  if (token) {
+    window.sessionStorage.setItem(PASSWORD_SETUP_STORAGE_KEY, token);
+    return;
+  }
+  window.sessionStorage.removeItem(PASSWORD_SETUP_STORAGE_KEY);
+}
+
 function toAuthUser(data: User): AuthUser {
   const type: 'admin' | 'customer' = data.role === 2 ? 'customer' : 'admin';
   const base = {
@@ -29,18 +45,26 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   loading: true,
   billingRequired: false,
+  passwordSetupToken: null,
 
   setBillingRequired: (v) => set({ billingRequired: v }),
+  setPasswordSetupToken: (token) => {
+    writePasswordSetupToken(token);
+    set({ passwordSetupToken: token });
+  },
 
   logout: () => {
     api.setToken(null);
-    set({ user: null });
+    writePasswordSetupToken(null);
+    set({ user: null, passwordSetupToken: null });
   },
 
   hydrate: async () => {
     api.setOnUnauthorized(() => get().logout());
     api.setOnBillingRequired(() => get().setBillingRequired(true));
     const token = api.getToken();
+    const passwordSetupToken = readPasswordSetupToken();
+    set({ passwordSetupToken });
     if (token) {
       try {
         const user = await fetchUserFromMe();

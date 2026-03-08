@@ -208,8 +208,9 @@ export interface BillingSubscriptionCreateData {
 }
 
 export interface BillingChangePlanData {
-  subscriptionId: string;
-  externalSubscriptionId: string;
+  subscriptionId: string | null;
+  externalSubscriptionId: string | null;
+  initPoint?: string | null;
 }
 
 /** Respuesta de GET /payments/billing/capabilities */
@@ -299,6 +300,14 @@ export interface CreateBusinessPayload {
   province?: string;
   adminEmail: string;
   adminName: string;
+}
+
+export interface BusinessNameAvailabilityResponse {
+  message: string;
+  data?: {
+    available: boolean;
+    normalizedName: string;
+  };
 }
 
 export interface BillingSelectPlanPayload {
@@ -510,7 +519,9 @@ export interface AuthState {
   user: AuthUser | null;
   loading: boolean;
   billingRequired: boolean;
+  passwordSetupToken: string | null;
   setBillingRequired: (v: boolean) => void;
+  setPasswordSetupToken: (token: string | null) => void;
   loginAdmin: (email: string, password: string) => Promise<void>;
   loginCustomer: (email: string, password: string) => Promise<void>;
   logout: () => void;

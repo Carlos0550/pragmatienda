@@ -147,25 +147,11 @@ class UserService{
                 return { status: 409, message: "El usuario ya existe." };
             }
             createdUser = transactionResult.createdUser;
-            const setupPasswordToken = createPasswordActionToken({
-                id: createdUser.id,
-                email: createdUser.email,
-                tenantId,
-                role: 2,
-                purpose: "ACCOUNT_SETUP",
-                ttlMs: ACCOUNT_SETUP_TOKEN_TTL_MS
-            });
-            const setupPasswordUrl = buildPasswordActionUrl(
-                { name: tenant.businessData?.name, website: tenant.businessData?.website },
-                2,
-                setupPasswordToken
-            );
             const html = await buildWelcomeUserEmailHtml({
                 user: {
                     ...createdUser,
                     tenantId
                 },
-                setupPasswordUrl,
                 business: tenant.businessData
             });
 
@@ -234,7 +220,7 @@ class UserService{
             }
             const resolvedTenantId = user.tenantId ?? effectiveTenantId ?? null;
             if (user.isVerified) {
-                return { status: 409, message: "La cuenta ya fue verificada.", data: { tenantId: resolvedTenantId } };
+                return { status: 409, message: "La cuenta ya fue verificada.", data: { tenantId: resolvedTenantId, role: user.role } };
             }
 
             await prisma.user.update({
@@ -242,7 +228,35 @@ class UserService{
                 data: { isVerified: true, status: UserStatus.ACTIVE }
             });
 
-            return { status: 200, message: "Cuenta verificada correctamente.", data: { tenantId: resolvedTenantId } };
+            const sessionToken = await createSessionToken({
+                id: user.id,
+                email: user.email,
+                role: user.role
+            });
+
+            const requiresPasswordSetup = user.role === 1;
+            const setupPasswordToken = requiresPasswordSetup
+                ? createPasswordActionToken({
+                    id: user.id,
+                    email: user.email,
+                    tenantId: user.tenantId ?? resolvedTenantId ?? "",
+                    role: user.role,
+                    purpose: "ACCOUNT_SETUP",
+                    ttlMs: ACCOUNT_SETUP_TOKEN_TTL_MS
+                })
+                : null;
+
+            return {
+                status: 200,
+                message: "Cuenta verificada correctamente.",
+                data: {
+                    tenantId: resolvedTenantId,
+                    role: user.role,
+                    sessionToken,
+                    requiresPasswordSetup,
+                    setupPasswordToken
+                }
+            };
         } catch (error) {
             const err = error as Error
             logger.error("Error catched en verifyAccount service: ", err.message)

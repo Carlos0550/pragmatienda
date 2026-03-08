@@ -114,6 +114,23 @@ openApiRegistry.registerPath({
 
 openApiRegistry.registerPath({
   method: "post",
+  path: "/payments/billing/subscriptions/current/resume",
+  tags: ["Billing"],
+  summary: "Reanudar la suscripción actual del tenant usando el mismo plan pago",
+  request: {
+    headers: z.object({
+      "x-tenant-id": z.string(),
+      Authorization: z.string()
+    })
+  },
+  responses: {
+    "200": { description: "Suscripción reanudada o reutilizada" },
+    "201": { description: "Nueva suscripción creada para reanudar" }
+  }
+});
+
+openApiRegistry.registerPath({
+  method: "post",
   path: "/payments/billing/sync",
   tags: ["Billing"],
   summary: "Ejecutar job manual de sincronización de suscripciones",
@@ -184,6 +201,12 @@ router.patch(
   requireTenant,
   requireRole([1]),
   billingController.changeSubscriptionPlan
+);
+router.post(
+  "/billing/subscriptions/current/resume",
+  requireTenant,
+  requireRole([1]),
+  billingController.resumeCurrentSubscription
 );
 router.post(
   "/billing/sync",
