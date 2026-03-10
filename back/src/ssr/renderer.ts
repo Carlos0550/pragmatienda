@@ -75,6 +75,8 @@ type FrontServerModule = {
 };
 
 const LANDING_HOSTNAMES = new Set(["pragmatienda.com", "www.pragmatienda.com", "localhost"]);
+/** Sufijos para URLs de despliegue (Northflank *.code.run, etc.) que se tratan como landing. */
+const DEFAULT_LANDING_SUFFIXES = [".code.run"];
 const BACK_ROOT = path.resolve(__dirname, "../..");
 const FRONT_ROOT = path.resolve(BACK_ROOT, "../front");
 const FRONT_CLIENT_DIST_DIR = path.resolve(FRONT_ROOT, "dist/client");
@@ -117,7 +119,15 @@ function normalizeHost(req: Request): { hostname: string; hostHeader: string } {
 }
 
 function isLandingHostname(hostname: string): boolean {
-  return LANDING_HOSTNAMES.has(hostname.toLowerCase());
+  const lower = hostname.toLowerCase();
+  if (LANDING_HOSTNAMES.has(lower)) return true;
+  if (DEFAULT_LANDING_SUFFIXES.some((s) => lower.endsWith(s) || lower === s.slice(1))) return true;
+  const extra = env.EXTRA_LANDING_HOSTNAME_SUFFIXES;
+  if (extra) {
+    const suffixes = extra.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
+    if (suffixes.some((s) => lower.endsWith("." + s) || lower === s)) return true;
+  }
+  return false;
 }
 
 function isApiHostname(hostname: string): boolean {

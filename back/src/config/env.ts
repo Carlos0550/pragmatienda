@@ -66,7 +66,9 @@ const schema = z.object({
   MP_BILLING_REASON_PREFIX: z.string().default("Pragmatienda"),
   MP_BILLING_SEND_PAYER_EMAIL: booleanOptionalFromString,
   MP_WEBHOOK_SECRET: z.string().optional(),
-  BILLING_ALLOW_PAST_DUE: booleanFromString.default(false)
+  BILLING_ALLOW_PAST_DUE: booleanFromString.default(false),
+  /** Sufijos de hostname para tratar como landing (ej: "code.run" → *.code.run). Separados por coma. */
+  EXTRA_LANDING_HOSTNAME_SUFFIXES: z.string().optional()
 });
 
 const parsed = schema.safeParse(process.env);

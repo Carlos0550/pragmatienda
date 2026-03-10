@@ -6,7 +6,16 @@ let client: RedisClientType | null = null;
 
 export const getRedisClient = () => {
   if (!client) {
-    client = createClient({ url: env.REDIS_URL });
+    const isSecure = env.REDIS_URL?.startsWith("rediss://");
+    client = createClient({
+      url: env.REDIS_URL,
+      socket: isSecure
+        ? {
+            tls: true,
+            rejectUnauthorized: false,
+          }
+        : undefined,
+    });
     client.on("error", (err) => {
       logger.error("Redis error", { err });
     });

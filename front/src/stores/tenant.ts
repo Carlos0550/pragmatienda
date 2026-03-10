@@ -5,9 +5,13 @@ import { normalizeResolvedTenant } from '@/lib/api-utils';
 import type { TenantState } from '@/types';
 
 const LANDING_HOSTNAMES = ['pragmatienda.com', 'www.pragmatienda.com', 'localhost'];
+/** Sufijos para URLs de despliegue (Northflank *.code.run, etc.) que se tratan como landing. */
+const LANDING_HOSTNAME_SUFFIXES = ['.code.run'];
 
 function isLandingHostname(hostname: string): boolean {
-  return LANDING_HOSTNAMES.includes(hostname.toLowerCase());
+  const lower = hostname.toLowerCase();
+  if (LANDING_HOSTNAMES.includes(lower)) return true;
+  return LANDING_HOSTNAME_SUFFIXES.some((s) => lower.endsWith(s) || lower === s.slice(1));
 }
 
 export const useTenantStore = create<TenantState>((set) => ({
