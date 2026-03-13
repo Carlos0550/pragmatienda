@@ -9,6 +9,7 @@ describe("BillingService.handlePreapprovalWebhook", () => {
     const provider: BillingProvider = {
       ensurePreapprovalPlan: vi.fn(),
       updatePreapprovalPlan: vi.fn(),
+      setPreapprovalPlanStatus: vi.fn(),
       createSubscription: vi.fn(),
       getSubscription: vi.fn(async () => ({
         externalSubscriptionId: "sub_mp_1",
@@ -22,7 +23,7 @@ describe("BillingService.handlePreapprovalWebhook", () => {
         cancelAtPeriodEnd: false,
         raw: { status: "authorized" }
       })),
-      changeSubscriptionPlanAmount: vi.fn(),
+      changeSubscriptionPlan: vi.fn(),
       searchSubscriptionsByStatus: vi.fn()
     };
 
@@ -35,7 +36,7 @@ describe("BillingService.handlePreapprovalWebhook", () => {
         plan: PlanType.STARTER,
         trialEndsAt: null
       })),
-      getCurrentSubscriptionForTenant: vi.fn(async () => ({
+      getTenantCurrentSubscription: vi.fn(async () => ({
         id: "local-sub",
         tenantId: "tenant-1",
         planId: "plan-starter",
@@ -52,6 +53,7 @@ describe("BillingService.handlePreapprovalWebhook", () => {
           name: "Starter"
         }
       })),
+      getLatestSubscriptionForTenant: vi.fn(async () => null),
       upsertSubscriptionByExternalId: vi.fn(async () => ({
         id: "local-sub",
         tenantId: "tenant-1",

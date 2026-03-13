@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { http } from '@/services/http';
 import { Button } from '@/components/ui/button';
@@ -33,24 +33,49 @@ export default function BillingPage() {
   const [capabilities, setCapabilities] = useState<TenantCapabilitiesResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionPlanId, setActionPlanId] = useState<string | null>(null);
+  const [subscriptionError, setSubscriptionError] = useState<string | null>(null);
 
   const fetchData = async () => {
-    try {
-      const [sub, pls, cap] = await Promise.all([
-        http.billing.getCurrentSubscription().catch(() => null),
-        http.billing.listPlansForBilling().catch(() => []),
-        http.billing.getCapabilities().catch(() => null),
-      ]);
-      setSubscription(sub);
-      setPlans(Array.isArray(pls) ? pls.filter((p) => p.active) : []);
+    setLoading(true);
+    setSubscriptionError(null);
+    const [subResult, plansResult, capabilitiesResult] = await Promise.allSettled([
+      http.billing.getCurrentSubscription(),
+      http.billing.listPlansForBilling(),
+      http.billing.getCapabilities(),
+    ]);
+
+    if (subResult.status === 'fulfilled') {
+      setSubscription(subResult.value);
+    } else {
+      const apiErr = subResult.reason as ApiError;
+      setSubscription(null);
+      setSubscriptionError(apiErr.message || 'No se pudo cargar el estado de la suscripción.');
+    }
+
+    if (plansResult.status === 'fulfilled') {
+      setPlans(Array.isArray(plansResult.value) ? plansResult.value.filter((p) => p.active) : []);
+    } else {
+      setPlans([]);
+    }
+
+    if (capabilitiesResult.status === 'fulfilled') {
+      const cap = capabilitiesResult.value;
       const capData = cap && 'planCode' in cap && cap.usage ? cap : null;
       setCapabilities(capData as TenantCapabilitiesResponse | null);
-    } finally { setLoading(false); }
+    } else {
+      setCapabilities(null);
+    }
+
+    setLoading(false);
   };
 
   useEffect(() => { fetchData(); }, []);
 
   const handleSelectPlan = async (planId: string) => {
+    if (subscriptionError) {
+      sileo.error({ title: subscriptionError });
+      return;
+    }
     setActionPlanId(planId);
     try {
       if (subscription) {
@@ -101,6 +126,7 @@ export default function BillingPage() {
   const canResumeCurrentPlan = Boolean(
     subscription && !isSubscriptionActive && subscription.plan.price > 0
   );
+  const isSubscriptionStateUnknown = Boolean(subscriptionError);
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -108,6 +134,20 @@ export default function BillingPage() {
         <h2 className="text-2xl font-bold">Suscripción</h2>
         <p className="text-muted-foreground text-sm mt-1">Gestioná tu plan y facturación</p>
       </div>
+
+      {subscriptionError && (
+        <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 space-y-3">
+          <div>
+            <p className="font-medium text-destructive">No se pudo cargar la suscripción actual.</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              Reintentá antes de cambiar de plan para evitar acciones sobre un estado incompleto.
+            </p>
+          </div>
+          <Button variant="outline" onClick={fetchData}>
+            Reintentar
+          </Button>
+        </div>
+      )}
 
       {subscription && (
         <div className="rounded-xl border bg-card p-6 space-y-4">
@@ -194,7 +234,7 @@ export default function BillingPage() {
         </div>
       )}
 
-      {!subscription && (
+      {!subscription && !isSubscriptionStateUnknown && (
         <div className="rounded-xl border bg-card p-6 text-center">
           <p className="text-muted-foreground">No tenés una suscripción activa. Elegí un plan para empezar.</p>
         </div>
@@ -210,6 +250,7 @@ export default function BillingPage() {
               const isFree = plan.price === 0;
               const showCurrentAsActive = isCurrent && isSubscriptionActive;
               const showResumeOnCard = isCurrent && canResumeCurrentPlan;
+              const disablePlanSelection = Boolean(actionPlanId) || isSubscriptionStateUnknown || isFree;
 
               return (
                 <div key={plan.id} className={`rounded-xl border p-5 space-y-4 ${isCurrent ? 'border-primary bg-primary/5' : 'bg-card'}`}>
@@ -250,8 +291,12 @@ export default function BillingPage() {
                   )}
                   {showCurrentAsActive ? (
                     <Button disabled variant="outline" className="w-full">Plan actual</Button>
+                  ) : isFree ? (
+                    <Button disabled variant="outline" className="w-full">
+                      {isCurrent ? 'Plan actual' : 'Solo informativo'}
+                    </Button>
                   ) : showResumeOnCard ? (
-                    <Button onClick={handleResumePlan} disabled={!!actionPlanId} className="w-full gap-1">
+                    <Button onClick={handleResumePlan} disabled={Boolean(actionPlanId) || isSubscriptionStateUnknown} className="w-full gap-1">
                       {actionPlanId === subscription?.planId ? (
                         <><Loader2 className="h-3 w-3 animate-spin" /> Reanudando...</>
                       ) : (
@@ -261,7 +306,7 @@ export default function BillingPage() {
                   ) : (
                     <Button
                       onClick={() => handleSelectPlan(plan.id)}
-                      disabled={!!actionPlanId}
+                      disabled={disablePlanSelection}
                       variant="outline"
                       className="w-full gap-1"
                     >

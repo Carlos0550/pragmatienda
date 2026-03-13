@@ -255,7 +255,19 @@ export class PrismaBillingRepository {
     });
   }
 
-  async getCurrentSubscriptionForTenant(tenantId: string) {
+  async getTenantCurrentSubscription(tenantId: string) {
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: {
+        currentSubscription: {
+          include: { plan: true }
+        }
+      }
+    });
+    return tenant?.currentSubscription ?? null;
+  }
+
+  async getLatestSubscriptionForTenant(tenantId: string) {
     return prisma.subscription.findFirst({
       where: { tenantId },
       orderBy: { updatedAt: "desc" },

@@ -26,9 +26,32 @@ export class PlanCapabilitiesService {
     return this.repository.getPlanByCode(PlanType.FREE);
   }
 
+  private async resolveCurrentSubscriptionForTenant(tenantId: string) {
+    const currentSubscription = await this.repository.getTenantCurrentSubscription(tenantId);
+    if (currentSubscription) {
+      return currentSubscription;
+    }
+
+    const legacySubscription = await this.repository.getLatestSubscriptionForTenant(tenantId);
+    if (!legacySubscription) {
+      return null;
+    }
+
+    await this.repository.setTenantBillingSnapshot({
+      tenantId,
+      billingStatus: legacySubscription.status,
+      planCode: legacySubscription.plan.code,
+      planStartsAt: legacySubscription.currentPeriodStart ?? legacySubscription.createdAt,
+      planEndsAt: legacySubscription.currentPeriodEnd ?? legacySubscription.updatedAt,
+      currentSubscriptionId: legacySubscription.id
+    });
+
+    return legacySubscription;
+  }
+
   /** Obtiene el plan efectivo del tenant (suscripción actual o plan por defecto del tenant). */
   async getEffectivePlanForTenant(tenantId: string): Promise<Plan | null> {
-    const subscription = await this.repository.getCurrentSubscriptionForTenant(tenantId);
+    const subscription = await this.resolveCurrentSubscriptionForTenant(tenantId);
     if (subscription?.plan) {
       if (
         !subscription.status ||

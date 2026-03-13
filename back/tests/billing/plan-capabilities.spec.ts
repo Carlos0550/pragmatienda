@@ -5,24 +5,28 @@ import { PlanCapabilitiesService } from "../../src/billing/application/plan-capa
 import type { PrismaBillingRepository } from "../../src/billing/infrastructure/prisma-billing.repository";
 
 const createMockRepo = (overrides: Partial<{
-  getCurrentSubscriptionForTenant: PrismaBillingRepository["getCurrentSubscriptionForTenant"];
+  getTenantCurrentSubscription: PrismaBillingRepository["getTenantCurrentSubscription"];
+  getLatestSubscriptionForTenant: PrismaBillingRepository["getLatestSubscriptionForTenant"];
   getTenantWithOwner: PrismaBillingRepository["getTenantWithOwner"];
   getPlanByCode: PrismaBillingRepository["getPlanByCode"];
   countProductsByTenant: PrismaBillingRepository["countProductsByTenant"];
   countCategoriesByTenant: PrismaBillingRepository["countCategoriesByTenant"];
+  setTenantBillingSnapshot: PrismaBillingRepository["setTenantBillingSnapshot"];
 }> = {}) => ({
-  getCurrentSubscriptionForTenant: vi.fn(),
+  getTenantCurrentSubscription: vi.fn(),
+  getLatestSubscriptionForTenant: vi.fn(),
   getTenantWithOwner: vi.fn(),
   getPlanByCode: vi.fn(),
   countProductsByTenant: vi.fn(),
   countCategoriesByTenant: vi.fn(),
+  setTenantBillingSnapshot: vi.fn(),
   ...overrides
 } as unknown as PrismaBillingRepository);
 
 describe("PlanCapabilitiesService", () => {
   it("assertCanCreateProduct throws PLAN_LIMIT_REACHED when usage >= maxProducts", async () => {
     const repo = createMockRepo({
-      getCurrentSubscriptionForTenant: vi.fn().mockResolvedValue({
+      getTenantCurrentSubscription: vi.fn().mockResolvedValue({
         plan: {
           id: "plan-1",
           code: PlanType.STARTER,
@@ -46,7 +50,7 @@ describe("PlanCapabilitiesService", () => {
 
   it("assertCanCreateProduct does not throw when maxProducts is null", async () => {
     const repo = createMockRepo({
-      getCurrentSubscriptionForTenant: vi.fn().mockResolvedValue({
+      getTenantCurrentSubscription: vi.fn().mockResolvedValue({
         plan: {
           id: "plan-1",
           code: PlanType.PRO,
@@ -65,7 +69,7 @@ describe("PlanCapabilitiesService", () => {
 
   it("assertCanCreateProduct does not throw when usage < maxProducts", async () => {
     const repo = createMockRepo({
-      getCurrentSubscriptionForTenant: vi.fn().mockResolvedValue({
+      getTenantCurrentSubscription: vi.fn().mockResolvedValue({
         plan: {
           id: "plan-1",
           code: PlanType.STARTER,
@@ -84,7 +88,7 @@ describe("PlanCapabilitiesService", () => {
 
   it("assertCanCreateCategory throws PLAN_LIMIT_REACHED when usage >= maxCategories", async () => {
     const repo = createMockRepo({
-      getCurrentSubscriptionForTenant: vi.fn().mockResolvedValue({
+      getTenantCurrentSubscription: vi.fn().mockResolvedValue({
         plan: {
           id: "plan-1",
           code: PlanType.FREE,
@@ -108,7 +112,7 @@ describe("PlanCapabilitiesService", () => {
 
   it("assertFeature throws FEATURE_NOT_AVAILABLE when feature is not enabled", async () => {
     const repo = createMockRepo({
-      getCurrentSubscriptionForTenant: vi.fn().mockResolvedValue({
+      getTenantCurrentSubscription: vi.fn().mockResolvedValue({
         plan: {
           id: "plan-1",
           code: PlanType.STARTER,
@@ -131,7 +135,7 @@ describe("PlanCapabilitiesService", () => {
 
   it("assertFeature does not throw when feature is enabled", async () => {
     const repo = createMockRepo({
-      getCurrentSubscriptionForTenant: vi.fn().mockResolvedValue({
+      getTenantCurrentSubscription: vi.fn().mockResolvedValue({
         plan: {
           id: "plan-1",
           code: PlanType.PRO,

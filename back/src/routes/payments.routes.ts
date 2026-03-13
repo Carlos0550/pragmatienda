@@ -14,7 +14,8 @@ openApiRegistry.registerPath({
   request: {
     headers: z.object({
       "x-tenant-id": z.string(),
-      Authorization: z.string()
+      Authorization: z.string(),
+      "idempotency-key": z.string().min(8)
     }),
     params: z.object({
       storeId: z.string().cuid()
@@ -159,59 +160,60 @@ const router = Router();
 
 router.get(
   "/mercadopago/connect/:storeId",
-  requireTenant,
   requireRole([1]),
+  requireTenant,
   paymentsController.connectMercadoPago
 );
 router.get("/mercadopago/callback", paymentsController.callbackMercadoPago);
 router.get(
   "/billing/subscriptions/current",
-  requireTenant,
   requireRole([1]),
+  requireTenant,
   billingController.getCurrentSubscription
 );
 router.get(
   "/billing/capabilities",
-  requireTenant,
   requireRole([1]),
+  requireTenant,
   billingController.getCapabilities
 );
 router.get(
   "/billing/plans",
-  requireTenant,
   requireRole([1]),
+  requireTenant,
   billingController.listPlansForBilling
 );
 router.post(
   "/checkout/:orderId",
-  requireTenant,
   requireRole([1, 2]),
+  requireTenant,
   requireIdempotencyKey("payments.checkout.mp"),
   paymentsController.createMercadoPagoCheckout
 );
 router.post(
   "/billing/subscriptions",
-  requireTenant,
   requireRole([1]),
+  requireTenant,
   requireIdempotencyKey("payments.billing.subscription.create"),
   billingController.createSubscription
 );
 router.patch(
   "/billing/subscriptions/current/plan",
-  requireTenant,
   requireRole([1]),
+  requireTenant,
+  requireIdempotencyKey("payments.billing.subscription.change_plan"),
   billingController.changeSubscriptionPlan
 );
 router.post(
   "/billing/subscriptions/current/resume",
-  requireTenant,
   requireRole([1]),
+  requireTenant,
   billingController.resumeCurrentSubscription
 );
 router.post(
   "/billing/sync",
-  requireTenant,
   requireRole([1]),
+  requireTenant,
   billingController.syncSubscriptions
 );
 router.post("/webhooks/mercadopago", paymentsController.webhookMercadoPago);

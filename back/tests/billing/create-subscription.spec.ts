@@ -9,6 +9,7 @@ describe("BillingService.createSubscriptionForTenant", () => {
     const provider: BillingProvider = {
       ensurePreapprovalPlan: vi.fn(),
       updatePreapprovalPlan: vi.fn(),
+      setPreapprovalPlanStatus: vi.fn(),
       createSubscription: vi.fn(async () => ({
         externalSubscriptionId: "sub_mp_1",
         status: "pending",
@@ -17,12 +18,13 @@ describe("BillingService.createSubscriptionForTenant", () => {
         currentPeriodEnd: null
       })),
       getSubscription: vi.fn(),
-      changeSubscriptionPlanAmount: vi.fn(),
+      changeSubscriptionPlan: vi.fn(),
       searchSubscriptionsByStatus: vi.fn()
     };
 
     const repository = {
-      getCurrentSubscriptionForTenant: vi.fn(async () => null),
+      getTenantCurrentSubscription: vi.fn(async () => null),
+      getLatestSubscriptionForTenant: vi.fn(async () => null),
       getTenantWithOwner: vi.fn(async () => ({
         id: "tenant-1",
         owner: { id: "owner-1", email: "owner@test.com" },
@@ -46,7 +48,23 @@ describe("BillingService.createSubscriptionForTenant", () => {
       createSubscription: vi.fn(async () => ({
         id: "sub-local-1"
       })),
-      createSubscriptionEvent: vi.fn()
+      createSubscriptionEvent: vi.fn(),
+      getSubscriptionByExternalId: vi.fn(async () => ({
+        id: "sub-local-1",
+        tenantId: "tenant-1",
+        externalSubscriptionId: "sub_mp_1",
+        status: BillingStatus.TRIALING,
+        currentPeriodStart: null,
+        currentPeriodEnd: null,
+        createdAt: new Date("2026-01-01T00:00:00.000Z"),
+        updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+        plan: {
+          id: "plan-starter",
+          code: PlanType.STARTER,
+          name: "Starter"
+        }
+      })),
+      setTenantBillingSnapshot: vi.fn()
     } as unknown as PrismaBillingRepository;
 
     const service = new BillingService(repository, provider);

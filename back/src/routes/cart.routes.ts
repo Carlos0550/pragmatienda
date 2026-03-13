@@ -100,14 +100,14 @@ openApiRegistry.registerPath({
 
 const router = Router();
 
+router.use(requireRole([1, 2]));
 router.use(requireTenant);
 
-router.get("/", requireRole([1, 2]), cartController.getCart);
-router.delete("/items", requireRole([1, 2]), cartController.deleteItems);
-router.patch("/items", requireRole([1, 2]), cartController.patchItems);
+router.get("/", cartController.getCart);
+router.delete("/items", cartController.deleteItems);
+router.patch("/items", cartController.patchItems);
 router.post(
   "/checkout",
-  requireRole([1, 2]),
   uploadComprobanteOptionalMiddleware,
   requireComprobante,
   requireIdempotencyKey("cart.checkout"),

@@ -48,11 +48,17 @@ class ApiService {
         const data = error.response.data ?? {};
         const payload = data as {
           message?: string;
+          error?: string;
           err?: Record<string, string[]>;
           data?: { suggestions?: string[] };
-          result?: { message?: string; err?: Record<string, string[]> };
+          result?: { message?: string; error?: string; err?: Record<string, string[]> };
         };
-        const backendMessage = payload.message || payload.result?.message || 'Error del servidor';
+        const backendMessage =
+          payload.message ||
+          payload.error ||
+          payload.result?.message ||
+          payload.result?.error ||
+          'Error del servidor';
         const backendErrors = payload.err || payload.result?.err;
         const suggestions = payload.data?.suggestions;
         if (status === 401) {
@@ -116,8 +122,10 @@ class ApiService {
     return res.data;
   }
 
-  async patch<T>(path: string, body?: ApiRequestBody): Promise<T> {
-    const res = await this.client.patch<T>(path, body);
+  async patch<T>(path: string, body?: ApiRequestBody, extraHeaders?: Record<string, string>): Promise<T> {
+    const res = await this.client.patch<T>(path, body, {
+      headers: extraHeaders,
+    });
     return res.data;
   }
 

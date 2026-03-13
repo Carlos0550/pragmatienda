@@ -119,8 +119,8 @@ openApiRegistry.registerPath({
 
 const router = Router();
 
-router.use(requireTenant);
 router.use(requireRole([1]));
+router.use(requireTenant);
 
 router.get("/", salesController.list);
 router.get("/metrics", salesController.getMetrics);

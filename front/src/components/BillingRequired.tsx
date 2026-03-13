@@ -1,25 +1,10 @@
-import React from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { AlertTriangle } from 'lucide-react';
-import { http } from '@/services/http';
 
 export function BillingRequiredScreen() {
   const { setBillingRequired } = useAuth();
-
-  const handleCreateSubscription = async () => {
-    try {
-      const plans = await http.billing.listPlansForBilling();
-      const selectedPlan = plans.find((plan) => plan.active && plan.price > 0);
-      if (!selectedPlan) return;
-      const response = await http.billing.createSubscription({ planId: selectedPlan.id });
-      if (response.data?.initPoint) {
-        window.location.href = response.data.initPoint;
-      }
-    } catch {
-      // handled by global error
-    }
-  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-surface p-4">
@@ -32,8 +17,10 @@ export function BillingRequiredScreen() {
           Tu suscripción ha vencido o no tienes un plan activo. Para continuar usando la plataforma, activa tu suscripción.
         </p>
         <div className="flex flex-col gap-3">
-          <Button onClick={handleCreateSubscription} size="lg">
-            Activar Suscripción
+          <Button asChild size="lg">
+            <Link to="/admin/billing" onClick={() => setBillingRequired(false)}>
+              Ir a facturación
+            </Link>
           </Button>
           <Button variant="outline" onClick={() => setBillingRequired(false)}>
             Volver

@@ -332,77 +332,77 @@ openApiRegistry.registerPath({
 const router = Router();
 
 router.put("/me/password", requireRole([1]), requireTenant, businessController.changePasswordBusiness);
-router.get("/business", requireTenant, requireRole([1]), businessController.getBusiness);
-router.get("/mercadopago/status", requireTenant, requireRole([1]), paymentsController.getMercadoPagoStatus);
-router.get("/mercadopago/connect-url", requireTenant, requireRole([1]), paymentsController.getMercadoPagoConnectUrl);
-router.put("/business/manage", requireTenant, requireRole([1]), uploadBusinessAssetsMiddleware, businessController.manageBusiness);
-router.post("/business/seo-description/improve", requireTenant, requireRole([1]), businessController.improveSeoDescription);
+router.get("/business", requireRole([1]), requireTenant, businessController.getBusiness);
+router.get("/mercadopago/status", requireRole([1]), requireTenant, paymentsController.getMercadoPagoStatus);
+router.get("/mercadopago/connect-url", requireRole([1]), requireTenant, paymentsController.getMercadoPagoConnectUrl);
+router.put("/business/manage", requireRole([1]), requireTenant, uploadBusinessAssetsMiddleware, businessController.manageBusiness);
+router.post("/business/seo-description/improve", requireRole([1]), requireTenant, businessController.improveSeoDescription);
 
 // Categorías
 router.get(
   "/categories",
-  requireTenant,
   requireRole([1]),
+  requireTenant,
   categoriesController.getMany
 );
 router.post(
   "/categories",
-  requireTenant,
   requireRole([1]),
+  requireTenant,
   uploadAndConvertImageOptionalMiddleware,
   categoriesController.create
 );
 router.put(
   "/categories/:id",
-  requireTenant,
   requireRole([1]),
+  requireTenant,
   uploadAndConvertImageOptionalMiddleware,
   categoriesController.update
 );
 router.delete(
   "/categories/:id",
-  requireTenant,
   requireRole([1]),
+  requireTenant,
   categoriesController.delete
 );
 
 // Productos
 router.get(
   "/products",
-  requireTenant,
   requireRole([1]),
+  requireTenant,
   productsController.getMany
 );
 router.post(
   "/products",
-  requireTenant,
   requireRole([1]),
+  requireTenant,
   uploadAndConvertImageOptionalMiddleware,
   productsController.create
 );
 router.put(
   "/products/:id",
-  requireTenant,
   requireRole([1]),
+  requireTenant,
   uploadAndConvertImageOptionalMiddleware,
   productsController.update
 );
 router.delete(
   "/products/bulk",
-  requireTenant,
   requireRole([1]),
+  requireTenant,
   productsController.deleteBulk
 );
 router.patch(
   "/products/bulk/status",
-  requireTenant,
   requireRole([1]),
+  requireTenant,
   productsController.patchBulkStatus
 );
 router.delete(
   "/products/:id",
-  requireTenant,
   requireRole([1]),
+  requireTenant,
   productsController.deleteOne
 );
 

@@ -1,4 +1,4 @@
-import { BillingStatus, PlanType, Prisma } from "@prisma/client";
+import { BillingStatus, PlanType, Prisma, type Plan } from "@prisma/client";
 import { logger } from "../../config/logger";
 import { BillingError } from "../domain/billing-errors";
 import { mapMercadoPagoPreapprovalStatus } from "../domain/billing-status.mapper";
@@ -54,7 +54,7 @@ export class BillingService {
       throw new BillingError(400, "PLAN_UNAVAILABLE", "El plan FREE no requiere suscripción de cobro.");
     }
 
-    const currentSubscription = await this.repository.getCurrentSubscriptionForTenant(tenantId);
+    const currentSubscription = await this.resolveCurrentSubscriptionForTenant(tenantId);
     const canReuseCurrentSubscription =
       currentSubscription &&
       currentSubscription.plan.code !== PlanType.FREE &&
@@ -129,6 +129,8 @@ export class BillingService {
       })
     );
 
+    await this.syncTenantWithSubscription(subscription.externalSubscriptionId);
+
     return {
       created: true,
       subscriptionId: subscription.id,
@@ -200,7 +202,7 @@ export class BillingService {
       throw new BillingError(404, "TENANT_NOT_FOUND", "Tenant no encontrado para webhook.");
     }
 
-    let plan = await this.repository.getCurrentSubscriptionForTenant(tenantId);
+    let plan = await this.resolveCurrentSubscriptionForTenant(tenantId);
     if (!plan) {
       let fallbackPlan =
         snapshot.preapprovalPlanId
@@ -288,6 +290,29 @@ export class BillingService {
     });
   }
 
+  private async resolveCurrentSubscriptionForTenant(tenantId: string) {
+    const currentSubscription = await this.repository.getTenantCurrentSubscription(tenantId);
+    if (currentSubscription) {
+      return currentSubscription;
+    }
+
+    const legacySubscription = await this.repository.getLatestSubscriptionForTenant(tenantId);
+    if (!legacySubscription) {
+      return null;
+    }
+
+    await this.repository.setTenantBillingSnapshot({
+      tenantId,
+      billingStatus: legacySubscription.status,
+      planCode: legacySubscription.plan.code,
+      planStartsAt: legacySubscription.currentPeriodStart ?? legacySubscription.createdAt,
+      planEndsAt: legacySubscription.currentPeriodEnd ?? legacySubscription.updatedAt,
+      currentSubscriptionId: legacySubscription.id
+    });
+
+    return legacySubscription;
+  }
+
   async changeSubscriptionPlanByPlanId(tenantId: string, planId: string) {
     const plan = await this.repository.getPlanById(planId);
     if (!plan) {
@@ -308,7 +333,7 @@ export class BillingService {
       throw new BillingError(400, "PLAN_UNAVAILABLE", "No se puede cambiar a FREE vía suscripción paga.");
     }
 
-    const current = await this.repository.getCurrentSubscriptionForTenant(tenantId);
+    const current = await this.resolveCurrentSubscriptionForTenant(tenantId);
     if (!current) {
       throw new BillingError(404, "SUBSCRIPTION_NOT_FOUND", "No hay suscripción activa para cambiar plan.");
     }
@@ -322,36 +347,61 @@ export class BillingService {
       };
     }
 
-    await this.provider.changeSubscriptionPlanAmount(
-      current.externalSubscriptionId,
-      Number(plan.price),
-      plan.currency
-    );
+    const currentProviderSnapshot = await this.provider.getSubscription(current.externalSubscriptionId);
+    if (currentProviderSnapshot.externalReference && currentProviderSnapshot.externalReference !== tenantId) {
+      throw new BillingError(
+        403,
+        "ACCESS_DENIED",
+        "La suscripción del proveedor no pertenece al tenant actual."
+      );
+    }
 
-    await this.repository.upsertSubscriptionByExternalId({
+    const snapshot = await this.provider.changeSubscriptionPlan({
+      externalSubscriptionId: current.externalSubscriptionId,
+      planCode: plan.code,
+      planName: plan.name,
+      amount: Number(plan.price),
+      currency: plan.currency,
+      interval: plan.interval
+    });
+
+    if (snapshot.externalReference && snapshot.externalReference !== tenantId) {
+      throw new BillingError(
+        403,
+        "ACCESS_DENIED",
+        "La suscripción del proveedor no pertenece al tenant actual."
+      );
+    }
+
+    const subscription = await this.repository.upsertSubscriptionByExternalId({
       tenantId,
       planId: plan.id,
-      externalSubscriptionId: current.externalSubscriptionId,
-      status: current.status,
-      currentPeriodStart: current.currentPeriodStart,
-      currentPeriodEnd: current.currentPeriodEnd,
-      cancelAtPeriodEnd: current.cancelAtPeriodEnd
+      externalSubscriptionId: snapshot.externalSubscriptionId,
+      status: mapMercadoPagoPreapprovalStatus(snapshot.status),
+      currentPeriodStart: snapshot.currentPeriodStart ?? current.currentPeriodStart,
+      currentPeriodEnd: snapshot.currentPeriodEnd ?? current.currentPeriodEnd,
+      cancelAtPeriodEnd: snapshot.cancelAtPeriodEnd ?? current.cancelAtPeriodEnd
     });
 
     await this.repository.createSubscriptionEvent(
-      current.id,
+      subscription.id,
       "subscription.plan_changed",
       toJsonValue({
         newPlanCode: planCode,
-        amount: Number(plan.price)
+        amount: Number(plan.price),
+        currency: plan.currency,
+        interval: plan.interval,
+        providerStatus: snapshot.status
       })
     );
 
-    return { subscriptionId: current.id, externalSubscriptionId: current.externalSubscriptionId };
+    await this.syncTenantWithSubscription(snapshot.externalSubscriptionId);
+
+    return { subscriptionId: subscription.id, externalSubscriptionId: snapshot.externalSubscriptionId };
   }
 
   async resumeCurrentSubscription(tenantId: string) {
-    const current = await this.repository.getCurrentSubscriptionForTenant(tenantId);
+    const current = await this.resolveCurrentSubscriptionForTenant(tenantId);
     if (!current) {
       throw new BillingError(404, "SUBSCRIPTION_NOT_FOUND", "No hay suscripción para reanudar.");
     }
@@ -384,7 +434,7 @@ export class BillingService {
         if (!tenant) {
           continue;
         }
-        const current = await this.repository.getCurrentSubscriptionForTenant(snapshot.externalReference);
+        const current = await this.resolveCurrentSubscriptionForTenant(snapshot.externalReference);
         const planCode = current?.plan.code ?? tenant.plan;
         const plan = await this.repository.getPlanByCode(planCode);
         if (!plan) {
@@ -437,7 +487,7 @@ export class BillingService {
 
   /** Suscripción actual del tenant (para admin billing). */
   async getCurrentSubscription(tenantId: string) {
-    const sub = await this.repository.getCurrentSubscriptionForTenant(tenantId);
+    const sub = await this.resolveCurrentSubscriptionForTenant(tenantId);
     if (!sub) return null;
     return {
       id: sub.id,
@@ -454,15 +504,24 @@ export class BillingService {
     return plans.map((p) => this.mapPlanToResponse(p));
   }
 
-  private mapPlanToResponse(p: { id: string; name: string; price: unknown; interval: string; description: string | null; active: boolean }) {
-    const features = p.description?.split(/\n/).map((s) => s.trim()).filter(Boolean) ?? [];
+  private mapPlanToResponse(p: Plan) {
+    const features =
+      p.features && typeof p.features === "object" && !Array.isArray(p.features)
+        ? (p.features as Record<string, boolean>)
+        : {};
     return {
       id: p.id,
+      code: p.code,
       name: p.name,
       price: Number(p.price),
+      currency: p.currency,
       interval: p.interval,
+      description: p.description ?? undefined,
+      trialDays: p.trialDays,
       features,
       active: p.active,
+      maxProducts: p.maxProducts ?? null,
+      maxCategories: p.maxCategories ?? null
     };
   }
 

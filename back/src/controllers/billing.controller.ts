@@ -74,20 +74,27 @@ class BillingController {
         });
       }
       const result = await billingService.changeSubscriptionPlanByPlanId(tenantId, parsed.data.planId);
-      return res.status(200).json({
+      const responseBody = {
         message: "Plan de suscripción actualizado.",
         data: result
-      });
+      };
+      await persistIdempotencyResponse(req, 200, responseBody);
+      return res.status(200).json(responseBody);
     } catch (error) {
       if (error instanceof BillingError) {
-        return res.status(error.status).json({
+        const responseBody = {
           message: error.message,
-          code: error.code
-        });
+          code: error.code,
+          details: error.details
+        };
+        await persistIdempotencyResponse(req, error.status, responseBody);
+        return res.status(error.status).json(responseBody);
       }
       const err = error as Error;
       logger.error("Error en changeSubscriptionPlan controller", { message: err.message });
-      return res.status(500).json({ message: "Error interno del servidor." });
+      const responseBody = { message: "Error interno del servidor." };
+      await persistIdempotencyResponse(req, 500, responseBody);
+      return res.status(500).json(responseBody);
     }
   }
 

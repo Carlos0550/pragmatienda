@@ -6,6 +6,7 @@ import type {
   BillingProvider,
   MercadoPagoPreapprovalSearchStatus,
   BillingSubscriptionInput,
+  BillingSubscriptionPlanChangeInput,
   BillingSubscriptionResponse,
   BillingSubscriptionSnapshot
 } from "../domain/billing-provider";
@@ -47,6 +48,17 @@ const isPayerCollectorError = (message: string) => {
 
 type PreApprovalCreateBody = Parameters<PreApproval["create"]>[0]["body"];
 
+const toAutoRecurring = (interval: string, amount: number, currency: string) => {
+  const normalizedInterval = interval.toLowerCase();
+  const frequency = normalizedInterval === "year" ? 12 : 1;
+  return {
+    frequency,
+    frequency_type: "months" as const,
+    transaction_amount: amount,
+    currency_id: currency
+  };
+};
+
 export class MercadoPagoBillingProvider implements BillingProvider {
   private getConfig() {
     if (!env.MP_BILLING_ACCESS_TOKEN) {
@@ -70,23 +82,16 @@ export class MercadoPagoBillingProvider implements BillingProvider {
     }
 
     const preApprovalPlan = new PreApprovalPlan(this.getConfig());
-    const interval = plan.interval.toLowerCase();
-    const frequencyType = interval === "year" ? "months" : "months";
-    const frequency = interval === "year" ? 12 : 1;
-
     const reasonPrefix = env.MP_BILLING_REASON_PREFIX || "Pragmatienda";
     const reason = `${reasonPrefix} - ${plan.name}`;
     const created = await preApprovalPlan.create({
       body: {
         reason,
-        auto_recurring: {
-          frequency,
-          frequency_type: frequencyType,
-          transaction_amount: plan.amount,
-          currency_id: plan.currency
-        },
+        auto_recurring: toAutoRecurring(plan.interval, plan.amount, plan.currency),
         back_url: env.MP_BILLING_SUCCESS_URL ?? env.FRONTEND_URL
       }
+    }).catch((error) => {
+      throw this.toProviderError(error);
     });
 
     if (!created.id) {
@@ -104,23 +109,17 @@ export class MercadoPagoBillingProvider implements BillingProvider {
       return;
     }
     const preApprovalPlan = new PreApprovalPlan(this.getConfig());
-    const interval = plan.interval.toLowerCase();
-    const frequencyType = interval === "year" ? "months" : "months";
-    const frequency = interval === "year" ? 12 : 1;
     const reasonPrefix = env.MP_BILLING_REASON_PREFIX || "Pragmatienda";
     const reason = `${reasonPrefix} - ${plan.name}`;
     await preApprovalPlan.update({
       id: preapprovalPlanId,
       updatePreApprovalPlanRequest: {
         reason,
-        auto_recurring: {
-          frequency,
-          frequency_type: frequencyType,
-          transaction_amount: plan.amount,
-          currency_id: plan.currency
-        },
+        auto_recurring: toAutoRecurring(plan.interval, plan.amount, plan.currency),
         back_url: env.MP_BILLING_SUCCESS_URL ?? env.FRONTEND_URL
       }
+    }).catch((error) => {
+      throw this.toProviderError(error);
     });
   }
 
@@ -131,6 +130,8 @@ export class MercadoPagoBillingProvider implements BillingProvider {
       updatePreApprovalPlanRequest: {
         status: active ? "active" : "inactive"
       }
+    }).catch((error) => {
+      throw this.toProviderError(error);
     });
   }
 
@@ -146,17 +147,12 @@ export class MercadoPagoBillingProvider implements BillingProvider {
     const body: PreApprovalCreateBody = {
       reason: `${reasonPrefix} - ${input.planName}`,
       external_reference: input.tenantId,
-      ...(shouldSendPayerEmail ? { payer_email: input.ownerEmail } : {payer_email:"test_user_1792633009@testuser.com"}),
+      ...(shouldSendPayerEmail ? { payer_email: input.ownerEmail } : {}),
       back_url: backUrl,
       status: "pending"
     };
 
-    body.auto_recurring = {
-      frequency: 1,
-      frequency_type: "months",
-      transaction_amount: input.amount,
-      currency_id: input.currency
-    };
+    body.auto_recurring = toAutoRecurring(input.interval, input.amount, input.currency);
 
     const created = await this.createPreApprovalWithFallback(preApproval, body);
     logger.info("created subscription", { created });
@@ -186,21 +182,13 @@ export class MercadoPagoBillingProvider implements BillingProvider {
     const reasonPrefix = env.MP_BILLING_REASON_PREFIX || "Pragmatienda";
     const shouldSendPayerEmail = env.MP_BILLING_SEND_PAYER_EMAIL;
 
-    const interval = input.interval.toLowerCase();
-    const frequency = interval === "year" ? 12 : 1;
-
     const body: PreApprovalCreateBody = {
       reason: `${reasonPrefix} - ${input.planName}`,
       external_reference: input.tenantId,
-      ...(shouldSendPayerEmail ? { payer_email: input.ownerEmail } : {payer_email:"test_user_1792633009@testuser.com"}),
+      ...(shouldSendPayerEmail ? { payer_email: input.ownerEmail } : {}),
       back_url: backUrl,
       status: "pending",
-      auto_recurring: {
-        frequency,
-        frequency_type: "months",
-        transaction_amount: input.amount,
-        currency_id: input.currency
-      }
+      auto_recurring: toAutoRecurring(input.interval, input.amount, input.currency)
     };
 
     const created = await this.createPreApprovalWithFallback(preApproval, body);
@@ -256,6 +244,7 @@ export class MercadoPagoBillingProvider implements BillingProvider {
     if (error instanceof BillingError) return error;
     const message = this.getErrorMessage(error);
     const status = this.getErrorStatus(error);
+    const lowerMessage = message.toLowerCase();
     if (isPayerCollectorError(message)) {
       return new BillingError(
         400,
@@ -264,10 +253,39 @@ export class MercadoPagoBillingProvider implements BillingProvider {
         { providerMessage: message }
       );
     }
+    if (status === 401 || status === 403 || lowerMessage.includes("unauthorized access to resource")) {
+      return new BillingError(
+        502,
+        "PROVIDER_ERROR",
+        "Mercado Pago rechazó la operación por permisos insuficientes o porque la suscripción no pertenece a la cuenta configurada.",
+        { providerMessage: message, providerStatus: status }
+      );
+    }
+    if (status === 404 || lowerMessage.includes("not found")) {
+      return new BillingError(
+        404,
+        "PROVIDER_ERROR",
+        "Mercado Pago no encontró la suscripción solicitada.",
+        { providerMessage: message, providerStatus: status }
+      );
+    }
+    if (
+      (lowerMessage.includes("cannot") && lowerMessage.includes("modify")) ||
+      lowerMessage.includes("not modify") ||
+      lowerMessage.includes("immutable") ||
+      lowerMessage.includes("invalid status")
+    ) {
+      return new BillingError(
+        409,
+        "PROVIDER_ERROR",
+        "Mercado Pago no permite modificar esta suscripción en su estado actual.",
+        { providerMessage: message, providerStatus: status }
+      );
+    }
     return new BillingError(
       status && status >= 400 && status < 600 ? status : 502,
       "PROVIDER_ERROR",
-      message || "Error al crear la suscripción en Mercado Pago."
+      message || "Error al operar la suscripción en Mercado Pago."
     );
   }
 
@@ -363,6 +381,8 @@ export class MercadoPagoBillingProvider implements BillingProvider {
     const preApproval = new PreApproval(this.getConfig());
     const data = await preApproval.get({
       id: externalSubscriptionId
+    }).catch((error) => {
+      throw this.toProviderError(error);
     });
 
     return {
@@ -381,21 +401,22 @@ export class MercadoPagoBillingProvider implements BillingProvider {
     };
   }
 
-  async changeSubscriptionPlanAmount(
-    externalSubscriptionId: string,
-    amount: number,
-    currency: string
-  ): Promise<void> {
+  async changeSubscriptionPlan(
+    input: BillingSubscriptionPlanChangeInput
+  ): Promise<BillingSubscriptionSnapshot> {
     const preApproval = new PreApproval(this.getConfig());
+    const reasonPrefix = env.MP_BILLING_REASON_PREFIX || "Pragmatienda";
+    await this.getSubscription(input.externalSubscriptionId);
     await preApproval.update({
-      id: externalSubscriptionId,
+      id: input.externalSubscriptionId,
       body: {
-        auto_recurring: {
-          transaction_amount: amount,
-          currency_id: currency
-        }
+        reason: `${reasonPrefix} - ${input.planName}`,
+        auto_recurring: toAutoRecurring(input.interval, input.amount, input.currency)
       }
+    }).catch((error) => {
+      throw this.toProviderError(error);
     });
+    return this.getSubscription(input.externalSubscriptionId);
   }
 
   async searchSubscriptionsByStatus(status: MercadoPagoPreapprovalSearchStatus) {
@@ -404,6 +425,8 @@ export class MercadoPagoBillingProvider implements BillingProvider {
       options: {
         status
       }
+    }).catch((error) => {
+      throw this.toProviderError(error);
     });
 
     const rows = result.results ?? [];

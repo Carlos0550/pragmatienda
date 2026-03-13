@@ -37,7 +37,7 @@ export const ensureTenantHasActiveSubscription = (
       return true;
     }
     return res.status(402).json({
-      error: "Suscripción vencida. Regulariza el pago para continuar."
+      message: "Suscripción vencida. Regulariza el pago para continuar."
     });
   }
 
@@ -52,11 +52,11 @@ export const ensureTenantHasActiveSubscription = (
       return true;
     }
     return res.status(402).json({
-      error: "Suscripción inactiva. Debes renovar para continuar."
+      message: "Suscripción inactiva. Debes renovar para continuar."
     });
   }
 
   return res.status(402).json({
-    error: "No tienes una suscripción activa."
+    message: "No tienes una suscripción activa."
   });
 };

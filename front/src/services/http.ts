@@ -214,7 +214,7 @@ export const http = {
   },
 
   billing: {
-    getCurrentSubscription: () => api.get<Subscription>('/payments/billing/subscriptions/current'),
+    getCurrentSubscription: () => api.get<Subscription | null>('/payments/billing/subscriptions/current'),
     getCapabilities: () => api.get<TenantCapabilitiesResponse | { message: string; data: null }>('/payments/billing/capabilities'),
     listPlansForBilling: () => api.get<Plan[]>('/payments/billing/plans'),
     listPublicPlans: () => api.get<PublicPlan[]>('/public/plans'),
@@ -226,8 +226,12 @@ export const http = {
     },
     resumeCurrentSubscription: () =>
       api.post<BillingSubscriptionCreateResponse>('/payments/billing/subscriptions/current/resume'),
-    changeCurrentPlan: (payload: BillingSelectPlanPayload) =>
-      api.patch<BillingChangePlanResponse>('/payments/billing/subscriptions/current/plan', payload),
+    changeCurrentPlan: (payload: BillingSelectPlanPayload) => {
+      const idempotencyKey = crypto.randomUUID();
+      return api.patch<BillingChangePlanResponse>('/payments/billing/subscriptions/current/plan', payload, {
+        'Idempotency-Key': idempotencyKey,
+      });
+    },
   },
 
   payments: {

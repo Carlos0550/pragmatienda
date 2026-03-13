@@ -32,6 +32,15 @@ export type BillingSubscriptionInput = {
   storeSuccessUrl?: string | null;
 };
 
+export type BillingSubscriptionPlanChangeInput = {
+  externalSubscriptionId: string;
+  planCode: PlanType;
+  planName: string;
+  amount: number;
+  currency: string;
+  interval: string;
+};
+
 export type BillingSubscriptionResponse = {
   externalSubscriptionId: string;
   status: string;
@@ -61,11 +70,9 @@ export interface BillingProvider {
   setPreapprovalPlanStatus(preapprovalPlanId: string, active: boolean): Promise<void>;
   createSubscription(input: BillingSubscriptionInput): Promise<BillingSubscriptionResponse>;
   getSubscription(externalSubscriptionId: string): Promise<BillingSubscriptionSnapshot>;
-  changeSubscriptionPlanAmount(
-    externalSubscriptionId: string,
-    amount: number,
-    currency: string
-  ): Promise<void>;
+  changeSubscriptionPlan(
+    input: BillingSubscriptionPlanChangeInput
+  ): Promise<BillingSubscriptionSnapshot>;
   searchSubscriptionsByStatus(
     status: MercadoPagoPreapprovalSearchStatus
   ): Promise<BillingSubscriptionSnapshot[]>;
