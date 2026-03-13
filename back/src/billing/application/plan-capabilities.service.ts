@@ -4,6 +4,11 @@ import type { PlanCapabilities, PlanUsage, TenantCapabilitiesResponse } from "..
 import { PrismaBillingRepository } from "../infrastructure/prisma-billing.repository";
 
 const DEFAULT_FEATURES: Record<string, boolean> = Object.freeze({});
+const EFFECTIVE_SUBSCRIPTION_STATUSES = new Set<BillingStatus>([
+  BillingStatus.ACTIVE,
+  BillingStatus.TRIALING,
+  BillingStatus.PAST_DUE
+]);
 
 function planToCapabilities(plan: Plan): PlanCapabilities {
   const features =
@@ -34,6 +39,10 @@ export class PlanCapabilitiesService {
 
     const legacySubscription = await this.repository.getLatestSubscriptionForTenant(tenantId);
     if (!legacySubscription) {
+      return null;
+    }
+
+    if (!EFFECTIVE_SUBSCRIPTION_STATUSES.has(legacySubscription.status)) {
       return null;
     }
 

@@ -20,6 +20,12 @@ const REUSABLE_SUBSCRIPTION_STATUSES = new Set<BillingStatus>([
   BillingStatus.PAST_DUE
 ]);
 
+const EFFECTIVE_SUBSCRIPTION_STATUSES = new Set<BillingStatus>([
+  BillingStatus.ACTIVE,
+  BillingStatus.TRIALING,
+  BillingStatus.PAST_DUE
+]);
+
 export class BillingService {
   constructor(
     private readonly repository: PrismaBillingRepository,
@@ -275,6 +281,19 @@ export class BillingService {
       throw new BillingError(404, "SUBSCRIPTION_NOT_FOUND", "Suscripción no encontrada para sincronización.");
     }
 
+    const shouldPromoteTarget =
+      EFFECTIVE_SUBSCRIPTION_STATUSES.has(target.status) ||
+      target.tenant.currentSubscriptionId === target.id;
+
+    if (!shouldPromoteTarget) {
+      logger.info("Billing: se mantiene snapshot actual del tenant para suscripción no efectiva", {
+        tenantId: target.tenantId,
+        subscriptionId: target.id,
+        status: target.status
+      });
+      return;
+    }
+
     const status = target.status;
     const planCode = target.plan.code;
     const planStartsAt = target.currentPeriodStart ?? target.createdAt;
@@ -298,6 +317,10 @@ export class BillingService {
 
     const legacySubscription = await this.repository.getLatestSubscriptionForTenant(tenantId);
     if (!legacySubscription) {
+      return null;
+    }
+
+    if (!EFFECTIVE_SUBSCRIPTION_STATUSES.has(legacySubscription.status)) {
       return null;
     }
 
@@ -456,14 +479,7 @@ export class BillingService {
           "subscription.sync",
           toJsonValue(snapshot.raw)
         );
-        await this.repository.setTenantBillingSnapshot({
-          tenantId: tenant.id,
-          billingStatus: subscription.status,
-          planCode: plan.code,
-          planStartsAt: subscription.currentPeriodStart ?? tenant.planStartsAt,
-          planEndsAt: subscription.currentPeriodEnd ?? tenant.planEndsAt,
-          currentSubscriptionId: subscription.id
-        });
+        await this.syncTenantWithSubscription(subscription.externalSubscriptionId);
         processed += 1;
       }
     }

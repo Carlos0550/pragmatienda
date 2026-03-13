@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Store, User, ChevronRight, ChevronLeft } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Store, User, ChevronRight, ChevronLeft, MailCheck, ArrowRight } from 'lucide-react';
 import { http } from '@/services/http';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -30,6 +30,10 @@ export default function AdminRegisterPage() {
   const [form, setForm] = useState(initialForm);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
+  const [createdAccount, setCreatedAccount] = useState<{
+    adminEmail: string;
+    businessName: string;
+  } | null>(null);
   const [nameAvailability, setNameAvailability] = useState<{
     checking: boolean;
     available: boolean | null;
@@ -39,8 +43,6 @@ export default function AdminRegisterPage() {
     available: null,
     message: '',
   });
-  const navigate = useNavigate();
-
   const trimmedBusinessName = useMemo(() => form.name.trim(), [form.name]);
 
   const update = (field: keyof CreateBusinessPayload) => (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -140,12 +142,15 @@ export default function AdminRegisterPage() {
       if (form.address?.trim()) payload.address = form.address.trim();
       if (form.province?.trim()) payload.province = form.province.trim();
 
-      await http.business.createBusiness(payload);
+      const response = await http.business.createBusiness(payload);
+      setCreatedAccount({
+        adminEmail: response.data?.adminEmail ?? payload.adminEmail,
+        businessName: payload.name,
+      });
       sileo.success({
         title: '¡Tienda creada!',
         description: 'Revisá tu email y verificá tu cuenta para ingresar al panel.',
       });
-      navigate('/admin/login');
     } catch (err) {
       const apiErr = err as ApiError;
       if (apiErr.errors) {
@@ -165,6 +170,56 @@ export default function AdminRegisterPage() {
       setLoading(false);
     }
   };
+
+  if (createdAccount) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-surface px-4 py-8">
+        <div className="w-full max-w-lg rounded-2xl border bg-card p-8 shadow-sm space-y-6">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+            <MailCheck className="h-8 w-8 text-primary" />
+          </div>
+
+          <div className="space-y-2 text-center">
+            <h1 className="text-2xl font-bold tracking-tight">Tu tienda ya fue creada</h1>
+            <p className="text-sm text-muted-foreground">
+              Enviamos un correo a <span className="font-medium text-foreground">{createdAccount.adminEmail}</span> para que actives tu cuenta de administrador.
+            </p>
+          </div>
+
+          <div className="rounded-xl border bg-muted/30 p-5 space-y-3">
+            <p className="text-sm font-medium">Próximos pasos</p>
+            <ol className="space-y-2 text-sm text-muted-foreground">
+              <li>1. Abrí el correo de bienvenida de {createdAccount.businessName}.</li>
+              <li>2. Hacé clic en el enlace de verificación.</li>
+              <li>3. Ingresá al panel y definí tu contraseña para completar la activación.</li>
+            </ol>
+          </div>
+
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <Button asChild className="flex-1">
+              <Link to="/">
+                Volver a la landing <ArrowRight className="ml-2 h-4 w-4" />
+              </Link>
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="flex-1"
+              onClick={() => {
+                setCreatedAccount(null);
+                setStep(1);
+                setForm(initialForm);
+                setErrors({});
+                setNameAvailability({ checking: false, available: null, message: '' });
+              }}
+            >
+              Crear otra tienda
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-surface px-4 py-8">

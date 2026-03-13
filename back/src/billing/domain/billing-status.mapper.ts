@@ -5,7 +5,7 @@ export const mapMercadoPagoPreapprovalStatus = (
 ): BillingStatus => {
   const normalized = (status ?? "").toLowerCase();
   if (normalized === "authorized") return BillingStatus.ACTIVE;
-  if (normalized === "pending") return BillingStatus.TRIALING;
+  if (normalized === "pending") return BillingStatus.INACTIVE;
   if (normalized === "paused") return BillingStatus.PAST_DUE;
   if (normalized === "cancelled") return BillingStatus.CANCELED;
   if (normalized === "expired") return BillingStatus.EXPIRED;

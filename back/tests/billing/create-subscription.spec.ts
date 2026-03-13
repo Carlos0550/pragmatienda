@@ -53,7 +53,7 @@ describe("BillingService.createSubscriptionForTenant", () => {
         id: "sub-local-1",
         tenantId: "tenant-1",
         externalSubscriptionId: "sub_mp_1",
-        status: BillingStatus.TRIALING,
+        status: BillingStatus.INACTIVE,
         currentPeriodStart: null,
         currentPeriodEnd: null,
         createdAt: new Date("2026-01-01T00:00:00.000Z"),
@@ -62,6 +62,18 @@ describe("BillingService.createSubscriptionForTenant", () => {
           id: "plan-starter",
           code: PlanType.STARTER,
           name: "Starter"
+        },
+        tenant: {
+          id: "tenant-1",
+          ownerId: "owner-1",
+          plan: PlanType.FREE,
+          billingStatus: BillingStatus.ACTIVE,
+          planStartsAt: new Date("2026-01-01T00:00:00.000Z"),
+          planEndsAt: null,
+          trialEndsAt: null,
+          currentSubscriptionId: "free-sub-1",
+          createdAt: new Date("2026-01-01T00:00:00.000Z"),
+          updatedAt: new Date("2026-01-01T00:00:00.000Z")
         }
       })),
       setTenantBillingSnapshot: vi.fn()
@@ -79,5 +91,6 @@ describe("BillingService.createSubscriptionForTenant", () => {
         planCode: PlanType.STARTER
       })
     );
+    expect(repository.setTenantBillingSnapshot).not.toHaveBeenCalled();
   });
 });
