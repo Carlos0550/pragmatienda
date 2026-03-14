@@ -84,11 +84,22 @@ export async function validateAndReserveStock(
 
 export async function createOrder(
   tx: PrismaTransactionClient,
-  tenantId: string,
-  userId: string
+  input: {
+    tenantId: string;
+    userId?: string | null;
+    guestName?: string | null;
+    guestEmail?: string | null;
+    guestPhone?: string | null;
+  }
 ): Promise<{ id: string }> {
   const order = await tx.order.create({
-    data: { tenantId, userId },
+    data: {
+      tenantId: input.tenantId,
+      userId: input.userId ?? null,
+      guestName: input.guestName ?? null,
+      guestEmail: input.guestEmail ?? null,
+      guestPhone: input.guestPhone ?? null
+    },
     select: { id: true }
   });
   return order;

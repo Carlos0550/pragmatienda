@@ -35,14 +35,7 @@ export function AppRoutes() {
         <Route path="/products/:slug" element={<ProductDetailPage />} />
         <Route path="/category/:slug" element={<CategoryProductsPage />} />
         <Route path="/cart" element={<CartPage />} />
-        <Route
-          path="/checkout"
-          element={
-            <ProtectedRoute requiredRole="customer">
-              <CheckoutPage />
-            </ProtectedRoute>
-          }
-        />
+        <Route path="/checkout" element={<CheckoutPage />} />
         <Route
           path="/profile"
           element={

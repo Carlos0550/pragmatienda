@@ -8,6 +8,7 @@ import type {
   BillingSubscriptionCreateResponse,
   CartCheckoutResponse,
   CartResponse,
+  GuestCheckoutPayload,
   CategoriesListResponse,
   ListCategoriesParams,
   ListProductsParams,
@@ -172,11 +173,22 @@ export const http = {
       return response.data;
     },
     patchItemDelta: (productId: string, delta: number) => api.patch('/cart/items', { productId, delta }),
-    checkout: async (comprobante?: File | null, origin: 'cart' | 'sale' = 'cart', paymentProvider?: string) => {
+    checkout: async (
+      comprobante?: File | null,
+      origin: 'cart' | 'sale' = 'cart',
+      paymentProvider?: string,
+      guestCheckout?: GuestCheckoutPayload
+    ) => {
       const formData = new FormData();
       formData.append('origin', origin);
       if (origin === 'sale' && paymentProvider) {
         formData.append('paymentProvider', paymentProvider);
+      }
+      if (guestCheckout) {
+        formData.append('name', guestCheckout.name);
+        formData.append('email', guestCheckout.email);
+        formData.append('phone', guestCheckout.phone);
+        formData.append('createAccountAfterPurchase', guestCheckout.createAccountAfterPurchase ? 'true' : 'false');
       }
       if (comprobante && comprobante.size > 0) formData.append('comprobante', comprobante);
       const idempotencyKey = crypto.randomUUID();

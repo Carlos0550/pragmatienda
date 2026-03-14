@@ -16,6 +16,8 @@ const DEFAULT_FAVICON_URL = 'https://console-production-c5c6.up.railway.app/api/
 export function StorefrontLayout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { tenant, loading, isLandingDomain, storeNotFound } = useTenant();
+  const { itemCount, fetchCart } = useCart();
+  const { user } = useAuth();
 
   // Favicon del negocio en todas las rutas del storefront (subdominio), o favicon por defecto Pragmatienda
   useEffect(() => {
@@ -44,9 +46,12 @@ export function StorefrontLayout() {
     }
   }, [tenant?.name]);
 
-  const { itemCount } = useCart();
-  const { user } = useAuth();
   const location = useLocation();
+
+  useEffect(() => {
+    if (loading || isLandingDomain || storeNotFound || !tenant?.id) return;
+    void fetchCart();
+  }, [fetchCart, isLandingDomain, loading, storeNotFound, tenant?.id]);
 
   if (isLandingDomain) {
     if (location.pathname !== '/') return <Navigate to="/" replace />;

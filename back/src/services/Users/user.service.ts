@@ -5,6 +5,7 @@ import { prisma } from "../../db/prisma";
 import { sendMail } from "../../mail/mailer";
 import { generateSecureString } from "../../utils/security.utils";
 import { buildPasswordRecoveryEmailHtml, buildWelcomeUserEmailHtml } from "../../utils/template.utils";
+import { cartService } from "../Cart/cart.service";
 import { changePasswordSchema, loginSchema, publicRegisterUserSchema, recoverPasswordSchema, resetPasswordWithTokenSchema, updateUserSchema } from "./user.zod";
 import { z } from "zod";
 import { getPlatformBaseUrl, getStoreBaseUrl } from "../../utils/storefront.utils";
@@ -295,7 +296,8 @@ class UserService{
     async login(
         data: z.infer<typeof loginSchema>,
         tenantId?: string | null,
-        role = 2
+        role = 2,
+        guestCartToken?: string | null
     ): Promise<ServiceResponse>{
         try {
             if (!tenantId) {
@@ -331,7 +333,18 @@ class UserService{
                 return { status: 403, message: "Cuenta no verificada." };
             }
             const token = await createSessionToken({ id: matchedUser.id, email: matchedUser.email, role: matchedUser.role });
-            return { status: 200, message: "Login exitoso.", data: { token } };
+            const mergedGuestCart = role === 2
+                ? await cartService.mergeGuestCartToUser(tenantId, matchedUser.id, guestCartToken)
+                : { merged: false, clearGuestCart: false };
+            return {
+                status: 200,
+                message: "Login exitoso.",
+                data: {
+                    token,
+                    mergedGuestCart: mergedGuestCart.merged,
+                    clearGuestCart: mergedGuestCart.clearGuestCart
+                }
+            };
         } catch (error) {
             const err = error as Error
             logger.error("Error catched en login service: ", err.message)

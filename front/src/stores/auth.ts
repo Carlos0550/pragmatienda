@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { api } from '@/services/api';
 import { http } from '@/services/http';
 import { capitalizeName } from '@/lib/utils';
+import { useCartStore } from '@/stores/cart';
 import type { AuthState, AuthUser, User } from '@/types';
 
 const PASSWORD_SETUP_STORAGE_KEY = 'pragmatienda_password_setup_token';
@@ -56,6 +57,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   logout: () => {
     api.setToken(null);
     writePasswordSetupToken(null);
+    useCartStore.setState({ cart: null });
     set({ user: null, passwordSetupToken: null });
   },
 
@@ -94,6 +96,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const user = await fetchUserFromMe();
     if (!user) throw new Error('No se pudo obtener el usuario');
     set({ user });
+    await useCartStore.getState().fetchCart();
   },
 }));
 

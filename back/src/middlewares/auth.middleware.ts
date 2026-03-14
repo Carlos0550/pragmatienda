@@ -51,6 +51,21 @@ export const requireRole = (allowedRoles: number[]) => {
   };
 };
 
+export const attachAuthenticatedUserOptional = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const payload = await resolveAuthenticatedUser(req);
+    if (payload) {
+      (req as Request & { user?: SessionUserPayload }).user = payload;
+    }
+    return next();
+  } catch (error) {
+    if ((error as Error).message === "SESSION_INACTIVE") {
+      return res.status(401).json({ message: "Sesion de autenticacion invalida" });
+    }
+    return res.status(401).json({ message: "Token de autenticacion invalido" });
+  }
+};
+
 export const requireSuperAdmin = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const payload = await resolveAuthenticatedUser(req);

@@ -376,6 +376,13 @@ export type CartResponse = ApiEnvelope<Cart>;
 export type CartItemPatchResponse = ApiEnvelope<{ id?: string; quantity: number; productId?: string }>;
 export type CartCheckoutResponse = ApiEnvelope<{ order: string } | { saleIds: string[] }>;
 
+export interface GuestCheckoutPayload {
+  name: string;
+  email: string;
+  phone: string;
+  createAccountAfterPurchase: boolean;
+}
+
 export type PaymentProvider = 'MERCADOPAGO_INTEGRATION' | 'BANK_TRANSFER' | 'CASH' | 'DEBIT_CARD' | 'CREDIT_CARD' | 'OTHER';
 
 export interface SaleItemProduct {
@@ -543,7 +550,7 @@ export interface CartState {
   addItem: (productId: string, quantity: number) => Promise<void>;
   updateItem: (productId: string, quantity: number) => Promise<void>;
   removeItem: (productId: string) => Promise<void>;
-  checkout: (comprobante: File) => Promise<{ orderId: string }>;
+  checkout: (comprobante: File, guestCheckout?: GuestCheckoutPayload) => Promise<{ orderId: string }>;
   totalCartItems: () => number;
   totalCart: () => number;
 }

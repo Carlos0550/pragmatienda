@@ -1,20 +1,34 @@
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Upload, CheckCircle, ImageIcon, X } from 'lucide-react';
+import { Upload, CheckCircle, X } from 'lucide-react';
 import { useCart } from '@/contexts/CartContext';
-import { http } from '@/services/http';
+import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { sileo } from 'sileo';
 import { motion } from 'framer-motion';
 
 export default function CheckoutPage() {
   const { cart, checkout, totalCart } = useCart();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const fileRef = useRef<HTMLInputElement>(null);
   const [comprobante, setComprobante] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [guestName, setGuestName] = useState('');
+  const [guestEmail, setGuestEmail] = useState('');
+  const [guestPhone, setGuestPhone] = useState('');
+  const [createAccountAfterPurchase, setCreateAccountAfterPurchase] = useState(false);
+
+  useEffect(() => {
+    if (!user || user.type !== 'customer') return;
+    setGuestName(user.name ?? '');
+    setGuestEmail(user.email ?? '');
+    setGuestPhone(user.phone ?? '');
+  }, [user]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -31,26 +45,31 @@ export default function CheckoutPage() {
       sileo.error({ title: 'Subí el comprobante de pago' });
       return;
     }
+    if (!user) {
+      if (!guestName.trim() || !guestEmail.trim() || !guestPhone.trim()) {
+        sileo.error({ title: 'Completá nombre, email y teléfono para continuar' });
+        return;
+      }
+    }
     setSubmitting(true);
     try {
-      const res = await checkout(comprobante);
+      await checkout(
+        comprobante,
+        user
+          ? undefined
+          : {
+              name: guestName.trim(),
+              email: guestEmail.trim().toLowerCase(),
+              phone: guestPhone.trim(),
+              createAccountAfterPurchase,
+            }
+      );
       setSuccess(true);
       sileo.success({ title: '¡Pedido realizado con éxito!' });
     } catch {
       sileo.error({ title: 'Error al procesar el pedido' });
     } finally {
       setSubmitting(false);
-    }
-  };
-
-  const handleMPCheckout = async (orderId: string) => {
-    try {
-      const result = await http.payments.createCheckout(orderId);
-      if (result.checkoutUrl) {
-        window.location.href = result.checkoutUrl;
-      }
-    } catch {
-      sileo.error({ title: 'Error al iniciar pago con Mercado Pago' });
     }
   };
 
@@ -97,6 +116,61 @@ export default function CheckoutPage() {
 
       {/* Upload comprobante */}
       <div className="rounded-xl border bg-card p-6 space-y-4">
+        {!user && (
+          <div className="space-y-4 border-b pb-6">
+            <div>
+              <h2 className="font-semibold">Tus datos</h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                No necesitás una cuenta para comprar. Solo usamos estos datos para registrar tu pedido y contactarte.
+              </p>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="guest-name">Nombre</Label>
+                <Input
+                  id="guest-name"
+                  value={guestName}
+                  onChange={(e) => setGuestName(e.target.value)}
+                  placeholder="Tu nombre"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="guest-email">Email</Label>
+                <Input
+                  id="guest-email"
+                  type="email"
+                  value={guestEmail}
+                  onChange={(e) => setGuestEmail(e.target.value)}
+                  placeholder="tu@email.com"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="guest-phone">Teléfono</Label>
+                <Input
+                  id="guest-phone"
+                  value={guestPhone}
+                  onChange={(e) => setGuestPhone(e.target.value)}
+                  placeholder="+54 9 ..."
+                />
+              </div>
+            </div>
+            <label className="flex items-start gap-3 rounded-lg border bg-muted/20 p-3 text-sm">
+              <input
+                type="checkbox"
+                checked={createAccountAfterPurchase}
+                onChange={(e) => setCreateAccountAfterPurchase(e.target.checked)}
+                className="mt-1"
+              />
+              <span>
+                Crear una cuenta automáticamente después de la compra.
+                <span className="block text-xs text-muted-foreground mt-1">
+                  Si la marcás, vamos a enviarte un email para verificar tu cuenta y definir tu contraseña.
+                </span>
+              </span>
+            </label>
+          </div>
+        )}
+
         <h2 className="font-semibold">Comprobante de pago</h2>
         <p className="text-sm text-muted-foreground">
           Realizá la transferencia y subí el comprobante para confirmar tu pedido.

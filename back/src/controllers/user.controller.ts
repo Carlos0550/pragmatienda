@@ -8,6 +8,7 @@ import { logger } from "../config/logger";
 import { prisma } from "../db/prisma";
 import { decryptString } from "../config/security";
 import { generateSecureString } from "../utils/security.utils";
+import { clearGuestCartCookie, getGuestCartTokenFromRequest } from "../utils/guest-cart.utils";
 import { getPublicObjectFromDefaultBucket, uploadPublicObject } from "../storage/minio";
 import { getPlatformBaseUrl, getStoreBaseUrl } from "../utils/storefront.utils";
 
@@ -173,7 +174,12 @@ class UserController{
             }
 
             const tenantId = req.tenantId;
-            const result = await userService.login(parsed.data, tenantId)
+            const guestCartToken = getGuestCartTokenFromRequest(req);
+            const result = await userService.login(parsed.data, tenantId, 2, guestCartToken)
+            const resultData = result.data as { clearGuestCart?: boolean } | undefined;
+            if (resultData?.clearGuestCart) {
+                clearGuestCartCookie(res);
+            }
 
             return res.status(result.status).json({
                 result

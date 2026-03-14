@@ -102,6 +102,7 @@ model Tenant {
   businessData       BusinessData?     @relation("TenantBusiness")
   products           Products[]        @relation("TenantProducts")
   cart               Cart[]            @relation("TenantCart")
+  guestCarts         GuestCart[]       @relation("TenantGuestCart")
   order              Order[]           @relation("TenantOrder")
   paymentEvents      PaymentEvent[]    @relation("TenantPaymentEvents")
   idempotencyKeys    IdempotencyKey[]  @relation("TenantIdempotencyKeys")
@@ -211,6 +212,7 @@ model Products {
   tenant Tenant @relation("TenantProducts", fields: [tenantId], references: [id], onDelete: Cascade)
   category ProductsCategory? @relation("ProductsCategory", fields: [categoryId], references: [id], onDelete: SetNull)
   cart CartItem[] @relation("ProductCartItems") //pendiente hacer migracion de indices
+  guestCartItems GuestCartItem[] @relation("ProductGuestCartItems")
   @@index([name])
   @@index([slug])
   @@index([barCode])
@@ -250,10 +252,42 @@ model CartItem{
   @@unique([cartId, productId])
 }
 
+model GuestCart {
+  id String @id @default(cuid())
+  tenantId String
+  token String
+  items GuestCartItem[] @relation("GuestCartItems")
+  tenant Tenant @relation("TenantGuestCart", fields: [tenantId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+  @@unique([token])
+  @@unique([tenantId, token])
+}
+
+model GuestCartItem {
+  id String @id @default(cuid())
+  guestCartId String
+  guestCart GuestCart @relation("GuestCartItems", fields: [guestCartId], references: [id], onDelete: Cascade)
+  productId String
+  product Products @relation("ProductGuestCartItems", fields: [productId], references: [id], onDelete: Cascade)
+  quantity Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([guestCartId])
+  @@index([productId])
+  @@unique([guestCartId, productId])
+}
+
 model Order{
   id String @id @default(cuid())
   tenantId String
-  userId String
+  userId String?
+  guestName String?
+  guestEmail String?
+  guestPhone String?
   
   status OrderStatus @default(PENDING)
   fulfillmentStatus FulfillmentStatus @default(UNFULFILLED)
@@ -270,7 +304,7 @@ model Order{
   deliveredAt DateTime?
   items OrderItem[] @relation("OrderItems")
   sales Sales[] @relation("OrderSales")
-  user User @relation("UserOrder", fields: [userId], references: [id], onDelete: Cascade)
+  user User? @relation("UserOrder", fields: [userId], references: [id], onDelete: SetNull)
   tenant Tenant @relation("TenantOrder", fields: [tenantId], references: [id], onDelete: Cascade)
   paymentEvents PaymentEvent[] @relation("OrderPaymentEvents")
   payments Payment[] @relation("OrderPayments")

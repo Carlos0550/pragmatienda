@@ -2,31 +2,18 @@ import React, { useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Trash2, Minus, Plus, ShoppingBag, ArrowRight } from 'lucide-react';
 import { useCart } from '@/contexts/CartContext';
-import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
 import { capitalizeName } from '@/lib/utils';
 import { StorefrontLoader } from '@/components/StorefrontLoader';
 
 export default function CartPage() {
-  const { cart, itemCount, loading, fetchCart, updateItem, removeItem, totalCartItems, totalCart } = useCart();
-  const { user } = useAuth();
+  const { cart, loading, fetchCart, updateItem, removeItem, totalCartItems, totalCart } = useCart();
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (user) fetchCart();
-  }, [user, fetchCart]);
-
-  if (!user) {
-    return (
-      <div className="container mx-auto px-4 py-16 text-center">
-        <ShoppingBag className="h-12 w-12 mx-auto mb-4 text-muted-foreground/30" />
-        <h1 className="text-2xl font-bold mb-2">Tu Carrito</h1>
-        <p className="text-muted-foreground mb-6">Iniciá sesión para ver tu carrito.</p>
-        <Link to="/login"><Button>Iniciar sesión</Button></Link>
-      </div>
-    );
-  }
+    void fetchCart();
+  }, [fetchCart]);
 
   if(loading) {
     return (

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { http } from '@/services/http';
-import type { CartItem, CartState } from '@/types';
+import type { CartItem, CartState, GuestCheckoutPayload } from '@/types';
 
 export const useCartStore = create<CartState>((set) => ({
   cart: null,
@@ -57,10 +57,10 @@ export const useCartStore = create<CartState>((set) => ({
     }
   },
 
-  checkout: async (comprobante: File) => {
+  checkout: async (comprobante: File, guestCheckout?: GuestCheckoutPayload) => {
     set({ loading: true });
     try {
-      const result = await http.cart.checkout(comprobante);
+      const result = await http.cart.checkout(comprobante, 'cart', undefined, guestCheckout);
       set({ cart: null });
       return result;
     } finally {

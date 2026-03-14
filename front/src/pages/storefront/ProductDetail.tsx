@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ShoppingCart, Minus, Plus, ArrowLeft } from 'lucide-react';
 import { useCart } from '@/contexts/CartContext';
-import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
 import { sileo } from 'sileo';
@@ -14,14 +13,9 @@ export default function ProductDetailPage() {
   const [quantity, setQuantity] = useState(1);
   const [selectedImage, setSelectedImage] = useState(0);
   const { addItem } = useCart();
-  const { user } = useAuth();
   const { data: product, isLoading: loading } = useStorefrontProductDetail(slug);
 
   const handleAddToCart = async () => {
-    if (!user) {
-      sileo.error({ title: 'Iniciá sesión para agregar productos al carrito' });
-      return;
-    }
     if (!product) return;
     try {
       await addItem(product.id, quantity);

@@ -3,17 +3,17 @@ import { z } from "zod";
 import { cartController } from "../controllers/cart.controller";
 import { openApiRegistry } from "../docs/swagger";
 import {
+  attachAuthenticatedUserOptional,
   requireComprobante,
   requireIdempotencyKey,
-  requireRole,
   requireTenant,
   uploadComprobanteOptionalMiddleware
 } from "../middlewares";
-import { patchCartItemsSchema, deleteCartItemsSchema } from "../services/Cart/cart.zod";
+import { deleteCartItemsSchema, guestCheckoutDetailsSchema, patchCartItemsSchema } from "../services/Cart/cart.zod";
 
 const cartHeaders = z.object({
   "x-tenant-id": z.string(),
-  Authorization: z.string()
+  Authorization: z.string().optional()
 });
 const checkoutHeaders = cartHeaders.extend({
   "idempotency-key": z.string().min(8)
@@ -86,7 +86,11 @@ openApiRegistry.registerPath({
       content: {
         "multipart/form-data": {
           schema: z.object({
-            comprobante: z.any().openapi({ type: "string", format: "binary" })
+            comprobante: z.any().openapi({ type: "string", format: "binary" }),
+            name: guestCheckoutDetailsSchema.shape.name.optional(),
+            email: guestCheckoutDetailsSchema.shape.email.optional(),
+            phone: guestCheckoutDetailsSchema.shape.phone.optional(),
+            createAccountAfterPurchase: guestCheckoutDetailsSchema.shape.createAccountAfterPurchase.optional()
           })
         }
       }
@@ -100,18 +104,18 @@ openApiRegistry.registerPath({
 
 const router = Router();
 
-router.use(requireRole([1, 2]));
+router.use(attachAuthenticatedUserOptional);
 router.use(requireTenant);
 
-router.get("/", cartController.getCart);
-router.delete("/items", cartController.deleteItems);
-router.patch("/items", cartController.patchItems);
+router.get("/", cartController.getCart.bind(cartController));
+router.delete("/items", cartController.deleteItems.bind(cartController));
+router.patch("/items", cartController.patchItems.bind(cartController));
 router.post(
   "/checkout",
   uploadComprobanteOptionalMiddleware,
   requireComprobante,
   requireIdempotencyKey("cart.checkout"),
-  cartController.checkout
+  cartController.checkout.bind(cartController)
 );
 
 export { router as cartRouter };
