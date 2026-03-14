@@ -111,6 +111,7 @@ class UserService{
                 const existingUser = await tx.user.findFirst({
                     where: {
                         email: userData.email,
+                        role: 2,
                         tenantId
                     }
                 });

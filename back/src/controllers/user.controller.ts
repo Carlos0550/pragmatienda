@@ -33,7 +33,7 @@ class UserController{
 
             const payload = {
                 name: capitalizeWords(name),
-                email: email.toLowerCase(),
+                email: email.toLowerCase().trim(),
                 phone: phone ? toE164Argentina(normalizeText(phone)) ?? undefined : undefined,
                 password,
                 passwordConfirmation
