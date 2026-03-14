@@ -1,5 +1,3 @@
-import { api } from '@/services/api';
-import { normalizeCategories, normalizeCategory, normalizeProducts } from '@/lib/api-utils';
 import type {
   ApiEnvelope,
   AdminLoginResponse,
@@ -44,6 +42,8 @@ import type {
   ValidateResetPasswordTokenPayload,
   ValidateResetPasswordTokenResponse,
 } from '@/types';
+import { normalizeCategories, normalizeCategory, normalizeProducts } from '@/lib/api-utils';
+import { api } from '@/services/api';
 
 function buildProductParams(params?: ListProductsParams): QueryParams {
   const query: QueryParams = {};
@@ -108,7 +108,8 @@ export const http = {
     checkBusinessNameAvailability: (website: string) =>
       api.get<BusinessNameAvailabilityResponse>('/public/platform/businesses/availability', { website }),
     getAdminBusiness: () => api.get<Tenant>('/admin/business'),
-    updateAdminBusiness: (formData: FormData) => api.putMultipart('/admin/business/manage', formData),
+    updateAdminBusiness: (formData: FormData) =>
+      api.putMultipart<ApiEnvelope<{ website?: string | null }>>('/admin/business/manage', formData),
     improveSeoDescription: (payload?: {
       currentText?: string;
       businessSummary?: string;

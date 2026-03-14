@@ -12,9 +12,9 @@ export function BillingRequiredScreen() {
         <div className="mx-auto w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
           <AlertTriangle className="h-8 w-8 text-primary" />
         </div>
-        <h1 className="text-2xl font-bold">Suscripción Requerida</h1>
+        <h1 className="text-2xl font-bold">Revisá tu suscripción</h1>
         <p className="text-muted-foreground">
-          Tu suscripción ha vencido o no tienes un plan activo. Para continuar usando la plataforma, activa tu suscripción.
+          Tu suscripción necesita atención para seguir usando funciones administrativas de la plataforma. Revisá tu estado de facturación y actualizá tu plan si hace falta.
         </p>
         <div className="flex flex-col gap-3">
           <Button asChild size="lg">

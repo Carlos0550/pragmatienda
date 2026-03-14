@@ -11,6 +11,7 @@ export interface ApiError {
   message: string;
   errors?: ApiFieldErrors;
   suggestions?: string[];
+  data?: unknown;
 }
 
 export type ApiRequestBody =

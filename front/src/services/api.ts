@@ -50,7 +50,7 @@ class ApiService {
           message?: string;
           error?: string;
           err?: Record<string, string[]>;
-          data?: { suggestions?: string[] };
+          data?: { suggestions?: string[]; feature?: string } | Record<string, unknown>;
           result?: { message?: string; error?: string; err?: Record<string, string[]> };
         };
         const backendMessage =
@@ -61,22 +61,41 @@ class ApiService {
           'Error del servidor';
         const backendErrors = payload.err || payload.result?.err;
         const suggestions = payload.data?.suggestions;
+        const isFeatureRestricted = Boolean(payload.data && typeof payload.data === 'object' && 'feature' in payload.data);
         if (status === 401) {
           this.onUnauthorized?.();
-          return Promise.reject({ status: 401, message: backendMessage || 'Sesión expirada', errors: backendErrors } as ApiError);
+          return Promise.reject({
+            status: 401,
+            message: backendMessage || 'Sesión expirada',
+            errors: backendErrors,
+            data: payload.data,
+          } as ApiError);
         }
         if (status === 402) {
-          this.onBillingRequired?.();
-          return Promise.reject({ status: 402, message: backendMessage || 'Suscripción requerida', errors: backendErrors } as ApiError);
+          if (!isFeatureRestricted) {
+            this.onBillingRequired?.();
+          }
+          return Promise.reject({
+            status: 402,
+            message: backendMessage || 'Suscripción requerida',
+            errors: backendErrors,
+            data: payload.data,
+          } as ApiError);
         }
         if (status === 403) {
-          return Promise.reject({ status: 403, message: backendMessage || 'Acceso denegado', errors: backendErrors } as ApiError);
+          return Promise.reject({
+            status: 403,
+            message: backendMessage || 'Acceso denegado',
+            errors: backendErrors,
+            data: payload.data,
+          } as ApiError);
         }
         return Promise.reject({
           status,
           message: backendMessage,
           errors: backendErrors,
           ...(suggestions?.length ? { suggestions } : {}),
+          data: payload.data,
         } as ApiError);
       }
     );

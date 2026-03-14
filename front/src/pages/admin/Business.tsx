@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
+import { api } from '@/services/api';
 import { http } from '@/services/http';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,7 +16,17 @@ import {
 import { sileo } from 'sileo';
 import { toFormErrors } from '@/lib/api-utils';
 import { getStoreBaseUrl, normalizeStoreSubdomain } from '@/lib/storefront';
-import type { ApiError, BankOption, BannerOverlayPosition, BusinessBanner, BusinessFormState, BusinessPreviewsState, FormErrors, Tenant } from '@/types';
+import type {
+  ApiError,
+  BankOption,
+  BannerOverlayPosition,
+  BusinessBanner,
+  BusinessFormState,
+  BusinessPreviewsState,
+  FormErrors,
+  Tenant,
+  TenantCapabilitiesResponse,
+} from '@/types';
 import { Landmark, Plus, Trash2 } from 'lucide-react';
 import {
   Select,
@@ -172,6 +184,25 @@ function toBusinessFormState(data: Tenant): BusinessFormState {
   };
 }
 
+function buildBusinessRedirectUrl(subdomain: string) {
+  if (typeof window === 'undefined') return null;
+
+  const currentUrl = new URL(window.location.href);
+  const targetUrl = new URL(`${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`, `${getStoreBaseUrl(subdomain)}/`);
+  const sessionToken = api.getToken();
+
+  if (sessionToken) {
+    targetUrl.searchParams.set('sessionToken', sessionToken);
+  }
+  targetUrl.searchParams.set('businessUpdated', '1');
+
+  return {
+    currentOrigin: currentUrl.origin,
+    targetOrigin: targetUrl.origin,
+    href: targetUrl.toString(),
+  };
+}
+
 export default function BusinessPage() {
   const [form, setForm] = useState<BusinessFormState>({
     name: '', website: '', storeUrl: '',
@@ -189,6 +220,7 @@ export default function BusinessPage() {
   const [initial, setInitial] = useState<typeof form | null>(null);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
+  const [capabilities, setCapabilities] = useState<TenantCapabilitiesResponse | null>(null);
   const [seoModalOpen, setSeoModalOpen] = useState(false);
   const [seoAssistantLoading, setSeoAssistantLoading] = useState(false);
   const [seoAssistant, setSeoAssistant] = useState({
@@ -215,8 +247,28 @@ export default function BusinessPage() {
   }, []);
 
   useEffect(() => {
+    http.billing.getCapabilities()
+      .then((cap) => {
+        if (cap && 'usage' in cap && cap.usage) setCapabilities(cap as TenantCapabilitiesResponse);
+        else setCapabilities(null);
+      })
+      .catch(() => setCapabilities(null));
+  }, []);
+
+  useEffect(() => {
     previewsRef.current = previews;
   }, [previews]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const currentUrl = new URL(window.location.href);
+    if (currentUrl.searchParams.get('businessUpdated') !== '1') return;
+
+    sileo.success({ title: 'Negocio actualizado' });
+    currentUrl.searchParams.delete('businessUpdated');
+    window.history.replaceState({}, '', `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`);
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -332,7 +384,18 @@ export default function BusinessPage() {
         return;
       }
 
-      await http.business.updateAdminBusiness(formData);
+      const previousWebsite = normalizeStoreSubdomain(initial?.website ?? '');
+      const response = await http.business.updateAdminBusiness(formData);
+      const updatedWebsite = normalizeStoreSubdomain(response.data?.website ?? form.website);
+
+      if (updatedWebsite && updatedWebsite !== previousWebsite) {
+        const redirect = buildBusinessRedirectUrl(updatedWebsite);
+        if (redirect && redirect.targetOrigin !== redirect.currentOrigin) {
+          window.location.replace(redirect.href);
+          return;
+        }
+      }
+
       sileo.success({ title: 'Negocio actualizado' });
       const data = await http.business.getAdminBusiness();
       const next = toBusinessFormState(data);
@@ -437,6 +500,7 @@ export default function BusinessPage() {
   const seoImageSrc = previews.seoImage || form.seoImage;
   const faviconSrc = previews.favicon || form.favicon;
   const storeUrlPreview = form.website.trim() ? getStoreBaseUrl(form.website) : form.storeUrl;
+  const seoFeatureEnabled = capabilities?.features?.seo === true;
 
   const handleClearAsset = async (asset: 'logo' | 'favicon' | 'seoImage') => {
     const flag = asset === 'logo' ? 'clearLogo' : asset === 'favicon' ? 'clearFavicon' : 'clearSeoImage';
@@ -466,6 +530,10 @@ export default function BusinessPage() {
   };
 
   const handleImproveSeoWithIa = async () => {
+    if (!seoFeatureEnabled) {
+      sileo.info({ title: 'Actualizá tu suscripción para usar funciones con IA' });
+      return;
+    }
     try {
       setSeoAssistantLoading(true);
       const payload = {
@@ -804,10 +872,26 @@ export default function BusinessPage() {
                   placeholder="Descripción breve para metatags y compartidos."
                 />
                 <div className="flex justify-end">
-                  <Button type="button" variant="outline" size="sm" onClick={() => setSeoModalOpen(true)}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setSeoModalOpen(true)}
+                    disabled={!seoFeatureEnabled}
+                    title={!seoFeatureEnabled ? 'Actualizá tu suscripción para usar funciones con IA.' : undefined}
+                  >
                     Mejorar con IA
                   </Button>
                 </div>
+                {!seoFeatureEnabled && (
+                  <p className="text-xs text-muted-foreground text-right">
+                    Actualizá tu suscripción para usar funciones con IA.
+                    {' '}
+                    <Link to="/admin/billing" className="text-primary hover:underline">
+                      Ver planes
+                    </Link>
+                  </p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label>Facebook</Label>
@@ -891,7 +975,7 @@ export default function BusinessPage() {
         </Button>
       </form>
 
-      <Dialog open={seoModalOpen} onOpenChange={setSeoModalOpen}>
+      <Dialog open={seoFeatureEnabled && seoModalOpen} onOpenChange={setSeoModalOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Mejorar descripción SEO con IA</DialogTitle>
