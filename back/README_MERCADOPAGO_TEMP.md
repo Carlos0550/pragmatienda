@@ -16,10 +16,14 @@ Este documento es temporal y está pensado como checklist de implementación.
 En tu `.env` del backend:
 
 ```env
+# Storefront / dominio público
+STOREFRONT_PROTOCOL=https
+STOREFRONT_ROOT_DOMAIN=pragmatienda.com
+STOREFRONT_PORT=
+
 # Marketplace OAuth (cada tienda conecta su cuenta)
 MP_CLIENT_ID=
 MP_CLIENT_SECRET=
-MP_REDIRECT_URI=
 
 # Webhook global MP (si configuras firma, recomendado)
 MP_WEBHOOK_SECRET=
@@ -32,19 +36,19 @@ MP_ENV=sandbox
 
 # Billing SaaS (cuenta plataforma)
 MP_BILLING_ACCESS_TOKEN=
-MP_BILLING_SUCCESS_URL=
 MP_BILLING_REASON_PREFIX=Pragmatienda
 MP_BILLING_SEND_PAYER_EMAIL=
 
 # Política de acceso para estados past_due
 BILLING_ALLOW_PAST_DUE=false
-
-# URL backend pública (para notification_url)
-BACKEND_URL=
 ```
 
 Notas:
-- `MP_CLIENT_ID/SECRET/REDIRECT_URI` -> OAuth marketplace.
+- `STOREFRONT_*` -> define la URL pública de plataforma y tiendas. Desde ahí el backend deriva:
+  - callback OAuth: `${platformUrl}/api/payments/mercadopago/callback`
+  - webhook: `${platformUrl}/api/payments/webhooks/mercadopago`
+  - success URL de billing por tenant: `${storeUrl}/admin/billing`
+- `MP_CLIENT_ID/SECRET` -> OAuth marketplace.
 - `MP_BILLING_ACCESS_TOKEN` -> token fijo de la cuenta plataforma para billing.
 - `MP_BILLING_SEND_PAYER_EMAIL` -> opcional. Si no se define, en `MP_ENV=sandbox` se envía `false` y en `MP_ENV=production` se envía `true`.
 - `MP_BILLING_SEND_PAYER_EMAIL=false` -> útil en sandbox para no forzar que el pagador use el mismo email del owner del tenant.
@@ -58,13 +62,13 @@ Necesitas una aplicación MP para OAuth con:
 
 1. `Client ID`
 2. `Client Secret`
-3. Redirect URI permitido (debe coincidir exacto con `MP_REDIRECT_URI`)
+3. Redirect URI permitido (debe coincidir exacto con la URL derivada desde `STOREFRONT_*`)
 
 Redirect URI que usa el backend:
 - `GET /api/payments/mercadopago/callback`
 
 Ejemplo completo:
-- `https://api.tudominio.com/api/payments/mercadopago/callback`
+- `https://pragmatienda.com/api/payments/mercadopago/callback`
 
 ## 3.2 Billing SaaS (cuenta plataforma)
 
@@ -140,8 +144,8 @@ Requisitos para crear suscripción:
 ## 6) Checklist final de producción
 
 - [ ] `MP_ENV=production`
-- [ ] `BACKEND_URL` pública y con TLS
-- [ ] `MP_REDIRECT_URI` exacta en panel y `.env`
+- [ ] `STOREFRONT_*` apunta al dominio público real y con TLS
+- [ ] redirect URI exacta configurada en el panel de Mercado Pago
 - [ ] webhook configurado en MP al endpoint global
 - [ ] `MP_WEBHOOK_SECRET` cargado
 - [ ] `MP_BILLING_ACCESS_TOKEN` de producción cargado

@@ -89,7 +89,7 @@ export class MercadoPagoBillingProvider implements BillingProvider {
       body: {
         reason,
         auto_recurring: toAutoRecurring(plan.interval, plan.amount, plan.currency),
-        back_url: env.MP_BILLING_SUCCESS_URL ?? getPlatformBaseUrl()
+        back_url: getPlatformBaseUrl()
       }
     }).catch((error) => {
       throw this.toProviderError(error);
@@ -117,7 +117,7 @@ export class MercadoPagoBillingProvider implements BillingProvider {
       updatePreApprovalPlanRequest: {
         reason,
         auto_recurring: toAutoRecurring(plan.interval, plan.amount, plan.currency),
-        back_url: env.MP_BILLING_SUCCESS_URL ?? getPlatformBaseUrl()
+        back_url: getPlatformBaseUrl()
       }
     }).catch((error) => {
       throw this.toProviderError(error);
@@ -143,7 +143,7 @@ export class MercadoPagoBillingProvider implements BillingProvider {
 
     const preApproval = new PreApproval(this.getConfig());
     const reasonPrefix = env.MP_BILLING_REASON_PREFIX || "Pragmatienda";
-    const backUrl = input.storeSuccessUrl || env.MP_BILLING_SUCCESS_URL || getPlatformBaseUrl();
+    const backUrl = input.storeSuccessUrl || getPlatformBaseUrl();
     const shouldSendPayerEmail = env.MP_BILLING_SEND_PAYER_EMAIL;
     const body: PreApprovalCreateBody = {
       reason: `${reasonPrefix} - ${input.planName}`,
@@ -179,7 +179,7 @@ export class MercadoPagoBillingProvider implements BillingProvider {
     input: BillingSubscriptionInput
   ): Promise<BillingSubscriptionResponse> {
     const preApproval = new PreApproval(this.getConfig());
-    const backUrl = input.storeSuccessUrl || env.MP_BILLING_SUCCESS_URL || getPlatformBaseUrl();
+    const backUrl = input.storeSuccessUrl || getPlatformBaseUrl();
     const reasonPrefix = env.MP_BILLING_REASON_PREFIX || "Pragmatienda";
     const shouldSendPayerEmail = env.MP_BILLING_SEND_PAYER_EMAIL;
 

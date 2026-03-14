@@ -11,8 +11,5 @@ process.env.STOREFRONT_ROOT_DOMAIN = process.env.STOREFRONT_ROOT_DOMAIN ?? "loca
 process.env.STOREFRONT_PORT = process.env.STOREFRONT_PORT ?? "3000";
 process.env.MP_CLIENT_ID = process.env.MP_CLIENT_ID ?? "test-client-id";
 process.env.MP_CLIENT_SECRET = process.env.MP_CLIENT_SECRET ?? "test-client-secret";
-process.env.MP_REDIRECT_URI = process.env.MP_REDIRECT_URI ?? "http://localhost:3001/api/payments/mercadopago/callback";
 process.env.MP_BILLING_ACCESS_TOKEN = process.env.MP_BILLING_ACCESS_TOKEN ?? "test-billing-token";
-process.env.MP_BILLING_SUCCESS_URL =
-  process.env.MP_BILLING_SUCCESS_URL ?? "http://localhost:3000/admin/billing";
 process.env.BILLING_ALLOW_PAST_DUE = process.env.BILLING_ALLOW_PAST_DUE ?? "false";

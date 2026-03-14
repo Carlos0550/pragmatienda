@@ -22,6 +22,7 @@ import {
   mapMercadoPagoStatusToPublicPaymentStatus
 } from "../domain/payment-status.mapper";
 import { PrismaPaymentsRepository } from "./prisma-payments.repository";
+import { getPlatformBaseUrl } from "../../utils/storefront.utils";
 
 type OAuthTokenResponse = {
   access_token: string;
@@ -34,6 +35,7 @@ type OAuthTokenResponse = {
 const OAUTH_AUTHORIZE_URL = "https://auth.mercadopago.com/authorization";
 const OAUTH_TOKEN_URL = "https://api.mercadopago.com/oauth/token";
 const TOKEN_REFRESH_MARGIN_MS = 5 * 60 * 1000;
+const getRedirectUri = () => `${getPlatformBaseUrl()}/api/payments/mercadopago/callback`;
 
 const toNumber = (value: unknown) => {
   if (typeof value === "number") {
@@ -62,7 +64,7 @@ export class MercadoPagoProvider implements PaymentProvider {
   constructor(private readonly repository: PrismaPaymentsRepository) {}
 
   private assertConfig() {
-    if (!env.MP_CLIENT_ID || !env.MP_CLIENT_SECRET || !env.MP_REDIRECT_URI) {
+    if (!env.MP_CLIENT_ID || !env.MP_CLIENT_SECRET) {
       throw new PaymentError(
         500,
         "CONFIG_ERROR",
@@ -77,7 +79,7 @@ export class MercadoPagoProvider implements PaymentProvider {
     const params = new URLSearchParams({
       response_type: "code",
       client_id: env.MP_CLIENT_ID as string,
-      redirect_uri: env.MP_REDIRECT_URI as string,
+      redirect_uri: getRedirectUri(),
       platform_id: "mp",
       site_id: env.MP_SITE_ID,
       state: input.state
@@ -100,7 +102,7 @@ export class MercadoPagoProvider implements PaymentProvider {
         client_id: env.MP_CLIENT_ID,
         client_secret: env.MP_CLIENT_SECRET,
         code,
-        redirect_uri: env.MP_REDIRECT_URI
+        redirect_uri: getRedirectUri()
       })
     });
 
