@@ -215,7 +215,7 @@ class BusinessService {
         business: {
           name: businessName,
           address: data.address ? capitalizeWords(data.address) : "",
-          website: getStoreBaseUrl(website),
+          website,
           phone: data.phone,
           email: data.adminEmail,
         },

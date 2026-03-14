@@ -32,6 +32,11 @@ function inferRootDomain(hostname: string) {
   return normalized;
 }
 
+function getPublicPortSuffix({ rootDomain, port }: StorefrontConfig) {
+  if (!port) return '';
+  return rootDomain === 'localhost' ? `:${port}` : '';
+}
+
 export function normalizeStoreSubdomain(value: string) {
   return value
     .trim()
@@ -84,8 +89,9 @@ export function isLandingHostname(hostname: string) {
 }
 
 export function getPlatformBaseUrl() {
-  const { protocol, rootDomain, port } = getStorefrontConfig();
-  const portSuffix = port ? `:${port}` : '';
+  const config = getStorefrontConfig();
+  const { protocol, rootDomain } = config;
+  const portSuffix = getPublicPortSuffix(config);
   return `${protocol}://${rootDomain}${portSuffix}`;
 }
 
@@ -94,8 +100,9 @@ export function getStoreBaseUrl(subdomain?: string | null) {
   if (!normalizedSubdomain) {
     return getPlatformBaseUrl();
   }
-  const { protocol, rootDomain, port } = getStorefrontConfig();
-  const portSuffix = port ? `:${port}` : '';
+  const config = getStorefrontConfig();
+  const { protocol, rootDomain } = config;
+  const portSuffix = getPublicPortSuffix(config);
   return `${protocol}://${normalizedSubdomain}.${rootDomain}${portSuffix}`;
 }
 

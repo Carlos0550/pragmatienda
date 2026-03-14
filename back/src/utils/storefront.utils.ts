@@ -24,6 +24,11 @@ const normalizeRootDomain = (hostname: string) => {
   return lower;
 };
 
+const getPublicPortSuffix = ({ rootDomain, port }: StorefrontConfig) => {
+  if (!port) return "";
+  return rootDomain === "localhost" ? `:${port}` : "";
+};
+
 export const getStorefrontConfig = (): StorefrontConfig => {
   return {
     protocol: normalizeProtocol(env.STOREFRONT_PROTOCOL),
@@ -46,7 +51,7 @@ export const normalizeStoreSubdomain = (value: string) => {
 
 export const getPlatformBaseUrl = () => {
   const config = getStorefrontConfig();
-  const port = config.port ? `:${config.port}` : "";
+  const port = getPublicPortSuffix(config);
   return `${config.protocol}://${config.rootDomain}${port}`;
 };
 
@@ -56,7 +61,7 @@ export const getStoreBaseUrl = (subdomain?: string | null) => {
     return getPlatformBaseUrl();
   }
   const config = getStorefrontConfig();
-  const port = config.port ? `:${config.port}` : "";
+  const port = getPublicPortSuffix(config);
   return `${config.protocol}://${normalizedSubdomain}.${config.rootDomain}${port}`;
 };
 

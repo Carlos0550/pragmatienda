@@ -56,18 +56,20 @@ export const buildWelcomeUserEmailHtml = async ({
     tenantId: user.tenantId ?? undefined
   });
   const token = encryptString(tokenPayload);
-  const backendUrl = getPlatformBaseUrl();
-  const verifyUrl = `${backendUrl}/api/public/verify?token=${encodeURIComponent(token)}`;
+  const businessBaseUrl =
+    business?.website && /^https?:\/\//i.test(business.website)
+      ? business.website
+      : business?.website
+        ? getStoreBaseUrl(business.website)
+        : getPlatformBaseUrl();
+  const verifyUrl = `${businessBaseUrl}/api/public/verify?token=${encodeURIComponent(token)}`;
   const businessLogoBlock = business?.logo
     ? `<div style="margin:12px 0;"><img src="${business.logo}" alt="${business.name ?? ""}" style="max-width:100%; height:auto; border-radius:6px;" /></div>`
     : "";
   const businessBannerBlock = business?.banner
     ? `<div style="margin:12px 0;"><img src="${business.banner}" alt="${business.name ?? ""}" style="max-width:100%; height:auto; border-radius:6px;" /></div>`
     : "";
-  const businessWebsite =
-    business?.website && /^https?:\/\//i.test(business.website)
-      ? business.website
-      : getStoreBaseUrl(business?.website);
+  const businessWebsite = businessBaseUrl;
 
   return renderTemplate("welcome_user_business.html", {
     name: capitalizeWords(user?.name ?? ""),

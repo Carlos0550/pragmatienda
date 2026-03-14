@@ -39,4 +39,13 @@ describe("storefront utils", () => {
     expect(getStoreBaseUrl("tienda1")).toBe("https://tienda1.cualquierdominio.com");
     expect(getStoreSubdomainFromInput("https://tienda1.cualquierdominio.com/products")).toBe("tienda1");
   });
+
+  it("ignores configured ports for non-local public domains", () => {
+    env.STOREFRONT_PROTOCOL = "https";
+    env.STOREFRONT_ROOT_DOMAIN = "pragmatienda-testing.up.railway.app";
+    env.STOREFRONT_PORT = "3000";
+
+    expect(getStoreBaseUrl("tienda1")).toBe("https://tienda1.pragmatienda-testing.up.railway.app");
+    expect(getStoreUrl(undefined, "/api/public/verify")).toBe("https://pragmatienda-testing.up.railway.app/api/public/verify");
+  });
 });
