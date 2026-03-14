@@ -18,10 +18,10 @@ import { sendMail } from "../../mail/mailer";
 import {
   capitalizeWords,
   normalizeText,
+  slugify,
   toE164Argentina,
 } from "../../utils/normalization.utils";
 import { dayjs } from "../../config/dayjs";
-import { env } from "../../config/env";
 import {
   getPublicObjectFromDefaultBucket,
   uploadPublicObject,
@@ -34,6 +34,11 @@ import {
 } from "../SEO/seo.service";
 import { BillingError } from "../../billing/domain/billing-errors";
 import { planCapabilitiesService } from "../../billing/application/plan-capabilities.service";
+import {
+  getStoreBaseUrl,
+  getStoreSubdomainFromInput,
+  normalizeStoreSubdomain,
+} from "../../utils/storefront.utils";
 
 type BankOption = {
   bankName: string;
@@ -49,20 +54,30 @@ type BusinessBanner = {
 };
 
 class BusinessService {
-  async checkBusinessNameAvailability(name: string): Promise<ServiceResponse> {
+  async checkBusinessNameAvailability(website: string): Promise<ServiceResponse> {
     try {
-      const normalizedName = normalizeText(name);
+      const normalizedWebsite = normalizeStoreSubdomain(website);
+      if (normalizedWebsite.length < 3) {
+        return {
+          status: 400,
+          message: "Subdominio invalido.",
+          data: {
+            available: false,
+            normalizedWebsite,
+          },
+        };
+      }
       const business = await prisma.businessData.findFirst({
-        where: { name: normalizedName },
+        where: { website: normalizedWebsite },
         select: { id: true }
       });
 
       return {
         status: 200,
-        message: business ? "El nombre del negocio ya existe." : "Nombre disponible.",
+        message: business ? "El subdominio ya existe." : "Subdominio disponible.",
         data: {
           available: !business,
-          normalizedName
+          normalizedWebsite
         }
       };
     } catch (error) {
@@ -74,7 +89,7 @@ class BusinessService {
 
       return {
         status: 500,
-        message: "No se pudo validar el nombre del negocio.",
+        message: "No se pudo validar el subdominio.",
         err: err.message,
       };
     }
@@ -86,12 +101,13 @@ class BusinessService {
     try {
       const bootstrapPassword = `${generateSecureString()}${generateSecureString()}${generateSecureString()}`;
       const securePassword = await hashString(bootstrapPassword);
-      const businessNameForWebsite = normalizeText(data.name);
-      const website = businessNameForWebsite
-        ? `https://${businessNameForWebsite}.pragmatienda.com`
-        : undefined;
+      const businessName = capitalizeWords(data.name);
+      const website = normalizeStoreSubdomain(data.name);
+      if (website.length < 3) {
+        return { status: 400, message: "No se pudo generar un subdominio valido para el negocio." };
+      }
       const generatedSeoDescription = await generateBusinessSeoDescription({
-        businessName: capitalizeWords(data.name),
+        businessName,
         address: data.address,
         province: data.province,
         country: "Argentina",
@@ -99,7 +115,7 @@ class BusinessService {
 
       const transactionResult = await prisma.$transaction(async (tx) => {
         const existingBusiness = await tx.businessData.findFirst({
-          where: { name: businessNameForWebsite },
+          where: { website },
           select: { id: true },
         });
         if (existingBusiness) {
@@ -148,14 +164,14 @@ class BusinessService {
         const business = await tx.businessData.create({
           data: {
             tenantId: tenant.id,
-            name: businessNameForWebsite,
-            website: website,
-            address: data.address ? normalizeText(data.address) : undefined,
-            province: data.province ? normalizeText(data.province) : undefined,
+            name: businessName,
+            website,
+            address: data.address ? capitalizeWords(data.address) : undefined,
+            province: data.province ? capitalizeWords(data.province) : undefined,
             country: "Argentina",
             seoDescription:
               generatedSeoDescription ??
-              `Compra en ${capitalizeWords(data.name)}. Tienda online en Argentina con catálogo actualizado y atención personalizada.`,
+              `Compra en ${businessName}. Tienda online en Argentina con catálogo actualizado y atención personalizada.`,
             phone: data.phone,
           },
         });
@@ -186,7 +202,7 @@ class BusinessService {
         };
       });
       if (transactionResult.conflict) {
-        return { status: 409, message: "El nombre del negocio ya existe." };
+        return { status: 409, message: "El subdominio del negocio ya existe." };
       }
 
       const { adminUser, tenant, business } = transactionResult;
@@ -197,9 +213,9 @@ class BusinessService {
           tenantId: tenant.id
         },
         business: {
-          name: capitalizeWords(data.name),
+          name: businessName,
           address: data.address ? capitalizeWords(data.address) : "",
-          website: website,
+          website: getStoreBaseUrl(website),
           phone: data.phone,
           email: data.adminEmail,
         },
@@ -235,10 +251,10 @@ class BusinessService {
           };
         }
 
-        if (target.includes("name") || message.includes("(`name`)") || message.includes("name")) {
+        if (target.includes("website") || message.includes("(`website`)") || message.includes("website")) {
           return {
             status: 409,
-            message: "Ya existe un negocio con ese nombre en nuestros registros, por favor ingresa otro.",
+            message: "Ya existe un negocio con ese subdominio en nuestros registros, por favor ingresa otro.",
           };
         }
       }
@@ -259,49 +275,19 @@ class BusinessService {
 
   async resolveTenantIdByStoreUrl(rawUrl: string): Promise<ServiceResponse> {
     try {
-      const normalizedInput = rawUrl.trim();
-      const withProtocol = /^https?:\/\//i.test(normalizedInput)
-        ? normalizedInput
-        : `https://${normalizedInput}`;
-
-      let hostname = "";
-      try {
-        hostname = new URL(withProtocol).hostname.toLowerCase();
-      } catch {
-        return { status: 400, message: "URL invalida." };
-      }
-
-      const parts = hostname.split(".").filter(Boolean);
-      const isPragmatiendaDomain =
-        parts.length >= 3 &&
-        parts[parts.length - 2] === "pragmatienda" &&
-        parts[parts.length - 1] === "com";
-      const isLocalhostDomain =
-        env.NODE_ENV === "development" &&
-        parts.length >= 2 &&
-        parts[parts.length - 1] === "localhost";
-
-      if (!isPragmatiendaDomain && !isLocalhostDomain) {
+      const normalizedStoreSubdomain = getStoreSubdomainFromInput(rawUrl);
+      if (!normalizedStoreSubdomain) {
         return {
           status: 400,
-          message: "La URL debe pertenecer a pragmatienda.com.",
+          message: "La URL no pertenece a un dominio de tienda valido.",
         };
       }
-
-      const storeNamePart = parts[0] === "www" ? parts[1] : parts[0];
-      if (!storeNamePart) {
-        return {
-          status: 400,
-          message: "No se pudo resolver el nombre de la tienda desde la URL.",
-        };
-      }
-
-      const normalizedStoreName = normalizeText(storeNamePart);
       const business = await prisma.businessData.findFirst({
-        where: { name: normalizedStoreName },
+        where: { website: normalizedStoreSubdomain },
         select: {
           id: true,
           name: true,
+          website: true,
           description: true,
           logo: true,
           banner: true,
@@ -333,6 +319,8 @@ class BusinessService {
         data: {
           tenantId: business.tenant.id,
           businessName: business.name,
+          website: business.website,
+          storeUrl: getStoreBaseUrl(business.website),
           description: business.description,
           logo: business.logo,
           banner: business.banner,
@@ -370,6 +358,7 @@ class BusinessService {
           businessData: {
             select: {
               name: true,
+              website: true,
               description: true,
               seoDescription: true,
               address: true,
@@ -397,10 +386,7 @@ class BusinessService {
       const socialMedia = b.socialMedia as Record<string, string> | Array<{ name: string; url: string }> | null;
       const rawBankOptions = b.bankOptions as BankOption[] | null;
       const rawBanners = b.banners as BusinessBanner[] | null;
-      const slug = b.name
-        .toLowerCase()
-        .replace(/\s+/g, "-")
-        .replace(/[^a-z0-9-]/g, "");
+      const slug = b.website || slugify(b.name);
       let socialLinks: { facebook?: string; instagram?: string; whatsapp?: string } | undefined;
       if (Array.isArray(socialMedia)) {
         const mapped = socialMedia.reduce<Record<string, string>>((acc, item) => {
@@ -464,6 +450,8 @@ class BusinessService {
         data: {
           id: tenant.id,
           name: b.name,
+          website: b.website,
+          storeUrl: getStoreBaseUrl(b.website),
           slug,
           description: b.description ?? undefined,
           seoDescription: b.seoDescription ?? b.description ?? undefined,
@@ -496,7 +484,7 @@ class BusinessService {
         where: { id: tenantId },
         select: {
           businessData: {
-            select: { id: true, name: true },
+            select: { id: true, name: true, website: true },
           },
         },
       });
@@ -505,6 +493,22 @@ class BusinessService {
       }
       if (!tenant.businessData) {
         return { status: 404, message: "Negocio no encontrado para el tenant." };
+      }
+      if (data.website !== undefined) {
+        const normalizedWebsite = normalizeStoreSubdomain(data.website);
+        if (normalizedWebsite.length < 3) {
+          return { status: 400, message: "Subdominio invalido." };
+        }
+        const existingBusiness = await prisma.businessData.findFirst({
+          where: {
+            website: normalizedWebsite,
+            tenantId: { not: tenantId },
+          },
+          select: { id: true }
+        });
+        if (existingBusiness) {
+          return { status: 409, message: "El subdominio ya esta en uso por otro negocio." };
+        }
       }
 
       const uploadAsset = async (
@@ -597,6 +601,8 @@ class BusinessService {
         : undefined;
 
       const updatePayload = {
+        ...(data.name ? { name: capitalizeWords(data.name) } : {}),
+        ...(data.website ? { website: normalizeStoreSubdomain(data.website) } : {}),
         ...(data.description ? { description: data.description.trim() } : {}),
         ...(data.seoDescription ? { seoDescription: data.seoDescription.trim() } : {}),
         ...(data.address ? { address: data.address.trim() } : {}),
@@ -628,6 +634,14 @@ class BusinessService {
         data: business,
       };
     } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        const target = Array.isArray(error.meta?.target)
+          ? error.meta.target.join(",")
+          : String(error.meta?.target ?? "");
+        if (target.includes("website")) {
+          return { status: 409, message: "El subdominio ya esta en uso por otro negocio." };
+        }
+      }
       const err = error as Error;
       logger.error("Error catched en manageBusiness service", {
         message: err?.message,

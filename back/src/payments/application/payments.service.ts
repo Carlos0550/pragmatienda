@@ -7,6 +7,7 @@ import type { PaymentProvider as PaymentProviderInterface } from "../domain/paym
 import { PaymentProviderRegistry } from "./payment-provider.registry";
 import { MercadoPagoProvider } from "../infrastructure/mercadopago.provider";
 import { PrismaPaymentsRepository } from "../infrastructure/prisma-payments.repository";
+import { getPlatformBaseUrl, getStoreUrl } from "../../utils/storefront.utils";
 
 type OAuthStatePayload = {
   storeId: string;
@@ -18,7 +19,7 @@ type OAuthStatePayload = {
 const OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
 
 const getWebhookUrl = () => {
-  const backend = (env.BACKEND_URL ?? `http://localhost:${env.PORT}`).replace(/\/$/, "");
+  const backend = getPlatformBaseUrl();
   return `${backend}/api/payments/webhooks/mercadopago`;
 };
 
@@ -100,11 +101,23 @@ export class PaymentsService {
     }
 
     const provider = this.registry.get("MERCADOPAGO");
-    return provider.completeConnection({
+    const result = await provider.completeConnection({
       storeId: payload.storeId,
       actorUserId: payload.actorUserId,
       authorizationCode: code
     });
+    return {
+      ...result,
+      storeId: payload.storeId
+    };
+  }
+
+  getStoreIdFromOAuthState(state: string) {
+    try {
+      return decodeState(state).storeId;
+    } catch {
+      return "";
+    }
   }
 
   async createMercadoPagoCheckout(storeId: string, orderId: string, idempotencyKey: string) {
@@ -197,11 +210,14 @@ export class PaymentsService {
     return provider.refreshToken({ storeId });
   }
 
-  getOAuthCallbackRedirectUrl(success: boolean) {
-    const frontend = env.FRONTEND_URL.replace(/\/$/, "");
-    return success
-      ? `${frontend}/admin/integrations/mercadopago?status=connected`
-      : `${frontend}/admin/integrations/mercadopago?status=error`;
+  async getOAuthCallbackRedirectUrl(storeId: string, success: boolean) {
+    const storefront = await this.repository.getStorefrontData(storeId);
+    const status = success ? "connected" : "error";
+    if (storefront?.businessData?.website) {
+      return getStoreUrl(storefront.businessData.website, `/admin/integrations/mercadopago?status=${status}`);
+    }
+    const frontend = getPlatformBaseUrl();
+    return `${frontend}/admin/integrations/mercadopago?status=${status}`;
   }
 
   async getMercadoPagoStatus(storeId: string): Promise<{ connected: boolean }> {

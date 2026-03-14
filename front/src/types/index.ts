@@ -70,6 +70,8 @@ export interface Tenant {
   id: string;
   name: string;
   slug: string;
+  website?: string;
+  storeUrl?: string;
   logo?: string;
   banner?: string;
   banners?: BusinessBanner[];
@@ -306,7 +308,7 @@ export interface BusinessNameAvailabilityResponse {
   message: string;
   data?: {
     available: boolean;
-    normalizedName: string;
+    normalizedWebsite: string;
   };
 }
 
@@ -338,6 +340,8 @@ export type AdminLoginResponse = ApiEnvelope<{ token: string }>;
 export type TenantResolveResponse = ApiEnvelope<{
   tenantId: string;
   businessName: string;
+  website?: string;
+  storeUrl?: string;
   description?: string | null;
   logo?: string | null;
   banner?: string | null;
@@ -444,6 +448,9 @@ export type NavLinkCompatProps = Omit<NavLinkProps, 'className'> & {
 };
 
 export interface BusinessFormState {
+  name: string;
+  website: string;
+  storeUrl: string;
   logo: string;
   banner: string;
   seoImage: string;

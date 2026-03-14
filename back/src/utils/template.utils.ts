@@ -1,8 +1,8 @@
 import { readFile } from "fs/promises";
 import path from "path";
-import { env } from "../config/env";
 import { encryptString } from "../config/security";
 import { capitalizeWords, normalizeText } from "./normalization.utils";
+import { getPlatformBaseUrl, getStoreBaseUrl } from "./storefront.utils";
 import dayjs from "dayjs";
 
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -56,7 +56,7 @@ export const buildWelcomeUserEmailHtml = async ({
     tenantId: user.tenantId ?? undefined
   });
   const token = encryptString(tokenPayload);
-  const backendUrl = (env.BACKEND_URL ?? `http://localhost:${env.PORT}`).replace(/\/$/, "");
+  const backendUrl = getPlatformBaseUrl();
   const verifyUrl = `${backendUrl}/api/public/verify?token=${encodeURIComponent(token)}`;
   const businessLogoBlock = business?.logo
     ? `<div style="margin:12px 0;"><img src="${business.logo}" alt="${business.name ?? ""}" style="max-width:100%; height:auto; border-radius:6px;" /></div>`
@@ -64,6 +64,10 @@ export const buildWelcomeUserEmailHtml = async ({
   const businessBannerBlock = business?.banner
     ? `<div style="margin:12px 0;"><img src="${business.banner}" alt="${business.name ?? ""}" style="max-width:100%; height:auto; border-radius:6px;" /></div>`
     : "";
+  const businessWebsite =
+    business?.website && /^https?:\/\//i.test(business.website)
+      ? business.website
+      : getStoreBaseUrl(business?.website);
 
   return renderTemplate("welcome_user_business.html", {
     name: capitalizeWords(user?.name ?? ""),
@@ -74,7 +78,7 @@ export const buildWelcomeUserEmailHtml = async ({
     businessAddress: capitalizeWords(business?.address ?? ""),
     businessPhone: business?.phone ?? "",
     businessEmail: normalizeText(business?.email ?? "") ?? "",
-    businessWebsite: business?.website ?? "",
+    businessWebsite,
     businessLogoBlock,
     businessBannerBlock,
     currentYear: dayjs().year().toString()

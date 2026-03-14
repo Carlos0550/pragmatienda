@@ -6,7 +6,9 @@ process.env.REDIS_URL = process.env.REDIS_URL ?? "redis://localhost:6379";
 process.env.JWT_SECRET = process.env.JWT_SECRET ?? "test-jwt-secret";
 process.env.SECURITY_ENCRYPTION_KEY =
   process.env.SECURITY_ENCRYPTION_KEY ?? "01234567890123456789012345678901";
-process.env.FRONTEND_URL = process.env.FRONTEND_URL ?? "http://localhost:3000";
+process.env.STOREFRONT_PROTOCOL = process.env.STOREFRONT_PROTOCOL ?? "http";
+process.env.STOREFRONT_ROOT_DOMAIN = process.env.STOREFRONT_ROOT_DOMAIN ?? "localhost";
+process.env.STOREFRONT_PORT = process.env.STOREFRONT_PORT ?? "3000";
 process.env.MP_CLIENT_ID = process.env.MP_CLIENT_ID ?? "test-client-id";
 process.env.MP_CLIENT_SECRET = process.env.MP_CLIENT_SECRET ?? "test-client-secret";
 process.env.MP_REDIRECT_URI = process.env.MP_REDIRECT_URI ?? "http://localhost:3001/api/payments/mercadopago/callback";

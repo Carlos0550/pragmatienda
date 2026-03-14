@@ -4,13 +4,13 @@ import z from "zod";
 import path from "path";
 import { capitalizeWords, normalizeText, toE164Argentina } from "../utils/normalization.utils";
 import { userService } from "../services/Users/user.service";
-import { env } from "../config/env";
 import { logger } from "../config/logger";
 import { renderTemplate } from "../utils/template.utils";
 import { prisma } from "../db/prisma";
 import { decryptString } from "../config/security";
 import { generateSecureString } from "../utils/security.utils";
 import { getPublicObjectFromDefaultBucket, uploadPublicObject } from "../storage/minio";
+import { getPlatformBaseUrl, getStoreBaseUrl } from "../utils/storefront.utils";
 
 class UserController{
     async publicRegisterUser(req: Request, res: Response): Promise<Response>{
@@ -93,12 +93,12 @@ class UserController{
                         }
                     });
                     if (businessWebsite?.website) {
-                        const baseUrl = businessWebsite.website.replace(/\/$/, "");
+                        const baseUrl = getStoreBaseUrl(businessWebsite.website);
                         res.redirect(`${baseUrl}${redirectPath}?${params.toString()}`);
                         return res;
                     }
                 }
-                const frontendBaseUrl = env.FRONTEND_URL.replace(/\/$/, "");
+                const frontendBaseUrl = getPlatformBaseUrl();
                 res.redirect(`${frontendBaseUrl}${redirectPath}?${params.toString()}`);
                 return res;
             }
@@ -156,7 +156,7 @@ class UserController{
                 businessAddress: business.address ?? "",
                 businessPhone: business.phone ?? "",
                 businessEmail: business.email ?? "",
-                businessWebsite: business.website ?? "",
+                businessWebsite: getStoreBaseUrl(business.website),
                 businessLogoBlock,
                 businessBannerBlock
             });

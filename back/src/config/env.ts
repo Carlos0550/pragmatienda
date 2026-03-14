@@ -33,6 +33,13 @@ const numberOptionalFromString = z.preprocess((value) => {
   return value;
 }, z.coerce.number().nonnegative().optional());
 
+const stringOptionalFromEmpty = z.preprocess((value) => {
+  if (value === undefined || value === null || value === "") {
+    return undefined;
+  }
+  return value;
+}, z.string().min(1).optional());
+
 const schema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().int().positive().default(3001),
@@ -52,8 +59,9 @@ const schema = z.object({
   MAIL_FROM: z.string().min(1).default("no-reply@example.com"),
   SECURITY_ENCRYPTION_KEY: z.string().optional(),
   JWT_SECRET: z.string().min(1, "JWT_SECRET es requerido"),
-  FRONTEND_URL: z.string().min(1).default("http://localhost:3000"),
-  BACKEND_URL: z.string().optional(),
+  STOREFRONT_PROTOCOL: z.enum(["http", "https"]).default("http"),
+  STOREFRONT_ROOT_DOMAIN: z.string().min(1).default("localhost"),
+  STOREFRONT_PORT: stringOptionalFromEmpty,
   GROQ_API_KEY: z.string().optional(),
   MP_CLIENT_ID: z.string().optional(),
   MP_CLIENT_SECRET: z.string().optional(),
@@ -90,5 +98,8 @@ export const env = {
   ...data,
   MAIL_PROVIDER: mailProvider,
   MINIO_PUBLIC_URL: minioPublicUrl,
-  MP_BILLING_SEND_PAYER_EMAIL: mpBillingSendPayerEmail
+  MP_BILLING_SEND_PAYER_EMAIL: mpBillingSendPayerEmail,
+  STOREFRONT_PROTOCOL: data.STOREFRONT_PROTOCOL,
+  STOREFRONT_ROOT_DOMAIN: data.STOREFRONT_ROOT_DOMAIN,
+  STOREFRONT_PORT: data.STOREFRONT_PORT
 };

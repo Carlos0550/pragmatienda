@@ -11,17 +11,18 @@ import { logger, requestLogger } from "./config/logger";
 import { getSwaggerSpec } from "./docs/swagger";
 import { apiRouter } from "./routes";
 import { getFrontClientDistDir, robotsHandler, sitemapHandler, ssrHandler } from "./ssr/renderer";
+import { getPlatformBaseUrl } from "./utils/storefront.utils";
 
 const app = express();
 
 const corsOrigins = env.CORS_ORIGIN
   ? env.CORS_ORIGIN.split(",").map((origin) => origin.trim()).filter(Boolean)
-  : [env.FRONTEND_URL.replace(/\/$/, "")];
+  : [getPlatformBaseUrl()];
 const corsOriginSet = new Set(corsOrigins);
 
 const cspConnectSrc = ["'self'", "https:", "http:", "wss:", "ws:"];
-if (env.FRONTEND_URL) cspConnectSrc.push(env.FRONTEND_URL);
-if (env.BACKEND_URL) cspConnectSrc.push(env.BACKEND_URL);
+const platformBaseUrl = getPlatformBaseUrl();
+if (platformBaseUrl) cspConnectSrc.push(platformBaseUrl);
 if (env.MINIO_PUBLIC_URL) cspConnectSrc.push(env.MINIO_PUBLIC_URL);
 
 app.use(

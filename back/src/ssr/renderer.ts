@@ -11,6 +11,7 @@ import { productsService } from "../services/Products/products.service";
 import { businessService } from "../services/Business/business.service";
 import { prisma } from "../db/prisma";
 import { capitalizeWords, slugify } from "../utils/normalization.utils";
+import { getPlatformBaseUrl, isLandingHostname as isPlatformLandingHostname } from "../utils/storefront.utils";
 
 type SsrRouteKind = "landing" | "home" | "products" | "product" | "category" | "spa";
 type FrontServerModule = {
@@ -74,9 +75,6 @@ type FrontServerModule = {
   }>;
 };
 
-const LANDING_HOSTNAMES = new Set(["pragmatienda.com", "www.pragmatienda.com", "localhost"]);
-/** Sufijos para URLs de despliegue (Northflank *.code.run, etc.) que se tratan como landing. */
-const DEFAULT_LANDING_SUFFIXES = [".code.run"];
 const BACK_ROOT = path.resolve(__dirname, "../..");
 const FRONT_ROOT = path.resolve(BACK_ROOT, "../front");
 const FRONT_CLIENT_DIST_DIR = path.resolve(FRONT_ROOT, "dist/client");
@@ -118,21 +116,9 @@ function normalizeHost(req: Request): { hostname: string; hostHeader: string } {
   return { hostname, hostHeader };
 }
 
-function isLandingHostname(hostname: string): boolean {
-  const lower = hostname.toLowerCase();
-  if (LANDING_HOSTNAMES.has(lower)) return true;
-  if (DEFAULT_LANDING_SUFFIXES.some((s) => lower.endsWith(s) || lower === s.slice(1))) return true;
-  const extra = env.EXTRA_LANDING_HOSTNAME_SUFFIXES;
-  if (extra) {
-    const suffixes = extra.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
-    if (suffixes.some((s) => lower.endsWith("." + s) || lower === s)) return true;
-  }
-  return false;
-}
-
 function isApiHostname(hostname: string): boolean {
   const normalized = hostname.toLowerCase();
-  return normalized === "api.pragmatienda.com" || normalized.startsWith("api.");
+  return normalized.startsWith("api.");
 }
 
 function matchRoute(req: Request): RouteMatch {
@@ -263,7 +249,7 @@ function getClientAssets(): ClientAssets {
     }
   }
 
-  const frontendOrigin = env.FRONTEND_URL?.replace(/\/+$/, "") || "http://localhost:3000";
+  const frontendOrigin = getPlatformBaseUrl();
   return {
     scripts: [`${frontendOrigin}/@vite/client`, `${frontendOrigin}/src/entry-client.tsx`],
     styles: [],
@@ -487,7 +473,7 @@ function normalizeCategory(category: Record<string, unknown>) {
 }
 
 async function resolveTenantFromHostname(hostname: string) {
-  if (isLandingHostname(hostname)) {
+  if (isPlatformLandingHostname(hostname)) {
     return {
       tenantState: {
         tenant: null,
@@ -742,7 +728,7 @@ export const ssrHandler: RequestHandler = async (req, res, next) => {
     const baseUrl = `${protocol}://${hostHeader}`;
     const hasAuthCookie = Boolean(extractCookie(req.header("cookie"), AUTH_TOKEN_COOKIE_KEY));
 
-    if (isLandingHostname(hostname) && route.pathname !== "/") {
+    if (isPlatformLandingHostname(hostname) && route.pathname !== "/") {
       return res.redirect(302, "/");
     }
 
@@ -829,7 +815,7 @@ export const ssrHandler: RequestHandler = async (req, res, next) => {
       });
     }
 
-    const effectiveRoute: SsrRouteKind = isLandingHostname(hostname) ? "landing" : route.kind;
+    const effectiveRoute: SsrRouteKind = isPlatformLandingHostname(hostname) ? "landing" : route.kind;
     const tenantResolution = await resolveTenantFromHostname(hostname);
     const prefetch = await buildPrefetchData({
       route: { ...route, kind: effectiveRoute },
@@ -921,7 +907,7 @@ export const sitemapHandler: RequestHandler = async (req, res, next) => {
     const protocol = (req.header("x-forwarded-proto") ?? req.protocol ?? "http").split(",")[0].trim();
     const baseUrl = `${protocol}://${hostHeader}`;
 
-    if (isLandingHostname(hostname)) {
+    if (isPlatformLandingHostname(hostname)) {
       const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url><loc>${escapeXml(baseUrl)}/</loc></url>

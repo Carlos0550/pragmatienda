@@ -93,8 +93,8 @@ class PaymentsController {
         return res.status(400).send("OAuth callback inválido.");
       }
 
-      await paymentsService.completeMercadoPagoConnection(code, state);
-      res.redirect(paymentsService.getOAuthCallbackRedirectUrl(true));
+      const result = await paymentsService.completeMercadoPagoConnection(code, state);
+      res.redirect(await paymentsService.getOAuthCallbackRedirectUrl(result.storeId, true));
       return res;
     } catch (error) {
       if (error instanceof PaymentError) {
@@ -102,14 +102,16 @@ class PaymentsController {
           code: error.code,
           message: error.message
         });
-        res.redirect(paymentsService.getOAuthCallbackRedirectUrl(false));
+        const state = typeof req.query.state === "string" ? req.query.state : "";
+        const storeId = paymentsService.getStoreIdFromOAuthState(state);
+        res.redirect(await paymentsService.getOAuthCallbackRedirectUrl(storeId, false));
         return res;
       }
       const err = error as Error;
       logger.error("Error en callbackMercadoPago controller", {
         message: err.message
       });
-      res.redirect(paymentsService.getOAuthCallbackRedirectUrl(false));
+      res.redirect(await paymentsService.getOAuthCallbackRedirectUrl("", false));
       return res;
     }
   }

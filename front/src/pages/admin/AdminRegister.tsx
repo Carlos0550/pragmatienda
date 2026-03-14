@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import { sileo } from 'sileo';
 import { toFormErrors } from '@/lib/api-utils';
+import { normalizeStoreSubdomain } from '@/lib/storefront';
 import { capitalizeName } from '@/lib/utils';
 import type { ApiError, CreateBusinessPayload, FormErrors } from '@/types';
 
@@ -44,6 +45,7 @@ export default function AdminRegisterPage() {
     message: '',
   });
   const trimmedBusinessName = useMemo(() => form.name.trim(), [form.name]);
+  const desiredSubdomain = useMemo(() => normalizeStoreSubdomain(form.name), [form.name]);
 
   const update = (field: keyof CreateBusinessPayload) => (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm((prev) => ({ ...prev, [field]: e.target.value }));
@@ -61,17 +63,17 @@ export default function AdminRegisterPage() {
       return;
     }
 
-    if (trimmedBusinessName.length < 3) {
-      setNameAvailability({ checking: false, available: null, message: 'Mínimo 3 caracteres' });
+    if (desiredSubdomain.length < 3) {
+      setNameAvailability({ checking: false, available: null, message: 'Mínimo 3 caracteres válidos para el subdominio' });
       return;
     }
 
     const timeoutId = window.setTimeout(async () => {
       setNameAvailability({ checking: true, available: null, message: '' });
       try {
-        const response = await http.business.checkBusinessNameAvailability(trimmedBusinessName);
+        const response = await http.business.checkBusinessNameAvailability(desiredSubdomain);
         const available = response.data?.available === true;
-        const message = response.message || (available ? 'Nombre disponible' : 'El nombre del negocio ya existe');
+        const message = response.message || (available ? 'Subdominio disponible' : 'El subdominio ya existe');
         setNameAvailability({ checking: false, available, message });
         if (available) {
           setErrors((prev) => ({ ...prev, name: '' }));
@@ -84,12 +86,13 @@ export default function AdminRegisterPage() {
     }, 500);
 
     return () => window.clearTimeout(timeoutId);
-  }, [step, trimmedBusinessName]);
+  }, [desiredSubdomain, step, trimmedBusinessName]);
 
   const validateStep1 = (): boolean => {
     const next: FormErrors = {};
     if (!form.name.trim()) next.name = 'El nombre del negocio es obligatorio';
     else if (form.name.trim().length < 3) next.name = 'Mínimo 3 caracteres';
+    else if (desiredSubdomain.length < 3) next.name = 'Ese nombre no genera un subdominio válido';
     if (!form.phone.trim()) next.phone = 'El teléfono es obligatorio';
     else if (form.phone.replace(/\D/g, '').length < 10) next.phone = 'Ingresá un teléfono válido (mín. 10 dígitos)';
     setErrors(next);
@@ -109,10 +112,10 @@ export default function AdminRegisterPage() {
   const handleNext = () => {
     if (step === 1 && !validateStep1()) return;
 
-    if (trimmedBusinessName.length >= 3) {
+    if (trimmedBusinessName.length >= 3 && desiredSubdomain.length >= 3) {
       if (nameAvailability.checking) return;
       if (nameAvailability.available === false) {
-        setErrors((prev) => ({ ...prev, name: nameAvailability.message || 'El nombre del negocio ya existe' }));
+        setErrors((prev) => ({ ...prev, name: nameAvailability.message || 'El subdominio ya existe' }));
         return;
       }
       if (nameAvailability.available !== true) {
@@ -156,8 +159,8 @@ export default function AdminRegisterPage() {
       if (apiErr.errors) {
         setErrors(toFormErrors(apiErr.errors));
         sileo.error({ title: apiErr.message || 'Error al crear la tienda' });
-      } else if (apiErr.message?.toLowerCase().includes('nombre del negocio')) {
-        setErrors((prev) => ({ ...prev, name: apiErr.message || 'El nombre del negocio ya existe' }));
+      } else if (apiErr.message?.toLowerCase().includes('subdominio')) {
+        setErrors((prev) => ({ ...prev, name: apiErr.message || 'El subdominio ya existe' }));
         
         setStep(1);
       } else if (apiErr.message?.toLowerCase().includes('teléfono del negocio')) {
@@ -252,10 +255,15 @@ export default function AdminRegisterPage() {
                     placeholder="Ej: Mi Tienda"
                     autoFocus
                   />
+                  {desiredSubdomain && (
+                    <p className="text-xs text-muted-foreground">
+                      Subdominio sugerido: <span className="font-medium text-foreground">{desiredSubdomain}</span>
+                    </p>
+                  )}
                   {errors.name && <p className="text-xs text-primary">{errors.name}</p>}
                   {!errors.name && trimmedBusinessName.length >= 3 && nameAvailability.message && (
                     <p className={`text-xs ${nameAvailability.available ? 'text-green-600' : 'text-muted-foreground'}`}>
-                      {nameAvailability.checking ? 'Validando nombre...' : nameAvailability.message}
+                      {nameAvailability.checking ? 'Validando subdominio...' : nameAvailability.message}
                     </p>
                   )}
                 </div>

@@ -15,10 +15,10 @@ const bankOptionSchema = z.object({
 }).strict();
 
 export const createBusinessSchema = z.object({
-    name: z.string().min(3).toLowerCase().trim(),
-    address: z.string().min(3).toLowerCase().trim().optional(),
-    province: z.string().min(2).toLowerCase().trim().optional(),
-    phone: z.string().min(10).max(15).toLowerCase().trim(),
+    name: z.string().min(3).trim(),
+    address: z.string().min(3).trim().optional(),
+    province: z.string().min(2).trim().optional(),
+    phone: z.string().min(10).max(15).trim(),
 }).strict();
 
 export const createBusinessTenantSchema = createBusinessSchema.extend({
@@ -31,10 +31,12 @@ export const resolveTenantByStoreUrlSchema = z.object({
 }).strict();
 
 export const checkBusinessNameAvailabilitySchema = z.object({
-    name: z.string().min(3).trim()
+    website: z.string().min(3).trim()
 }).strict();
 
 export const updateBusinessSchema = z.object({
+    name: z.string().min(3).optional(),
+    website: z.string().min(3).optional(),
     description: z.string().min(3).optional(),
     seoDescription: z.string().min(20).max(220).optional(),
     address: z.string().min(3).optional(),

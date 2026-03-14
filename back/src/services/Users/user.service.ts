@@ -1,13 +1,13 @@
 import { UserStatus } from "@prisma/client";
 import { createSessionToken, decryptString, encryptString, hashString, verifyHash } from "../../config/security";
 import { logger } from "../../config/logger";
-import { env } from "../../config/env";
 import { prisma } from "../../db/prisma";
 import { sendMail } from "../../mail/mailer";
 import { generateSecureString } from "../../utils/security.utils";
 import { buildPasswordRecoveryEmailHtml, buildWelcomeUserEmailHtml } from "../../utils/template.utils";
 import { changePasswordSchema, loginSchema, publicRegisterUserSchema, recoverPasswordSchema, resetPasswordWithTokenSchema, updateUserSchema } from "./user.zod";
 import { z } from "zod";
+import { getPlatformBaseUrl, getStoreBaseUrl } from "../../utils/storefront.utils";
 
 const PASSWORD_ACTION_TOKEN_TTL_MS = 1000 * 60 * 60;
 const ACCOUNT_SETUP_TOKEN_TTL_MS = 1000 * 60 * 60 * 24;
@@ -26,12 +26,9 @@ type PasswordActionTokenPayload = {
 
 const resolveTenantBaseUrl = (business: { name?: string | null; website?: string | null }) => {
     if (business.website) {
-        return business.website.replace(/\/$/, "");
+        return getStoreBaseUrl(business.website);
     }
-    if (business.name) {
-        return `https://${business.name}.pragmatienda.com`;
-    }
-    return env.FRONTEND_URL.replace(/\/$/, "");
+    return getPlatformBaseUrl();
 };
 
 const buildPasswordActionUrl = (

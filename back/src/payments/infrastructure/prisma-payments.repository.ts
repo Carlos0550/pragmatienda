@@ -188,6 +188,20 @@ export class PrismaPaymentsRepository {
     return Boolean(admin);
   }
 
+  async getStorefrontData(storeId: string) {
+    return prisma.tenant.findUnique({
+      where: { id: storeId },
+      select: {
+        id: true,
+        businessData: {
+          select: {
+            website: true
+          }
+        }
+      }
+    });
+  }
+
   async upsertWebhookEvent(
     storeId: string,
     orderId: string | null,

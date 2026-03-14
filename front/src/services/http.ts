@@ -105,8 +105,8 @@ export const http = {
         '/public/platform/businesses',
         payload
       ),
-    checkBusinessNameAvailability: (name: string) =>
-      api.get<BusinessNameAvailabilityResponse>('/public/platform/businesses/availability', { name }),
+    checkBusinessNameAvailability: (website: string) =>
+      api.get<BusinessNameAvailabilityResponse>('/public/platform/businesses/availability', { website }),
     getAdminBusiness: () => api.get<Tenant>('/admin/business'),
     updateAdminBusiness: (formData: FormData) => api.putMultipart('/admin/business/manage', formData),
     improveSeoDescription: (payload?: {

@@ -13,7 +13,8 @@ import {
 } from '@/components/ui/dialog';
 import { sileo } from 'sileo';
 import { toFormErrors } from '@/lib/api-utils';
-import type { ApiError, BankOption, BannerOverlayPosition, BusinessBanner, BusinessFormState, BusinessPreviewsState, FormErrors } from '@/types';
+import { getStoreBaseUrl, normalizeStoreSubdomain } from '@/lib/storefront';
+import type { ApiError, BankOption, BannerOverlayPosition, BusinessBanner, BusinessFormState, BusinessPreviewsState, FormErrors, Tenant } from '@/types';
 import { Landmark, Plus, Trash2 } from 'lucide-react';
 import {
   Select,
@@ -143,8 +144,37 @@ function normalizeBankOptions(bankOptions: BankOption[]) {
   return { items, hasPartial };
 }
 
+function toBusinessFormState(data: Tenant): BusinessFormState {
+  return {
+    name: data.name || '',
+    website: data.website || '',
+    storeUrl: data.storeUrl || (data.website ? getStoreBaseUrl(data.website) : ''),
+    logo: data.logo || '',
+    banner: data.banner || '',
+    seoImage: data.seoImage || '',
+    favicon: data.favicon || '',
+    address: data.address || '',
+    province: data.province || '',
+    seoDescription: data.seoDescription || '',
+    facebook: data.socialLinks?.facebook || '',
+    instagram: data.socialLinks?.instagram || '',
+    whatsapp: data.socialLinks?.whatsapp || '',
+    banners: Array.isArray(data.banners)
+      ? data.banners.map((b) => ({
+          url: b.url,
+          order: b.order ?? 0,
+          objectPositionX: b.objectPositionX ?? 50,
+          objectPositionY: b.objectPositionY ?? 50,
+        }))
+      : [],
+    bankOptions: Array.isArray(data.bankOptions) ? data.bankOptions : [],
+    bannerOverlayPosition: (data.bannerOverlayPosition ?? '') as BannerOverlayPosition | '',
+  };
+}
+
 export default function BusinessPage() {
   const [form, setForm] = useState<BusinessFormState>({
+    name: '', website: '', storeUrl: '',
     logo: '', banner: '', seoImage: '', favicon: '',
     address: '', province: '', seoDescription: '',
     facebook: '', instagram: '', whatsapp: '',
@@ -178,28 +208,7 @@ export default function BusinessPage() {
 
   useEffect(() => {
     http.business.getAdminBusiness().then((data) => {
-      const next = {
-        logo: data.logo || '',
-        banner: data.banner || '',
-        seoImage: data.seoImage || '',
-        favicon: data.favicon || '',
-        address: data.address || '',
-        province: data.province || '',
-        seoDescription: data.seoDescription || '',
-        facebook: data.socialLinks?.facebook || '',
-        instagram: data.socialLinks?.instagram || '',
-        whatsapp: data.socialLinks?.whatsapp || '',
-        banners: Array.isArray(data.banners)
-          ? data.banners.map((b) => ({
-              url: b.url,
-              order: b.order ?? 0,
-              objectPositionX: b.objectPositionX ?? 50,
-              objectPositionY: b.objectPositionY ?? 50,
-            }))
-          : [],
-        bankOptions: Array.isArray(data.bankOptions) ? data.bankOptions : [],
-        bannerOverlayPosition: (data.bannerOverlayPosition ?? '') as BannerOverlayPosition | '',
-      };
+      const next = toBusinessFormState(data);
       setForm(next);
       setInitial(next);
     }).catch(() => {});
@@ -264,6 +273,14 @@ export default function BusinessPage() {
         formData.append('address', form.address.trim());
         hasChanges = true;
       }
+      if (form.name.trim() !== (initial?.name ?? '').trim()) {
+        formData.append('name', form.name.trim());
+        hasChanges = true;
+      }
+      if (normalizeStoreSubdomain(form.website) !== normalizeStoreSubdomain(initial?.website ?? '')) {
+        formData.append('website', form.website.trim());
+        hasChanges = true;
+      }
       if (form.province.trim() !== (initial?.province ?? '').trim()) {
         formData.append('province', form.province.trim());
         hasChanges = true;
@@ -318,28 +335,7 @@ export default function BusinessPage() {
       await http.business.updateAdminBusiness(formData);
       sileo.success({ title: 'Negocio actualizado' });
       const data = await http.business.getAdminBusiness();
-      const next = {
-        logo: data.logo || '',
-        banner: data.banner || '',
-        seoImage: data.seoImage || '',
-        favicon: data.favicon || '',
-        address: data.address || '',
-        province: data.province || '',
-        seoDescription: data.seoDescription || '',
-        facebook: data.socialLinks?.facebook || '',
-        instagram: data.socialLinks?.instagram || '',
-        whatsapp: data.socialLinks?.whatsapp || '',
-        banners: Array.isArray(data.banners)
-          ? data.banners.map((b) => ({
-              url: b.url,
-              order: b.order ?? 0,
-              objectPositionX: b.objectPositionX ?? 50,
-              objectPositionY: b.objectPositionY ?? 50,
-            }))
-          : [],
-        bankOptions: Array.isArray(data.bankOptions) ? data.bankOptions : [],
-        bannerOverlayPosition: (data.bannerOverlayPosition ?? '') as BannerOverlayPosition | '',
-      };
+      const next = toBusinessFormState(data);
       setForm(next);
       setInitial(next);
       setPreviews({ logo: '', banner: '', seoImage: '', favicon: '' });
@@ -356,6 +352,8 @@ export default function BusinessPage() {
       const apiErr = err as ApiError;
       if (apiErr.errors) {
         setErrors(toFormErrors(apiErr.errors));
+      } else if (apiErr.message?.toLowerCase().includes('subdominio')) {
+        setErrors((prev) => ({ ...prev, website: apiErr.message || 'El subdominio ya está en uso' }));
       } else {
         sileo.error({ title: 'Error al guardar' });
       }
@@ -364,7 +362,7 @@ export default function BusinessPage() {
     }
   };
 
-  const handleChange = (field: keyof Pick<BusinessFormState, 'facebook' | 'instagram' | 'whatsapp' | 'address' | 'province' | 'seoDescription'>) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleChange = (field: keyof Pick<BusinessFormState, 'name' | 'website' | 'facebook' | 'instagram' | 'whatsapp' | 'address' | 'province' | 'seoDescription'>) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setForm((prev) => ({ ...prev, [field]: e.target.value }));
   };
 
@@ -438,6 +436,7 @@ export default function BusinessPage() {
   const logoSrc = previews.logo || form.logo;
   const seoImageSrc = previews.seoImage || form.seoImage;
   const faviconSrc = previews.favicon || form.favicon;
+  const storeUrlPreview = form.website.trim() ? getStoreBaseUrl(form.website) : form.storeUrl;
 
   const handleClearAsset = async (asset: 'logo' | 'favicon' | 'seoImage') => {
     const flag = asset === 'logo' ? 'clearLogo' : asset === 'favicon' ? 'clearFavicon' : 'clearSeoImage';
@@ -448,28 +447,7 @@ export default function BusinessPage() {
       await http.business.updateAdminBusiness(formData);
       sileo.success({ title: 'Imagen eliminada' });
       const data = await http.business.getAdminBusiness();
-      const next = {
-        logo: data.logo || '',
-        banner: data.banner || '',
-        seoImage: data.seoImage || '',
-        favicon: data.favicon || '',
-        address: data.address || '',
-        province: data.province || '',
-        seoDescription: data.seoDescription || '',
-        facebook: data.socialLinks?.facebook || '',
-        instagram: data.socialLinks?.instagram || '',
-        whatsapp: data.socialLinks?.whatsapp || '',
-        banners: Array.isArray(data.banners)
-          ? data.banners.map((b) => ({
-              url: b.url,
-              order: b.order ?? 0,
-              objectPositionX: b.objectPositionX ?? 50,
-              objectPositionY: b.objectPositionY ?? 50,
-            }))
-          : [],
-        bankOptions: Array.isArray(data.bankOptions) ? data.bankOptions : [],
-        bannerOverlayPosition: (data.bannerOverlayPosition ?? '') as BannerOverlayPosition | '',
-      };
+      const next = toBusinessFormState(data);
       setForm(next);
       setInitial(next);
       setPreviews((p) => {
@@ -525,6 +503,34 @@ export default function BusinessPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="rounded-xl border bg-card p-6 space-y-6">
+        <section className="space-y-4">
+          <h3 className="text-lg font-semibold border-b pb-2">Identidad y dominio</h3>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="business-name">Nombre visible</Label>
+              <Input
+                id="business-name"
+                value={form.name}
+                onChange={handleChange('name')}
+                placeholder="Mi Tienda"
+              />
+              {errors.name && <p className="text-xs text-primary">{errors.name}</p>}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="business-website">Subdominio</Label>
+              <Input
+                id="business-website"
+                value={form.website}
+                onChange={handleChange('website')}
+                placeholder="mi-tienda"
+              />
+              <p className="text-xs text-muted-foreground">
+                URL pública: <span className="font-medium text-foreground">{storeUrlPreview || 'Sin subdominio configurado'}</span>
+              </p>
+              {errors.website && <p className="text-xs text-primary">{errors.website}</p>}
+            </div>
+          </div>
+        </section>
         <div className="grid gap-6 xl:grid-cols-2">
           <div className="space-y-6">
             <section className="space-y-4">

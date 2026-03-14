@@ -122,7 +122,7 @@ model BusinessData {
   country String @default("Argentina")
   phone String?
   email String?
-  website String?
+  website String   @unique
   logo String?
   favicon String?
   banner String?
@@ -141,7 +141,6 @@ model BusinessData {
 
 
   @@index([name])
-  @@unique([name])
   @@unique([phone])
   @@unique([email])
 }

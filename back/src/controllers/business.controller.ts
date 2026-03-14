@@ -9,7 +9,7 @@ import {
   resolveTenantByStoreUrlSchema,
   updateBusinessSchema,
 } from "../services/Business/business.zod";
-import { normalizeText, removeSpaces, toE164Argentina } from "../utils/normalization.utils";
+import { normalizeText, toE164Argentina } from "../utils/normalization.utils";
 import { changePasswordSchema, recoverPasswordSchema } from "../services/Users/user.zod";
 import { userService } from "../services/Users/user.service";
 
@@ -24,7 +24,7 @@ class BusinessController {
         });
       }
 
-      const result = await businessService.checkBusinessNameAvailability(parsed.data.name);
+      const result = await businessService.checkBusinessNameAvailability(parsed.data.website);
       return res.status(result.status).json(result);
     } catch (error) {
       const err = error as Error;
@@ -45,7 +45,7 @@ class BusinessController {
       }
 
       const payload = {
-        name: removeSpaces(normalizeText(parsed.data.name)),
+        name: parsed.data.name.trim(),
         ...(parsed.data.address ? { address: normalizeText(parsed.data.address) } : {}),
         ...(parsed.data.province ? { province: normalizeText(parsed.data.province) } : {}),
         phone: toE164Argentina(normalizeText(parsed.data.phone)) ?? parsed.data.phone,

@@ -5,6 +5,7 @@ import { mapMercadoPagoPreapprovalStatus } from "../domain/billing-status.mapper
 import type { BillingProvider } from "../domain/billing-provider";
 import { MercadoPagoBillingProvider } from "../infrastructure/mercadopago-billing.provider";
 import { PrismaBillingRepository } from "../infrastructure/prisma-billing.repository";
+import { getStoreUrl } from "../../utils/storefront.utils";
 
 const BILLING_WEBHOOK_PROVIDER = "MERCADOPAGO_BILLING";
 
@@ -82,10 +83,8 @@ export class BillingService {
     }
 
     const storeSuccessUrl = tenant.businessData?.website
-      ? `${tenant.businessData.website.replace(/\/$/, "")}/admin/billing`
-      : tenant.businessData?.name
-        ? `https://${tenant.businessData.name}.pragmatienda.com/admin/billing`
-        : null;
+      ? getStoreUrl(tenant.businessData.website, "/admin/billing")
+      : null;
 
     const billing = await this.provider.createSubscription({
       tenantId: tenant.id,

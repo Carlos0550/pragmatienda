@@ -11,6 +11,7 @@ import type {
   BillingSubscriptionSnapshot
 } from "../domain/billing-provider";
 import { logger } from "../../config/logger";
+import { getPlatformBaseUrl } from "../../utils/storefront.utils";
 
 const toDate = (value: string | number | undefined) => {
   if (!value) return null;
@@ -88,7 +89,7 @@ export class MercadoPagoBillingProvider implements BillingProvider {
       body: {
         reason,
         auto_recurring: toAutoRecurring(plan.interval, plan.amount, plan.currency),
-        back_url: env.MP_BILLING_SUCCESS_URL ?? env.FRONTEND_URL
+        back_url: env.MP_BILLING_SUCCESS_URL ?? getPlatformBaseUrl()
       }
     }).catch((error) => {
       throw this.toProviderError(error);
@@ -116,7 +117,7 @@ export class MercadoPagoBillingProvider implements BillingProvider {
       updatePreApprovalPlanRequest: {
         reason,
         auto_recurring: toAutoRecurring(plan.interval, plan.amount, plan.currency),
-        back_url: env.MP_BILLING_SUCCESS_URL ?? env.FRONTEND_URL
+        back_url: env.MP_BILLING_SUCCESS_URL ?? getPlatformBaseUrl()
       }
     }).catch((error) => {
       throw this.toProviderError(error);
@@ -142,7 +143,7 @@ export class MercadoPagoBillingProvider implements BillingProvider {
 
     const preApproval = new PreApproval(this.getConfig());
     const reasonPrefix = env.MP_BILLING_REASON_PREFIX || "Pragmatienda";
-    const backUrl = input.storeSuccessUrl || env.MP_BILLING_SUCCESS_URL || env.FRONTEND_URL;
+    const backUrl = input.storeSuccessUrl || env.MP_BILLING_SUCCESS_URL || getPlatformBaseUrl();
     const shouldSendPayerEmail = env.MP_BILLING_SEND_PAYER_EMAIL;
     const body: PreApprovalCreateBody = {
       reason: `${reasonPrefix} - ${input.planName}`,
@@ -178,7 +179,7 @@ export class MercadoPagoBillingProvider implements BillingProvider {
     input: BillingSubscriptionInput
   ): Promise<BillingSubscriptionResponse> {
     const preApproval = new PreApproval(this.getConfig());
-    const backUrl = input.storeSuccessUrl || env.MP_BILLING_SUCCESS_URL || env.FRONTEND_URL;
+    const backUrl = input.storeSuccessUrl || env.MP_BILLING_SUCCESS_URL || getPlatformBaseUrl();
     const reasonPrefix = env.MP_BILLING_REASON_PREFIX || "Pragmatienda";
     const shouldSendPayerEmail = env.MP_BILLING_SEND_PAYER_EMAIL;
 
