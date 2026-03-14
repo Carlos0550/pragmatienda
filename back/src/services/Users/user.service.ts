@@ -217,7 +217,36 @@ class UserService{
             }
             const resolvedTenantId = user.tenantId ?? effectiveTenantId ?? null;
             if (user.isVerified) {
-                return { status: 409, message: "La cuenta ya fue verificada.", data: { tenantId: resolvedTenantId, role: user.role } };
+                const sessionToken = await createSessionToken({
+                    id: user.id,
+                    email: user.email,
+                    role: user.role
+                });
+
+                const requiresPasswordSetup = user.role === 1;
+                const setupPasswordToken = requiresPasswordSetup
+                    ? createPasswordActionToken({
+                        id: user.id,
+                        email: user.email,
+                        tenantId: user.tenantId ?? resolvedTenantId ?? "",
+                        role: user.role,
+                        purpose: "ACCOUNT_SETUP",
+                        ttlMs: ACCOUNT_SETUP_TOKEN_TTL_MS
+                    })
+                    : null;
+
+                return {
+                    status: 200,
+                    message: "La cuenta ya fue verificada.",
+                    data: {
+                        tenantId: resolvedTenantId,
+                        role: user.role,
+                        sessionToken,
+                        requiresPasswordSetup,
+                        setupPasswordToken,
+                        alreadyVerified: true
+                    }
+                };
             }
 
             await prisma.user.update({
@@ -251,7 +280,8 @@ class UserService{
                     role: user.role,
                     sessionToken,
                     requiresPasswordSetup,
-                    setupPasswordToken
+                    setupPasswordToken,
+                    alreadyVerified: false
                 }
             };
         } catch (error) {

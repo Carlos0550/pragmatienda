@@ -5,7 +5,6 @@ import path from "path";
 import { capitalizeWords, normalizeText, toE164Argentina } from "../utils/normalization.utils";
 import { userService } from "../services/Users/user.service";
 import { logger } from "../config/logger";
-import { renderTemplate } from "../utils/template.utils";
 import { prisma } from "../db/prisma";
 import { decryptString } from "../config/security";
 import { generateSecureString } from "../utils/security.utils";
@@ -63,6 +62,22 @@ class UserController{
             const result = await userService.verifyAccount(token, req.tenantId ?? null);
             const resolvedTenantId =
                 (result.data as { tenantId?: string } | undefined)?.tenantId ?? null;
+            const resolveBaseUrl = async (tenantId?: string | null) => {
+                if (tenantId) {
+                    const businessWebsite = await prisma.businessData.findUnique({
+                        where: {
+                            tenantId
+                        },
+                        select: {
+                            website: true
+                        }
+                    });
+                    if (businessWebsite?.website) {
+                        return getStoreBaseUrl(businessWebsite.website);
+                    }
+                }
+                return getPlatformBaseUrl();
+            };
 
             if (result.status === 200) {
                 const redirectData = (result.data as {
@@ -71,6 +86,7 @@ class UserController{
                     sessionToken?: string;
                     setupPasswordToken?: string | null;
                     requiresPasswordSetup?: boolean;
+                    alreadyVerified?: boolean;
                 } | undefined) ?? {};
                 const redirectPath = redirectData.role === 1 ? "/admin" : "/";
                 const params = new URLSearchParams();
@@ -81,30 +97,13 @@ class UserController{
                     params.set("forcePasswordSetup", "1");
                     params.set("setupPasswordToken", redirectData.setupPasswordToken);
                 }
-                params.set("verified", "1");
-
-                if (resolvedTenantId) {
-                    const businessWebsite = await prisma.businessData.findUnique({
-                        where: {
-                            tenantId: resolvedTenantId
-                        },
-                        select: {
-                            website: true
-                        }
-                    });
-                    if (businessWebsite?.website) {
-                        const baseUrl = getStoreBaseUrl(businessWebsite.website);
-                        res.redirect(`${baseUrl}${redirectPath}?${params.toString()}`);
-                        return res;
-                    }
+                if (!redirectData.alreadyVerified) {
+                    params.set("verified", "1");
                 }
-                const frontendBaseUrl = getPlatformBaseUrl();
+
+                const frontendBaseUrl = await resolveBaseUrl(resolvedTenantId);
                 res.redirect(`${frontendBaseUrl}${redirectPath}?${params.toString()}`);
                 return res;
-            }
-
-            if (result.status === 409) {
-                return res.status(409).type("html").send(result.message);
             }
 
             let payload: { id?: string; email?: string; tenantId?: string } = {};
@@ -112,11 +111,15 @@ class UserController{
                 const payloadRaw = decryptString(token);
                 payload = JSON.parse(payloadRaw) as { id?: string; email?: string; tenantId?: string };
             } catch {
-                return res.status(400).type("html").send(result.message);
+                const loginBaseUrl = await resolveBaseUrl(req.tenantId ?? null);
+                res.redirect(`${loginBaseUrl}/login`);
+                return res;
             }
 
             if (!payload.id || !payload.email) {
-                return res.status(400).type("html").send(result.message);
+                const loginBaseUrl = await resolveBaseUrl(req.tenantId ?? null);
+                res.redirect(`${loginBaseUrl}/login`);
+                return res;
             }
 
             const tenantScope = resolvedTenantId ?? payload.tenantId ?? req.tenantId ?? null;
@@ -128,6 +131,7 @@ class UserController{
                 },
                 select: {
                     email: true,
+                    role: true,
                     tenant: {
                         select: {
                             businessData: true
@@ -136,31 +140,20 @@ class UserController{
                 }
             });
             if (!user || user.email !== payload.email || !user.tenant) {
-                return res.status(result.status).type("html").send(result.message);
+                const loginBaseUrl = await resolveBaseUrl(tenantScope);
+                res.redirect(`${loginBaseUrl}/login`);
+                return res;
             }
 
             const business = user.tenant.businessData;
             if (!business) {
-                return res.status(result.status).type("html").send(result.message);
+                const loginBaseUrl = await resolveBaseUrl(tenantScope);
+                res.redirect(`${loginBaseUrl}/login`);
+                return res;
             }
-            const businessLogoBlock = business.logo
-                ? `<div style="margin:12px 0;"><img src="${business.logo}" alt="${business.name}" style="max-width:100%; height:auto; border-radius:6px;" /></div>`
-                : "";
-            const businessBannerBlock = business.banner
-                ? `<div style="margin:12px 0;"><img src="${business.banner}" alt="${business.name}" style="max-width:100%; height:auto; border-radius:6px;" /></div>`
-                : "";
-            const html = await renderTemplate("verify_failed_business.html", {
-                message: result.message,
-                businessName: business.name ?? "",
-                businessDescription: business.description ?? "",
-                businessAddress: business.address ?? "",
-                businessPhone: business.phone ?? "",
-                businessEmail: business.email ?? "",
-                businessWebsite: getStoreBaseUrl(business.website),
-                businessLogoBlock,
-                businessBannerBlock
-            });
-            return res.status(result.status).type("html").send(html);
+            const loginPath = user.role === 1 ? "/admin/login" : "/login";
+            res.redirect(`${getStoreBaseUrl(business.website)}${loginPath}`);
+            return res;
         } catch (error) {
             const err = error as Error
             logger.error("Error catched en verifyAccount controller: ", err.message)

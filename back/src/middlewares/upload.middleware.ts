@@ -163,6 +163,9 @@ export const uploadBusinessAssetsMiddleware = [
         }
         for (let i = 0; i < files.length; i += 1) {
           const file = files[i];
+          if (group === "banner" || group === "banners") {
+            continue;
+          }
           const optimized = await sharp(file.buffer)
             .rotate()
             .webp({ quality: 85 })
