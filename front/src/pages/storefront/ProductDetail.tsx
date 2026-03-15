@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ShoppingCart, Minus, Plus, ArrowLeft } from 'lucide-react';
+import { ShoppingCart, Minus, Plus, ArrowLeft, Loader2 } from 'lucide-react';
 import { useCart } from '@/contexts/CartContext';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
@@ -12,16 +12,34 @@ export default function ProductDetailPage() {
   const { slug } = useParams<{ slug: string }>();
   const [quantity, setQuantity] = useState(1);
   const [selectedImage, setSelectedImage] = useState(0);
-  const { addItem } = useCart();
+  const { cart, addItem, loading: addingToCart } = useCart();
   const { data: product, isLoading: loading } = useStorefrontProductDetail(slug);
+  const quantityInCart = useMemo(() => {
+    if (!product) return 0;
+    return cart?.items.find((item) => item.productId === product.id)?.quantity ?? 0;
+  }, [cart?.items, product]);
+  const remainingStock = Math.max((product?.stock ?? 0) - quantityInCart, 0);
+  const maxSelectableQuantity = Math.max(remainingStock, 1);
+
+  useEffect(() => {
+    setSelectedImage(0);
+  }, [product?.id]);
+
+  useEffect(() => {
+    setQuantity((currentQuantity) => Math.min(currentQuantity, maxSelectableQuantity));
+  }, [maxSelectableQuantity]);
 
   const handleAddToCart = async () => {
-    if (!product) return;
+    if (!product || remainingStock <= 0) return;
     try {
-      await addItem(product.id, quantity);
-      sileo.success({ title: 'Producto agregado al carrito' });
+      const result = await addItem(product.id, quantity);
+      if (!result) {
+        sileo.success({ title: 'Producto agregado al carrito', "duration": 1000 });
+      } else {
+        sileo.error({ title: result.message });
+      }
     } catch {
-      sileo.error({ title: 'Error al agregar al carrito' });
+      sileo.error({ title: 'Error al agregar al carrito', duration:1000 });
     }
   };
 
@@ -97,7 +115,7 @@ export default function ProductDetailPage() {
 
           <p className="text-muted-foreground leading-relaxed">{product.description}</p>
 
-          {product.stock > 0 ? (
+          {remainingStock > 0 ? (
             <div className="space-y-4">
               <div className="flex items-center gap-3">
                 <span className="text-sm font-medium">Cantidad:</span>
@@ -106,15 +124,19 @@ export default function ProductDetailPage() {
                     <Minus className="h-4 w-4" />
                   </button>
                   <span className="px-4 text-sm font-medium">{quantity}</span>
-                  <button onClick={() => setQuantity(Math.min(product.stock, quantity + 1))} className="p-2 hover:bg-accent transition-colors">
+                  <button
+                    onClick={() => setQuantity(Math.min(remainingStock, quantity + 1))}
+                    disabled={quantity >= remainingStock}
+                    className="p-2 hover:bg-accent transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                  >
                     <Plus className="h-4 w-4" />
                   </button>
                 </div>
-                <span className="text-xs text-muted-foreground">{product.stock} disponibles</span>
+                <span className="text-xs text-muted-foreground">{remainingStock} disponibles</span>
               </div>
-              <Button onClick={handleAddToCart} size="lg" className="w-full gap-2">
+              <Button onClick={handleAddToCart} disabled={addingToCart || remainingStock <= 0} size="lg" className="w-full gap-2">
                 <ShoppingCart className="h-4 w-4" />
-                Agregar al carrito
+                {addingToCart ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Agregar al carrito'}
               </Button>
             </div>
           ) : (

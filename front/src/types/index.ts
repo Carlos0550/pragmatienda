@@ -355,6 +355,7 @@ export type TenantResolveResponse = ApiEnvelope<{
   province?: string | null;
   country?: string | null;
   socialMedia?: SocialLinks | null;
+  bankOptions?: BankOption[];
 }>;
 export type ProductsListResponse = PaginatedResponse<Product>;
 export type ProductDetailResponse = ApiEnvelope<Product>;
@@ -547,10 +548,10 @@ export interface CartState {
   cart: Cart | null;
   loading: boolean;
   fetchCart: () => Promise<void>;
-  addItem: (productId: string, quantity: number) => Promise<void>;
+  addItem: (productId: string, quantity: number) => Promise<void | ApiError>;
   updateItem: (productId: string, quantity: number) => Promise<void>;
   removeItem: (productId: string) => Promise<void>;
-  checkout: (comprobante: File, guestCheckout?: GuestCheckoutPayload) => Promise<{ orderId: string }>;
+  checkout: (comprobante: File, guestCheckout?: GuestCheckoutPayload) => Promise<{ orderId: string } | { saleIds: string[] }>;
   totalCartItems: () => number;
   totalCart: () => number;
 }

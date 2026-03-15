@@ -1,7 +1,24 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import ProductDetailPage from '@/pages/storefront/ProductDetail';
 import { withRoute } from '../../utils/test-utils';
+
+const { mockAddItem, cartState } = vi.hoisted(() => ({
+  mockAddItem: vi.fn(),
+  cartState: {
+    cart: null as null | {
+      id: string;
+      items: Array<{
+        id: string;
+        productId: string;
+        quantity: number;
+        product: { id: string; name: string; price: number; stock: number; images?: string[] };
+      }>;
+      total: number;
+    },
+    loading: false,
+  },
+}));
 
 vi.mock('@/services/http', () => ({
   http: {
@@ -10,7 +27,7 @@ vi.mock('@/services/http', () => ({
 }));
 
 vi.mock('@/contexts/CartContext', () => ({
-  useCart: () => ({ addItem: vi.fn() }),
+  useCart: () => ({ cart: cartState.cart, addItem: mockAddItem, loading: cartState.loading }),
 }));
 
 vi.mock('@/contexts/AuthContext', () => ({
@@ -46,6 +63,9 @@ const mockProduct = (slug: string) => ({
 describe('ProductDetailPage', () => {
   beforeEach(() => {
     vi.mocked(http.products.getPublicBySlug).mockReset();
+    mockAddItem.mockReset();
+    cartState.cart = null;
+    cartState.loading = false;
   });
 
   it('muestra loading mientras carga el producto', () => {
@@ -95,6 +115,78 @@ describe('ProductDetailPage', () => {
     await waitFor(() => {
       expect(screen.getByText('Producto Test')).toBeInTheDocument();
       expect(screen.getByText('Sin imagen')).toBeInTheDocument();
+    });
+  });
+
+  it('deshabilita agregar al carrito cuando el carrito ya tiene todo el stock', async () => {
+    vi.mocked(http.products.getPublicBySlug).mockResolvedValue({
+      ...mockProduct('producto-test'),
+      stock: 2,
+    });
+    cartState.cart = {
+      id: 'cart-1',
+      total: 3998,
+      items: [
+        {
+          id: 'item-1',
+          productId: 'prod-1',
+          quantity: 2,
+          product: { id: 'prod-1', name: 'Producto Test', price: 1999, stock: 2, images: ['https://example.com/product.jpg'] },
+        },
+      ],
+    };
+
+    renderProductDetail('/products/producto-test');
+
+    await waitFor(() => {
+      expect(screen.getByText('Producto sin stock')).toBeInTheDocument();
+    });
+
+    expect(screen.queryByRole('button', { name: /agregar al carrito/i })).not.toBeInTheDocument();
+  });
+
+  it('clampa la cantidad seleccionada cuando baja el stock remanente del carrito', async () => {
+    vi.mocked(http.products.getPublicBySlug).mockResolvedValue(mockProduct('producto-test'));
+
+    const view = renderProductDetail('/products/producto-test');
+
+    await waitFor(() => {
+      expect(screen.getByText('Producto Test')).toBeInTheDocument();
+      expect(screen.getByText('5 disponibles')).toBeInTheDocument();
+    });
+
+    const quantityValue = screen.getByText('1');
+    const quantityControls = quantityValue.closest('div');
+    const incrementButton = quantityControls?.querySelectorAll('button')[1];
+
+    fireEvent.click(incrementButton!);
+    fireEvent.click(incrementButton!);
+    fireEvent.click(incrementButton!);
+
+    expect(screen.getByText('4')).toBeInTheDocument();
+
+    cartState.cart = {
+      id: 'cart-1',
+      total: 7996,
+      items: [
+        {
+          id: 'item-1',
+          productId: 'prod-1',
+          quantity: 4,
+          product: { id: 'prod-1', name: 'Producto Test', price: 1999, stock: 5, images: ['https://example.com/product.jpg'] },
+        },
+      ],
+    };
+
+    view.rerender(
+      withRoute('/products/:slug', <ProductDetailPage />, {
+        initialEntries: ['/products/producto-test'],
+      })
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('1 disponibles')).toBeInTheDocument();
+      expect(screen.getByText('1')).toBeInTheDocument();
     });
   });
 });

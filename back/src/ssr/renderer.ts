@@ -512,6 +512,7 @@ async function resolveTenantFromHostname(hostname: string) {
     seoImage?: string | null;
     favicon?: string | null;
     socialMedia?: unknown;
+    bankOptions?: Array<{ bankName: string; recipientName: string; aliasCvuCbu: string }>;
   };
 
   const rawBanners = data.banners;
@@ -552,6 +553,7 @@ async function resolveTenantFromHostname(hostname: string) {
         seoImage: data.seoImage ?? undefined,
         favicon: data.favicon ?? undefined,
         socialLinks: toTenantSocialLinks(data.socialMedia),
+        bankOptions: Array.isArray(data.bankOptions) ? data.bankOptions : undefined,
       },
       loading: false,
       error: null,

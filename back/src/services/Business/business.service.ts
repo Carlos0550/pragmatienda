@@ -300,6 +300,7 @@ class BusinessService {
           province: true,
           country: true,
           socialMedia: true,
+          bankOptions: true,
           tenant: {
             select: { id: true },
           },
@@ -312,6 +313,24 @@ class BusinessService {
           message: "No se encontro tenant para la tienda indicada.",
         };
       }
+
+      const rawBankOptions = business.bankOptions as BankOption[] | null;
+      const bankOptions = Array.isArray(rawBankOptions)
+        ? rawBankOptions
+            .filter((item) =>
+              Boolean(
+                item &&
+                typeof item.bankName === "string" &&
+                typeof item.recipientName === "string" &&
+                typeof item.aliasCvuCbu === "string"
+              )
+            )
+            .map((item) => ({
+              bankName: item.bankName,
+              recipientName: item.recipientName,
+              aliasCvuCbu: item.aliasCvuCbu,
+            }))
+        : [];
 
       return {
         status: 200,
@@ -333,6 +352,7 @@ class BusinessService {
           province: business.province,
           country: business.country,
           socialMedia: business.socialMedia,
+          bankOptions,
         },
       };
     } catch (error) {

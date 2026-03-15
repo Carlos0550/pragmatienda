@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Upload, CheckCircle, X } from 'lucide-react';
+import { Upload, CheckCircle, X, Building2, User, Hash, Copy } from 'lucide-react';
 import { useCart } from '@/contexts/CartContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTenant } from '@/contexts/TenantContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,6 +13,8 @@ import { motion } from 'framer-motion';
 export default function CheckoutPage() {
   const { cart, checkout, totalCart } = useCart();
   const { user } = useAuth();
+  const { tenant } = useTenant();
+  const bankOptions = tenant?.bankOptions ?? [];
   const navigate = useNavigate();
   const fileRef = useRef<HTMLInputElement>(null);
   const [comprobante, setComprobante] = useState<File | null>(null);
@@ -168,6 +171,45 @@ export default function CheckoutPage() {
                 </span>
               </span>
             </label>
+          </div>
+        )}
+
+        {bankOptions.length > 0 && (
+          <div className="space-y-3 rounded-lg border bg-muted/30 p-4">
+            <h3 className="font-semibold text-sm">Datos para la transferencia</h3>
+            <p className="text-xs text-muted-foreground">
+              Realizá la transferencia a una de estas cuentas y luego subí el comprobante.
+            </p>
+            <ul className="space-y-4">
+              {bankOptions.map((option, index) => (
+                <li key={index} className="space-y-2 text-sm">
+                  <div className="flex items-center gap-2 font-medium">
+                    <Building2 className="h-4 w-4 text-muted-foreground" />
+                    {option.bankName}
+                  </div>
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <User className="h-3.5 w-3.5" />
+                    <span>Titular: {option.recipientName}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Hash className="h-3.5 w-3.5 shrink-0" />
+                    <span>Alias/CBU/CVU: {option.aliasCvuCbu}</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(option.aliasCvuCbu);
+                        sileo.success({ title: 'Copiado al portapapeles', duration: 1500 });
+                      }}
+                      className="ml-1 p-1 rounded hover:bg-muted transition-colors"
+                      title="Copiar"
+                      aria-label="Copiar Alias/CBU/CVU"
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
           </div>
         )}
 

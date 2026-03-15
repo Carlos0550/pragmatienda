@@ -68,7 +68,11 @@ export default function CartPage() {
                     <Minus className="h-3 w-3" />
                   </button>
                   <span className="px-3 text-sm">{item.quantity}</span>
-                  <button onClick={() => updateItem(item.productId, item.quantity + 1)} className="p-1.5 hover:bg-accent transition-colors">
+                  <button
+                    onClick={() => updateItem(item.productId, item.quantity + 1)}
+                    disabled={item.quantity >= item.product.stock}
+                    className="p-1.5 hover:bg-accent transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                  >
                     <Plus className="h-3 w-3" />
                   </button>
                 </div>

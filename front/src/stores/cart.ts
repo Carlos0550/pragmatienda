@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { http } from '@/services/http';
-import type { CartItem, CartState, GuestCheckoutPayload } from '@/types';
+import type { ApiError, CartItem, CartState, GuestCheckoutPayload } from '@/types';
 
 export const useCartStore = create<CartState>((set) => ({
   cart: null,
@@ -23,6 +23,8 @@ export const useCartStore = create<CartState>((set) => ({
     try {
       await http.cart.patchItemDelta(productId, quantity);
       await useCartStore.getState().fetchCart();
+    } catch (error) {
+      return error as ApiError;
     } finally {
       set({ loading: false });
     }

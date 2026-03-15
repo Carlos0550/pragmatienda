@@ -76,5 +76,6 @@ export function normalizeResolvedTenant(response: TenantResolveResponse): Tenant
     province: response.data.province ?? undefined,
     country: response.data.country ?? 'Argentina',
     socialLinks: response.data.socialMedia ?? undefined,
+    bankOptions: response.data.bankOptions ?? undefined,
   };
 }

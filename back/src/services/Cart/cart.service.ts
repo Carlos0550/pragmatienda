@@ -90,6 +90,14 @@ const checkoutCartSelect = {
 const trimGuestString = (value?: string | null) => value?.trim() ?? "";
 
 export class CartService {
+  private formatStockExceededMessage(available: number) {
+    if (available <= 0) {
+      return "Producto sin stock.";
+    }
+
+    return `Stock insuficiente. Disponible: ${available}.`;
+  }
+
   private async findGuestCart(
     tenantId: string,
     token?: string | null,
@@ -463,12 +471,13 @@ export class CartService {
         const existingItem = cart.items[0];
         if (existingItem) {
           const newQuantity = existingItem.quantity + delta;
+          const availableStock = Math.max(product.stock - existingItem.quantity, 0);
           if (newQuantity <= 0) {
             await prisma.cartItem.delete({ where: { id: existingItem.id } });
             return { status: 200, message: "Item eliminado del carrito.", data: { quantity: 0 } };
           }
           if (delta > 0 && newQuantity > product.stock) {
-            return { status: 400, message: `Stock insuficiente. Disponible: ${product.stock}.` };
+            return { status: 400, message: this.formatStockExceededMessage(availableStock) };
           }
           const updated = await prisma.cartItem.update({
             where: { id: existingItem.id },
@@ -482,7 +491,7 @@ export class CartService {
           return { status: 400, message: "El producto no está en el carrito. Use delta positivo para agregar." };
         }
         if (delta > product.stock) {
-          return { status: 400, message: `Stock insuficiente. Disponible: ${product.stock}.` };
+          return { status: 400, message: this.formatStockExceededMessage(product.stock) };
         }
 
         const created = await prisma.cartItem.create({
@@ -500,6 +509,7 @@ export class CartService {
 
       if (existingItem) {
         const newQuantity = existingItem.quantity + delta;
+        const availableStock = Math.max(product.stock - existingItem.quantity, 0);
         if (newQuantity <= 0) {
           await prisma.guestCartItem.delete({ where: { id: existingItem.id } });
           const remaining = await prisma.guestCartItem.count({ where: { guestCartId: guestCart.id } });
@@ -515,7 +525,7 @@ export class CartService {
           };
         }
         if (delta > 0 && newQuantity > product.stock) {
-          return { status: 400, message: `Stock insuficiente. Disponible: ${product.stock}.` };
+          return { status: 400, message: this.formatStockExceededMessage(availableStock) };
         }
         const updated = await prisma.guestCartItem.update({
           where: { id: existingItem.id },
@@ -534,7 +544,7 @@ export class CartService {
         return { status: 400, message: "El producto no está en el carrito. Use delta positivo para agregar." };
       }
       if (delta > product.stock) {
-        return { status: 400, message: `Stock insuficiente. Disponible: ${product.stock}.` };
+        return { status: 400, message: this.formatStockExceededMessage(product.stock) };
       }
 
       const created = await prisma.guestCartItem.create({
