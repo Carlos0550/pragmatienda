@@ -11,7 +11,7 @@ import { productsService } from "../services/Products/products.service";
 import { businessService } from "../services/Business/business.service";
 import { prisma } from "../db/prisma";
 import { capitalizeWords, slugify } from "../utils/normalization.utils";
-import { getPlatformBaseUrl, isLandingHostname as isPlatformLandingHostname } from "../utils/storefront.utils";
+import { getPlatformBaseUrl, getStoreBaseUrl, isLandingHostname as isPlatformLandingHostname } from "../utils/storefront.utils";
 
 type SsrRouteKind = "landing" | "home" | "products" | "product" | "category" | "spa";
 type FrontServerModule = {
@@ -910,10 +910,21 @@ export const sitemapHandler: RequestHandler = async (req, res, next) => {
     const baseUrl = `${protocol}://${hostHeader}`;
 
     if (isPlatformLandingHostname(hostname)) {
+      const businesses = await prisma.businessData.findMany({
+        select: { website: true },
+        orderBy: { website: "asc" },
+      });
+      const sitemapEntries = [
+        `  <sitemap><loc>${escapeXml(`${baseUrl}/sitemap-pages.xml`)}</loc></sitemap>`,
+        ...businesses
+          .map((business) => normalizeHostForSitemapIndex(business.website))
+          .filter((website): website is string => Boolean(website))
+          .map((website) => `  <sitemap><loc>${escapeXml(`${getStoreBaseUrl(website)}/sitemap.xml`)}</loc></sitemap>`),
+      ];
       const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>${escapeXml(baseUrl)}/</loc></url>
-</urlset>`;
+<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${sitemapEntries.join("\n")}
+</sitemapindex>`;
       res.type("application/xml").send(xml);
       return;
     }
@@ -964,6 +975,27 @@ ${urls
   .join("\n")}
 </urlset>`;
 
+    res.type("application/xml").send(xml);
+  } catch (error) {
+    next(error);
+  }
+};
+
+function normalizeHostForSitemapIndex(hostname: string | null | undefined): string | null {
+  const normalized = (hostname ?? "").trim().toLowerCase();
+  if (!normalized) return null;
+  return normalized;
+}
+
+export const platformSitemapHandler: RequestHandler = async (req, res, next) => {
+  try {
+    const { hostHeader } = normalizeHost(req);
+    const protocol = (req.header("x-forwarded-proto") ?? req.protocol ?? "http").split(",")[0].trim();
+    const baseUrl = `${protocol}://${hostHeader}`;
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>${escapeXml(`${baseUrl}/`)}</loc></url>
+</urlset>`;
     res.type("application/xml").send(xml);
   } catch (error) {
     next(error);

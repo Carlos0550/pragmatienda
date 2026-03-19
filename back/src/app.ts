@@ -10,7 +10,7 @@ import { env } from "./config/env";
 import { logger, requestLogger } from "./config/logger";
 import { getSwaggerSpec } from "./docs/swagger";
 import { apiRouter } from "./routes";
-import { getFrontClientDistDir, robotsHandler, sitemapHandler, ssrHandler } from "./ssr/renderer";
+import { getFrontClientDistDir, platformSitemapHandler, robotsHandler, sitemapHandler, ssrHandler } from "./ssr/renderer";
 import { getPlatformBaseUrl } from "./utils/storefront.utils";
 
 const app = express();
@@ -87,6 +87,7 @@ if (fs.existsSync(frontClientDistDir)) {
 }
 
 app.get("/sitemap.xml", sitemapHandler);
+app.get("/sitemap-pages.xml", platformSitemapHandler);
 app.get("/robots.txt", robotsHandler);
 app.get("*", ssrHandler);
 
