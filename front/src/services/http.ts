@@ -42,6 +42,7 @@ import type {
   UserMeResponse,
   ValidateResetPasswordTokenPayload,
   ValidateResetPasswordTokenResponse,
+  DashboardStats,
 } from '@/types';
 import { normalizeCategories, normalizeCategory, normalizeProducts } from '@/lib/api-utils';
 import { api } from '@/services/api';
@@ -257,6 +258,18 @@ export const http = {
         undefined,
         { 'Idempotency-Key': idempotencyKey }
       );
+      return response.data;
+    },
+  },
+
+  dashboard: {
+    getStats: async (period: 7 | 30 = 7) => {
+      const response = await api.get<ApiEnvelope<DashboardStats>>(`/admin/dashboard/stats?period=${period}`);
+      return response.data;
+    },
+    getStatsByMonth: async (year: number, month: number) => {
+      const monthStr = month.toString().padStart(2, '0');
+      const response = await api.get<ApiEnvelope<DashboardStats>>(`/admin/dashboard/stats?month=${year}-${monthStr}`);
       return response.data;
     },
   },

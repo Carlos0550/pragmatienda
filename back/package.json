@@ -16,6 +16,7 @@
     "seed": "prisma db seed",
     "billing:sync-plans": "tsx src/scripts/sync-mp-preapproval-plans.ts",
     "billing:sync-subscriptions": "tsx src/scripts/billing-subscription-sync.ts",
+    "billing:assign-plan": "tsx src/scripts/assign-tenant-plan.ts",
     "superadmin:token": "tsx src/scripts/superadmin-token.ts",
     "test:integration": "tsx src/scripts/integration-test-final.ts",
     "studio": "prisma studio",

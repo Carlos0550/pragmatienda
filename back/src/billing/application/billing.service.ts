@@ -422,6 +422,54 @@ export class BillingService {
     return { subscriptionId: subscription.id, externalSubscriptionId: snapshot.externalSubscriptionId };
   }
 
+  async assignPlanManually(tenantId: string, planCode: PlanType) {
+    const tenant = await this.repository.getTenantWithOwner(tenantId);
+    if (!tenant) {
+      throw new BillingError(404, "TENANT_NOT_FOUND", "Tenant no encontrado.");
+    }
+
+    const plan = await this.repository.getPlanByCode(planCode);
+    if (!plan) {
+      throw new BillingError(404, "PLAN_NOT_FOUND", "Plan no encontrado.");
+    }
+    if (!plan.active) {
+      throw new BillingError(400, "PLAN_INACTIVE", "El plan no está activo.");
+    }
+    if (plan.code === PlanType.FREE) {
+      throw new BillingError(400, "PLAN_UNAVAILABLE", "La asignación manual solo permite planes pagos.");
+    }
+
+    const assignedAt = new Date();
+    const externalSubscriptionId = `manual-${tenantId}-${plan.code}-${assignedAt.getTime()}`;
+    const subscription = await this.repository.createSubscription({
+      tenantId,
+      planId: plan.id,
+      externalSubscriptionId,
+      status: BillingStatus.ACTIVE,
+      currentPeriodStart: assignedAt,
+      currentPeriodEnd: null
+    });
+
+    await this.repository.createSubscriptionEvent(
+      subscription.id,
+      "subscription.assigned_manually",
+      toJsonValue({
+        source: "script",
+        planCode: plan.code,
+        assignedAt: assignedAt.toISOString()
+      })
+    );
+
+    await this.syncTenantWithSubscription(externalSubscriptionId);
+
+    return {
+      subscriptionId: subscription.id,
+      externalSubscriptionId,
+      planId: plan.id,
+      planCode: plan.code
+    };
+  }
+
   async resumeCurrentSubscription(tenantId: string) {
     const current = await this.resolveCurrentSubscriptionForTenant(tenantId);
     if (!current) {

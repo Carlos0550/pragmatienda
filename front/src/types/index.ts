@@ -431,6 +431,52 @@ export interface SaleMetrics {
   series: SaleMetricsPoint[];
 }
 
+export interface DashboardKpis {
+  revenue: number;
+  revenuePrev: number;
+  orders: number;
+  ordersPrev: number;
+  avgTicket: number;
+  avgTicketPrev: number;
+  lowStockCount: number;
+  outOfStockCount: number;
+}
+
+export interface RevenueChartPoint {
+  date: string;
+  total: number;
+}
+
+export interface StockAlert {
+  id: string;
+  name: string;
+  stock: number;
+  status: 'out_of_stock' | 'critical' | 'low';
+}
+
+export interface RecentOrder {
+  id: string;
+  number: string;
+  customerName: string;
+  status: string;
+  fulfillmentStatus: string;
+  total: number;
+}
+
+export interface TopProduct {
+  id: string;
+  name: string;
+  totalSold: number;
+}
+
+export interface DashboardStats {
+  kpis: DashboardKpis;
+  revenueChart: RevenueChartPoint[];
+  stockAlerts: StockAlert[];
+  recentOrders: RecentOrder[];
+  topProducts: TopProduct[];
+}
+
 export interface ListSalesParams {
   page?: number;
   limit?: number;

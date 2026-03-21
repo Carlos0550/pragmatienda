@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { businessController } from "../controllers/business.controller";
 import { categoriesController } from "../controllers/categories.controller";
+import { dashboardController } from "../controllers/dashboard.controller";
 import { paymentsController } from "../controllers/payments.controller";
 import { productsController } from "../controllers/products.controller";
 import { salesRouter } from "./sales.routes";
@@ -329,6 +330,26 @@ openApiRegistry.registerPath({
   }
 });
 
+openApiRegistry.registerPath({
+  method: "get",
+  path: "/admin/dashboard/stats",
+  tags: ["Dashboard"],
+  summary: "Obtener estadísticas del dashboard",
+  request: {
+    headers: z.object({ "x-tenant-id": z.string() }),
+    query: z.object({
+      period: z.string().optional().openapi({
+        description: "Periodo en días (7 o 30)",
+        example: "7"
+      })
+    })
+  },
+  responses: {
+    "200": { description: "Estadísticas del dashboard obtenidas" },
+    "400": { description: "Periodo inválido" }
+  }
+});
+
 const router = Router();
 
 router.put("/me/password", requireRole([1]), requireTenant, businessController.changePasswordBusiness);
@@ -404,6 +425,14 @@ router.delete(
   requireRole([1]),
   requireTenant,
   productsController.deleteOne
+);
+
+// Dashboard
+router.get(
+  "/dashboard/stats",
+  requireRole([1]),
+  requireTenant,
+  dashboardController.getStats
 );
 
 router.use("/sales", salesRouter);
