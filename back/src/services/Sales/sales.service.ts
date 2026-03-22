@@ -522,13 +522,19 @@ export class SalesService {
         return { status: 404, message: "Esta venta no tiene comprobante de pago." };
       }
 
-      const signedUrl = await getPrivateObjectFromDefaultBucket(sale.paymentProofImage, 300);
-
-      return {
-        status: 200,
-        message: "URL del comprobante generada.",
-        data: { url: signedUrl }
-      };
+      try {
+        const signedUrl = await getPrivateObjectFromDefaultBucket(sale.paymentProofImage, 300);
+        
+        return {
+          status: 200,
+          message: "URL del comprobante generada.",
+          data: { url: signedUrl }
+        };
+      } catch (urlError) {
+        const urlErr = urlError as Error;
+        logger.error("Error al generar URL firmada para comprobante:", urlErr.message);
+        return { status: 500, message: "Error al generar URL del comprobante.", err: urlErr.message };
+      }
     } catch (error) {
       const err = error as Error;
       logger.error("Error en sales getPaymentProofUrl:", err.message);
