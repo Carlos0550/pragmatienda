@@ -181,7 +181,7 @@ export default function AdminSalesPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [paymentProofUrl, setPaymentProofUrl] = useState<string | null>(null);
-  const [paymentProofLoading, setPaymentProofLoading] = useState(false);
+  const [paymentProofLoading, setPaymentProofLoading] = useState<Record<string, boolean>>({});
   const [paymentProofOpen, setPaymentProofOpen] = useState(false);
   const posProductsRequestIdRef = useRef(0);
   const salesRequestIdRef = useRef(0);
@@ -645,7 +645,7 @@ export default function AdminSalesPage() {
   };
 
   const loadPaymentProof = async (saleId: string) => {
-    setPaymentProofLoading(true);
+    setPaymentProofLoading(prev => ({ ...prev, [saleId]: true }));
     try {
       const response = await http.sales.getPaymentProof(saleId);
       if (response.data && response.data.url) {
@@ -657,7 +657,7 @@ export default function AdminSalesPage() {
     } catch {
       sileo.error({ title: 'Error al cargar comprobante' });
     } finally {
-      setPaymentProofLoading(false);
+      setPaymentProofLoading(prev => ({ ...prev, [saleId]: false }));
     }
   };
 
@@ -1314,9 +1314,9 @@ export default function AdminSalesPage() {
                     size="sm"
                     className="h-6 text-xs"
                     onClick={() => loadPaymentProof(selectedSale.id)}
-                    disabled={paymentProofLoading}
+                    disabled={paymentProofLoading[selectedSale.id]}
                   >
-                    {paymentProofLoading ? (
+                    {paymentProofLoading[selectedSale.id] ? (
                       <Loader2 className="h-3 w-3 mr-1 animate-spin" />
                     ) : (
                       <Eye className="h-3 w-3 mr-1" />
