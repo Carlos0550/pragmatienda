@@ -117,6 +117,21 @@ openApiRegistry.registerPath({
   }
 });
 
+openApiRegistry.registerPath({
+  method: "get",
+  path: "/admin/sales/{id}/payment-proof",
+  tags: ["Sales"],
+  summary: "Obtener URL firmada del comprobante de pago",
+  request: {
+    headers: salesHeaders,
+    params: z.object({ id: z.string().cuid() })
+  },
+  responses: {
+    "200": { description: "URL firmada del comprobante" },
+    "404": { description: "Venta no encontrada o sin comprobante" }
+  }
+});
+
 const router = Router();
 
 router.use(requireRole([1]));
@@ -127,6 +142,7 @@ router.get("/metrics", salesController.getMetrics);
 router.get("/:id", salesController.getOne);
 router.put("/:id", salesController.update);
 router.patch("/:id/items", salesController.patchItems);
+router.get("/:id/payment-proof", salesController.getPaymentProof);
 router.delete("/:id", salesController.delete);
 
 export { router as salesRouter };

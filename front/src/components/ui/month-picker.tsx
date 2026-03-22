@@ -1,10 +1,11 @@
 import * as React from "react";
 import { ChevronLeft, ChevronRight, CalendarIcon } from "lucide-react";
-import { format, addMonths, subMonths, startOfMonth, endOfMonth } from "date-fns";
+import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { dayjs } from "@/config/dayjs";
 
 interface MonthPickerProps {
   value?: Date;
@@ -15,10 +16,10 @@ interface MonthPickerProps {
 
 export function MonthPicker({ value, onChange, disabled, className }: MonthPickerProps) {
   const [open, setOpen] = React.useState(false);
-  const [viewDate, setViewDate] = React.useState(value || new Date());
+  const [viewDate, setViewDate] = React.useState(value || dayjs().toDate());
   
-  const currentYear = viewDate.getFullYear();
-  const currentMonth = viewDate.getMonth();
+  const currentYear = dayjs(viewDate).year();
+  const currentMonth = dayjs(viewDate).month();
   
   const months = [
     { value: 0, label: "Enero" },
@@ -36,17 +37,17 @@ export function MonthPicker({ value, onChange, disabled, className }: MonthPicke
   ];
 
   const handleMonthSelect = (monthIndex: number) => {
-    const selectedDate = new Date(currentYear, monthIndex, 1);
+    const selectedDate = dayjs().year(currentYear).month(monthIndex).date(1).toDate();
     onChange(selectedDate);
     setOpen(false);
   };
 
   const handlePrevYear = () => {
-    setViewDate(new Date(currentYear - 1, currentMonth, 1));
+    setViewDate(dayjs(viewDate).subtract(1, "year").toDate());
   };
 
   const handleNextYear = () => {
-    setViewDate(new Date(currentYear + 1, currentMonth, 1));
+    setViewDate(dayjs(viewDate).add(1, "year").toDate());
   };
 
   const displayText = value 
@@ -54,7 +55,7 @@ export function MonthPicker({ value, onChange, disabled, className }: MonthPicke
     : "Seleccionar mes";
 
   const isSelectedMonth = (monthIndex: number) => {
-    return value?.getMonth() === monthIndex && value?.getFullYear() === currentYear;
+    return dayjs(value).month() === monthIndex && dayjs(value).year() === currentYear;
   };
 
   return (

@@ -1,6 +1,8 @@
 import { PaymentStatus, Prisma } from "@prisma/client";
 import { logger } from "../../config/logger";
 import { prisma } from "../../db/prisma";
+import { dayjs } from "../../config/dayjs";
+import { getPrivateObjectFromDefaultBucket } from "../../storage/minio";
 import type { PrismaTransactionClient } from "../Cart/checkout.helpers";
 import type { z } from "zod";
 import type { listSalesQuerySchema, patchSaleItemsSchema, updateSaleSchema } from "./sales.zod";
@@ -29,13 +31,9 @@ export class SalesService {
       const { page, limit, from, to, sortBy, sortOrder } = query;
       const skip = (page - 1) * limit;
 
-      const fromDate = from ? new Date(from) : null;
+      const fromDate = from ? dayjs(from).toDate() : null;
       const toDate = to
-        ? (() => {
-            const d = new Date(to);
-            d.setUTCDate(d.getUTCDate() + 1);
-            return d;
-          })()
+        ? dayjs(to).add(1, "day").toDate()
         : null;
 
       const where: Prisma.SalesWhereInput = {
@@ -67,7 +65,19 @@ export class SalesService {
             order: {
               select: {
                 id: true,
-                user: { select: { email: true, name: true } },
+                createdAt: true,
+                guestName: true,
+                guestEmail: true,
+                guestPhone: true,
+                userId: true,
+                user: {
+                  select: {
+                    email: true,
+                    name: true,
+                    createdAt: true,
+                    _count: { select: { order: true } }
+                  }
+                },
                 items: {
                   select: {
                     id: true,
@@ -94,16 +104,31 @@ export class SalesService {
       const normalized = items.map((s) => ({
         id: s.id,
         total: decimalToNumber(s.total),
+        discount: decimalToNumber(s.discount),
         saleDate: s.saleDate,
+        createdAt: s.createdAt,
         status: s.status,
         paymentProvider: s.paymentProvider,
+        paymentProofImage: s.paymentProofImage,
         currency: s.currency,
         orderId: s.orderId,
         orderItemId: s.orderItemId,
         order: s.order
           ? {
               id: s.order.id,
-              user: s.order.user,
+              createdAt: s.order.createdAt,
+              guestName: s.order.guestName,
+              guestEmail: s.order.guestEmail,
+              guestPhone: s.order.guestPhone,
+              userId: s.order.userId,
+              user: s.order.user
+                ? {
+                    email: s.order.user.email,
+                    name: s.order.user.name,
+                    createdAt: s.order.user.createdAt,
+                    totalOrders: s.order.user._count.order
+                  }
+                : null,
               items: s.order.items.map((i) => ({
                 id: i.id,
                 quantity: i.quantity,
@@ -150,7 +175,19 @@ export class SalesService {
           order: {
             select: {
               id: true,
-              user: { select: { email: true, name: true } },
+              createdAt: true,
+              guestName: true,
+              guestEmail: true,
+              guestPhone: true,
+              userId: true,
+              user: {
+                select: {
+                  email: true,
+                  name: true,
+                  createdAt: true,
+                  _count: { select: { order: true } }
+                }
+              },
               items: {
                 select: {
                   id: true,
@@ -179,9 +216,16 @@ export class SalesService {
       const normalized = {
         ...sale,
         total: decimalToNumber(sale.total),
+        discount: decimalToNumber(sale.discount),
         order: sale.order
           ? {
               ...sale.order,
+              user: sale.order.user
+                ? {
+                    ...sale.order.user,
+                    totalOrders: sale.order.user._count.order
+                  }
+                : null,
               items: sale.order.items.map((i) => ({
                 ...i,
                 unitPrice: decimalToNumber(i.unitPrice)
@@ -211,9 +255,8 @@ export class SalesService {
     groupBy: "day" | "week" | "month" = "day"
   ): Promise<ServiceResponse> {
     try {
-      const fromDate = new Date(from);
-      const toDate = new Date(to);
-      toDate.setUTCDate(toDate.getUTCDate() + 1);
+      const fromDate = dayjs(from).toDate();
+      const toDate = dayjs(to).add(1, "day").toDate();
 
       const sales = await prisma.sales.findMany({
         where: {
@@ -225,16 +268,15 @@ export class SalesService {
 
       const grouped = new Map<string, number>();
       for (const s of sales) {
-        const d = new Date(s.saleDate);
+        const d = dayjs(s.saleDate);
         let key: string;
         if (groupBy === "day") {
-          key = d.toISOString().slice(0, 10);
+          key = d.format("YYYY-MM-DD");
         } else if (groupBy === "week") {
-          const start = new Date(d);
-          start.setDate(start.getDate() - start.getDay());
-          key = start.toISOString().slice(0, 10);
+          const start = d.startOf("week");
+          key = start.format("YYYY-MM-DD");
         } else {
-          key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+          key = d.format("YYYY-MM");
         }
         const prev = grouped.get(key) ?? 0;
         grouped.set(key, prev + decimalToNumber(s.total));
@@ -462,6 +504,35 @@ export class SalesService {
       const err = error as Error;
       logger.error("Error en sales delete:", err.message);
       return { status: 500, message: "Error al eliminar venta.", err: err.message };
+    }
+  }
+
+  async getPaymentProofUrl(tenantId: string, saleId: string): Promise<ServiceResponse> {
+    try {
+      const sale = await prisma.sales.findFirst({
+        where: { id: saleId, tenantId },
+        select: { paymentProofImage: true }
+      });
+
+      if (!sale) {
+        return { status: 404, message: "Venta no encontrada." };
+      }
+
+      if (!sale.paymentProofImage) {
+        return { status: 404, message: "Esta venta no tiene comprobante de pago." };
+      }
+
+      const signedUrl = await getPrivateObjectFromDefaultBucket(sale.paymentProofImage, 300);
+
+      return {
+        status: 200,
+        message: "URL del comprobante generada.",
+        data: { url: signedUrl }
+      };
+    } catch (error) {
+      const err = error as Error;
+      logger.error("Error en sales getPaymentProofUrl:", err.message);
+      return { status: 500, message: "Error al generar URL del comprobante.", err: err.message };
     }
   }
 }

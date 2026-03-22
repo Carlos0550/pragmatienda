@@ -2,6 +2,7 @@ import { createHash } from "crypto";
 import type { NextFunction, Request, Response } from "express";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../db/prisma";
+import { dayjs } from "../config/dayjs";
 
 const IDEMPOTENCY_HEADER = "idempotency-key";
 
@@ -85,7 +86,7 @@ const resolveExistingRecord = async (
     expiresAt: Date;
   }
 ) => {
-  const now = new Date();
+  const now = dayjs().toDate();
   if (existing.expiresAt <= now) {
     await prisma.idempotencyKey.delete({ where: { id: existing.id } }).catch(() => {});
     return false;
@@ -158,7 +159,7 @@ export const requireIdempotencyKey = (scope: string, ttlMinutes = 30) => {
       }
     }
 
-    const expiresAt = new Date(Date.now() + ttlMinutes * 60 * 1000);
+    const expiresAt = dayjs().add(ttlMinutes, "minute").toDate();
     try {
       const created = await prisma.idempotencyKey.create({
         data: {

@@ -6,6 +6,7 @@ import type { BillingProvider } from "../domain/billing-provider";
 import { MercadoPagoBillingProvider } from "../infrastructure/mercadopago-billing.provider";
 import { PrismaBillingRepository } from "../infrastructure/prisma-billing.repository";
 import { getStoreUrl } from "../../utils/storefront.utils";
+import { dayjs } from "../../config/dayjs";
 
 const BILLING_WEBHOOK_PROVIDER = "MERCADOPAGO_BILLING";
 
@@ -228,8 +229,8 @@ export class BillingService {
         currentPeriodStart: null,
         currentPeriodEnd: null,
         cancelAtPeriodEnd: false,
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        createdAt: dayjs().toDate(),
+        updatedAt: dayjs().toDate(),
         plan: fallbackPlan
       };
     }
@@ -439,8 +440,8 @@ export class BillingService {
       throw new BillingError(400, "PLAN_UNAVAILABLE", "La asignación manual solo permite planes pagos.");
     }
 
-    const assignedAt = new Date();
-    const externalSubscriptionId = `manual-${tenantId}-${plan.code}-${assignedAt.getTime()}`;
+    const assignedAt = dayjs().toDate();
+    const externalSubscriptionId = `manual-${tenantId}-${plan.code}-${dayjs().valueOf()}`;
     const subscription = await this.repository.createSubscription({
       tenantId,
       planId: plan.id,

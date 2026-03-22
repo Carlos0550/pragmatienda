@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { http } from '@/services/http';
+import { dayjs } from '@/config/dayjs';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -29,6 +30,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { LineChart } from '@mui/x-charts';
 import { sileo } from 'sileo';
 import {
@@ -64,6 +68,30 @@ const PAYMENT_PROVIDERS: { value: PaymentProvider; label: string }[] = [
   { value: 'BANK_TRANSFER', label: 'Transferencia' },
   { value: 'OTHER', label: 'Otro' },
 ];
+
+const PAYMENT_STATUS_LABELS: Record<string, string> = {
+  PENDING: 'Pendiente',
+  REQUIRES_ACTION: 'Requiere acción',
+  AUTHORIZED: 'Autorizado',
+  PAID: 'Pagado',
+  FAILED: 'Fallido',
+  REFUNDED: 'Reembolsado',
+  PARTIALLY_REFUNDED: 'Reembolso parcial',
+  CANCELED: 'Cancelado',
+  EXPIRED: 'Expirado',
+};
+
+const PAYMENT_STATUS_COLORS: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
+  PENDING: 'secondary',
+  REQUIRES_ACTION: 'secondary',
+  AUTHORIZED: 'default',
+  PAID: 'default',
+  FAILED: 'destructive',
+  REFUNDED: 'outline',
+  PARTIALLY_REFUNDED: 'outline',
+  CANCELED: 'destructive',
+  EXPIRED: 'outline',
+};
 
 function formatDate(d: string) {
   return new Date(d).toLocaleDateString('es-AR', {
@@ -134,11 +162,9 @@ export default function AdminSalesPage() {
   const [salesTotal, setSalesTotal] = useState(0);
   const [salesTotalPages, setSalesTotalPages] = useState(1);
   const [salesFrom, setSalesFrom] = useState(() => {
-    const d = new Date();
-    d.setMonth(d.getMonth() - 1);
-    return d.toISOString().slice(0, 10);
+    return dayjs().subtract(1, "month").format("YYYY-MM-DD");
   });
-  const [salesTo, setSalesTo] = useState(() => new Date().toISOString().slice(0, 10));
+  const [salesTo, setSalesTo] = useState(() => dayjs().format("YYYY-MM-DD"));
   const [metrics, setMetrics] = useState<SaleMetricsPoint[]>([]);
   const [metricsLoading, setMetricsLoading] = useState(true);
   const [salesError, setSalesError] = useState<string | null>(null);
@@ -151,8 +177,12 @@ export default function AdminSalesPage() {
   const [editProducts, setEditProducts] = useState<Product[]>([]);
   const [editProductSearch, setEditProductSearch] = useState('');
   const [editSaving, setEditSaving] = useState(false);
+  const [editLoadingId, setEditLoadingId] = useState<string | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [paymentProofUrl, setPaymentProofUrl] = useState<string | null>(null);
+  const [paymentProofLoading, setPaymentProofLoading] = useState(false);
+  const [paymentProofOpen, setPaymentProofOpen] = useState(false);
   const posProductsRequestIdRef = useRef(0);
   const salesRequestIdRef = useRef(0);
   const metricsRequestIdRef = useRef(0);
@@ -599,6 +629,7 @@ export default function AdminSalesPage() {
   };
 
   const openEditSale = async (sale: Sale) => {
+    setEditLoadingId(sale.id);
     try {
       const full = await http.sales.getOne(sale.id);
       setEditingSale(full);
@@ -608,6 +639,25 @@ export default function AdminSalesPage() {
       setEditProducts([]);
     } catch {
       sileo.error({ title: 'Error al cargar venta' });
+    } finally {
+      setEditLoadingId(null);
+    }
+  };
+
+  const loadPaymentProof = async (saleId: string) => {
+    setPaymentProofLoading(true);
+    try {
+      const response = await http.sales.getPaymentProof(saleId);
+      if (response.data && response.data.url) {
+        setPaymentProofUrl(response.data.url);
+        setPaymentProofOpen(true);
+      } else {
+        throw new Error('URL no encontrada');
+      }
+    } catch {
+      sileo.error({ title: 'Error al cargar comprobante' });
+    } finally {
+      setPaymentProofLoading(false);
     }
   };
 
@@ -829,7 +879,7 @@ export default function AdminSalesPage() {
             <ShoppingCart className="h-4 w-4" /> POS
           </TabsTrigger>
           <TabsTrigger value="history" className="gap-2">
-            <Eye className="h-4 w-4" /> Historial
+            <Eye className="h-4 w-4" /> Historial y Ventas
           </TabsTrigger>
         </TabsList>
 
@@ -1084,6 +1134,8 @@ export default function AdminSalesPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Fecha</TableHead>
+                    <TableHead>Comprador</TableHead>
+                    <TableHead>Origen</TableHead>
                     <TableHead>Total</TableHead>
                     <TableHead>Método</TableHead>
                     <TableHead>Estado</TableHead>
@@ -1094,11 +1146,36 @@ export default function AdminSalesPage() {
                   {sales.map((s) => (
                     <TableRow key={s.id}>
                       <TableCell>{formatDate(s.saleDate)}</TableCell>
+                      <TableCell>
+                        {s.order?.user?.name || s.order?.guestName || s.order?.user?.email || s.order?.guestEmail ? (
+                          <div className="flex flex-col">
+                            <span className="font-medium">
+                              {s.order?.user?.name || s.order?.guestName || 'Sin nombre'}
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              {s.order?.user?.email || s.order?.guestEmail}
+                            </span>
+                          </div>
+                        ) : s.orderItemId ? (
+                          <span className="text-muted-foreground text-sm">Venta de caja</span>
+                        ) : (
+                          <span className="text-muted-foreground text-sm">Sin datos</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={s.orderId ? 'default' : 'secondary'}>
+                          {s.orderId ? 'Web' : 'POS'}
+                        </Badge>
+                      </TableCell>
                       <TableCell>${s.total.toLocaleString()}</TableCell>
                       <TableCell>
                         {PAYMENT_PROVIDERS.find((p) => p.value === s.paymentProvider)?.label ?? s.paymentProvider}
                       </TableCell>
-                      <TableCell>{s.status}</TableCell>
+                      <TableCell>
+                        <Badge variant={PAYMENT_STATUS_COLORS[s.status] ?? 'default'}>
+                          {PAYMENT_STATUS_LABELS[s.status] ?? s.status}
+                        </Badge>
+                      </TableCell>
                       <TableCell className="text-right">
                         <Button
                           variant="ghost"
@@ -1112,9 +1189,14 @@ export default function AdminSalesPage() {
                           variant="ghost"
                           size="sm"
                           onClick={() => openEditSale(s)}
+                          disabled={editLoadingId === s.id}
                           aria-label="Editar venta"
                         >
-                          <Pencil className="h-4 w-4" />
+                          {editLoadingId === s.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Pencil className="h-4 w-4" />
+                          )}
                         </Button>
                         <Button
                           variant="ghost"
@@ -1208,53 +1290,229 @@ export default function AdminSalesPage() {
       </Dialog>
 
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Detalle de venta</DialogTitle>
+            <div className="flex items-center gap-3">
+              <DialogTitle>Detalle de venta</DialogTitle>
+              {selectedSale && (
+                <Badge variant={PAYMENT_STATUS_COLORS[selectedSale.status] ?? 'default'}>
+                  {PAYMENT_STATUS_LABELS[selectedSale.status] ?? selectedSale.status}
+                </Badge>
+              )}
+            </div>
           </DialogHeader>
           {selectedSale && (
-            <div className="space-y-4">
-              <p>
-                <span className="text-muted-foreground">Fecha:</span>{' '}
-                {formatDate(selectedSale.saleDate)}
-              </p>
-              <p>
-                <span className="text-muted-foreground">Total:</span> $
-                {selectedSale.total.toLocaleString()}
-              </p>
-              <p>
-                <span className="text-muted-foreground">Método:</span>{' '}
-                {PAYMENT_PROVIDERS.find((p) => p.value === selectedSale.paymentProvider)?.label ??
-                  selectedSale.paymentProvider}
-              </p>
+            <div className="space-y-6">
+              {/* Tipo de venta */}
+              <div className="flex items-center gap-2">
+                <Badge variant={selectedSale.orderId ? 'default' : 'secondary'} className="text-sm">
+                  {selectedSale.orderId ? 'Venta Web' : 'Venta de caja (POS)'}
+                </Badge>
+                {selectedSale.paymentProofImage && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-6 text-xs"
+                    onClick={() => loadPaymentProof(selectedSale.id)}
+                    disabled={paymentProofLoading}
+                  >
+                    {paymentProofLoading ? (
+                      <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                    ) : (
+                      <Eye className="h-3 w-3 mr-1" />
+                    )}
+                    Ver comprobante
+                  </Button>
+                )}
+              </div>
+
+              <Separator />
+
+              {/* Información del comprador */}
               <div>
-                <span className="text-muted-foreground">Items:</span>
-                <ul className="mt-2 space-y-1">
-                  {selectedSale.order?.items?.map((i) => (
-                    <li key={i.id}>
-                      {i.product.name} x{i.quantity} - $
-                      {(i.unitPrice * i.quantity).toLocaleString()}
-                    </li>
+                <h4 className="text-sm font-medium mb-3">Información del comprador</h4>
+                {selectedSale.order ? (
+                  <div className="flex items-start gap-3">
+                    <Avatar className="h-10 w-10">
+                      <AvatarFallback className="bg-primary/10 text-primary">
+                        {(selectedSale.order.user?.name || selectedSale.order.guestName || 'C')[0].toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 space-y-1">
+                      {selectedSale.order.user ? (
+                        <>
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">
+                              {selectedSale.order.user.name || 'Sin nombre'}
+                            </span>
+                            <Badge variant="default" className="text-xs">Cliente registrado</Badge>
+                          </div>
+                          <p className="text-sm text-muted-foreground">{selectedSale.order.user.email}</p>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <span>Cliente desde: {dayjs(selectedSale.order.user.createdAt).format('DD/MM/YYYY')}</span>
+                            <span>·</span>
+                            <span>{selectedSale.order.user.totalOrders} compras en total</span>
+                            {selectedSale.order.user.totalOrders === 1 && (
+                              <Badge variant="outline" className="text-xs">Primera compra</Badge>
+                            )}
+                          </div>
+                        </>
+                      ) : selectedSale.order.guestName || selectedSale.order.guestEmail ? (
+                        <>
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">
+                              {selectedSale.order.guestName || 'Invitado'}
+                            </span>
+                            <Badge variant="secondary" className="text-xs">Invitado</Badge>
+                          </div>
+                          <p className="text-sm text-muted-foreground">{selectedSale.order.guestEmail}</p>
+                          {selectedSale.order.guestPhone && (
+                            <p className="text-sm text-muted-foreground">Tel: {selectedSale.order.guestPhone}</p>
+                          )}
+                          <p className="text-xs text-muted-foreground">Sin cuenta registrada</p>
+                        </>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">Sin información del comprador</p>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-start gap-3">
+                    <Avatar className="h-10 w-10">
+                      <AvatarFallback className="bg-muted text-muted-foreground">
+                        <ShoppingCart className="h-5 w-5" />
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <p className="font-medium">Venta de caja</p>
+                      <p className="text-sm text-muted-foreground">Sin comprador asociado</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <Separator />
+
+              {/* Detalles de pago */}
+              <div>
+                <h4 className="text-sm font-medium mb-3">Detalles de pago</h4>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p className="text-muted-foreground">Método</p>
+                    <p className="font-medium">
+                      {PAYMENT_PROVIDERS.find((p) => p.value === selectedSale.paymentProvider)?.label ??
+                        selectedSale.paymentProvider}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Estado</p>
+                    <p className="font-medium">
+                      {PAYMENT_STATUS_LABELS[selectedSale.status] ?? selectedSale.status}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Moneda</p>
+                    <p className="font-medium">{selectedSale.currency}</p>
+                  </div>
+                  {selectedSale.discount > 0 && (
+                    <div>
+                      <p className="text-muted-foreground">Descuento</p>
+                      <p className="font-medium text-green-600">-${selectedSale.discount.toLocaleString()}</p>
+                    </div>
+                  )}
+                  <div className="col-span-2">
+                    <p className="text-muted-foreground">Total</p>
+                    <p className="text-xl font-bold">${selectedSale.total.toLocaleString()}</p>
+                  </div>
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* Items */}
+              <div>
+                <h4 className="text-sm font-medium mb-3">Productos</h4>
+                <div className="space-y-2">
+                  {selectedSale.order?.items?.map((item) => (
+                    <div key={item.id} className="flex items-center gap-3 p-3 rounded-lg border">
+                      {item.product.image ? (
+                        <img
+                          src={item.product.image}
+                          alt={item.product.name}
+                          className="h-12 w-12 rounded-md object-cover"
+                        />
+                      ) : (
+                        <div className="h-12 w-12 rounded-md bg-muted flex items-center justify-center">
+                          <ShoppingCart className="h-5 w-5 text-muted-foreground" />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate">{item.product.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          x{item.quantity} · ${item.unitPrice.toLocaleString()} c/u
+                        </p>
+                      </div>
+                      <p className="font-medium">${(item.unitPrice * item.quantity).toLocaleString()}</p>
+                    </div>
                   ))}
                   {selectedSale.orderItem && (
-                    <li>
-                      {selectedSale.orderItem.product.name} x{selectedSale.orderItem.quantity} - $
-                      {(
-                        selectedSale.orderItem.unitPrice * selectedSale.orderItem.quantity
-                      ).toLocaleString()}
-                    </li>
+                    <div key={selectedSale.orderItem.id} className="flex items-center gap-3 p-3 rounded-lg border">
+                      {selectedSale.orderItem.product.image ? (
+                        <img
+                          src={selectedSale.orderItem.product.image}
+                          alt={selectedSale.orderItem.product.name}
+                          className="h-12 w-12 rounded-md object-cover"
+                        />
+                      ) : (
+                        <div className="h-12 w-12 rounded-md bg-muted flex items-center justify-center">
+                          <ShoppingCart className="h-5 w-5 text-muted-foreground" />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate">{selectedSale.orderItem.product.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          x{selectedSale.orderItem.quantity} · ${selectedSale.orderItem.unitPrice.toLocaleString()} c/u
+                        </p>
+                      </div>
+                      <p className="font-medium">
+                        ${(selectedSale.orderItem.unitPrice * selectedSale.orderItem.quantity).toLocaleString()}
+                      </p>
+                    </div>
                   )}
-                </ul>
+                </div>
               </div>
-              <Button
-                variant="destructive"
-                onClick={() => {
-                  setDetailOpen(false);
-                  void handleDeleteSale(selectedSale.id);
-                }}
-              >
-                Eliminar venta
-              </Button>
+
+              <Separator />
+
+              {/* Fechas */}
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="text-muted-foreground">Fecha de venta</p>
+                  <p className="font-medium">{formatDate(selectedSale.saleDate)}</p>
+                </div>
+                {selectedSale.order?.createdAt && (
+                  <div>
+                    <p className="text-muted-foreground">Fecha de orden</p>
+                    <p className="font-medium">{formatDate(selectedSale.order.createdAt)}</p>
+                  </div>
+                )}
+              </div>
+
+              <DialogFooter className="gap-2">
+                <Button variant="outline" onClick={() => setDetailOpen(false)}>
+                  Cerrar
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => {
+                    setDetailOpen(false);
+                    void handleDeleteSale(selectedSale.id);
+                  }}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Eliminar venta
+                </Button>
+              </DialogFooter>
             </div>
           )}
         </DialogContent>
@@ -1374,6 +1632,41 @@ export default function AdminSalesPage() {
                   </div>
                 </div>
               )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal para ver comprobante de pago */}
+      <Dialog open={paymentProofOpen} onOpenChange={setPaymentProofOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Comprobante de pago</DialogTitle>
+          </DialogHeader>
+          {paymentProofUrl ? (
+            <div className="space-y-4">
+              <div className="rounded-lg border overflow-hidden bg-muted">
+                <img
+                  src={paymentProofUrl}
+                  alt="Comprobante de pago"
+                  className="w-full h-auto max-h-[60vh] object-contain"
+                />
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setPaymentProofOpen(false)}>
+                  Cerrar
+                </Button>
+                <Button asChild>
+                  <a href={paymentProofUrl} target="_blank" rel="noopener noreferrer">
+                    Abrir en nueva pestaña
+                  </a>
+                </Button>
+              </DialogFooter>
+            </div>
+          ) : (
+            <div className="py-8 text-center text-muted-foreground">
+              <Loader2 className="h-8 w-8 mx-auto mb-2 animate-spin" />
+              <p>Cargando comprobante...</p>
             </div>
           )}
         </DialogContent>

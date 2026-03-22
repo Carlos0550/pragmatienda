@@ -1,5 +1,6 @@
 import { BillingStatus, PlanType, Prisma } from "@prisma/client";
 import { prisma } from "../../db/prisma";
+import { dayjs } from "../../config/dayjs";
 
 const toNullableJsonInput = (
   value: Prisma.InputJsonValue | null | undefined
@@ -322,7 +323,7 @@ export class PrismaBillingRepository {
       update: {
         eventType,
         payload,
-        processedAt: new Date()
+        processedAt: dayjs().toDate()
       },
       create: {
         tenantId,
