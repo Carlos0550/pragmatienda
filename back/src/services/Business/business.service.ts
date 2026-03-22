@@ -182,7 +182,7 @@ class BusinessService {
             planId: freePlan.id,
             externalSubscriptionId: `free-${tenant.id}`,
             status: BillingStatus.ACTIVE,
-            currentPeriodStart: new Date(),
+            currentPeriodStart: dayjs().toDate(),
             currentPeriodEnd: null,
             cancelAtPeriodEnd: false,
           },

@@ -225,6 +225,8 @@ export const http = {
     patchItems: (id: string, payload: PatchSaleItemsPayload) =>
       api.patch<ApiEnvelope<unknown>>(`/admin/sales/${id}/items`, payload),
     delete: (id: string) => api.delete<ApiEnvelope<unknown>>(`/admin/sales/${id}`),
+    getPaymentProof: (id: string) =>
+      api.get<ApiEnvelope<{ url: string }>>(`/admin/sales/${id}/payment-proof`),
   },
 
   billing: {

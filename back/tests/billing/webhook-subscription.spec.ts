@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { BillingService } from "../../src/billing/application/billing.service";
 import type { BillingProvider } from "../../src/billing/domain/billing-provider";
 import type { PrismaBillingRepository } from "../../src/billing/infrastructure/prisma-billing.repository";
+import { dayjs } from "../../src/config/dayjs";
 
 describe("BillingService.handlePreapprovalWebhook", () => {
   it("updates subscription and tenant snapshot from preapproval webhook", async () => {
@@ -15,8 +16,8 @@ describe("BillingService.handlePreapprovalWebhook", () => {
         externalSubscriptionId: "sub_mp_1",
         externalReference: "tenant-1",
         status: "authorized",
-        currentPeriodStart: new Date("2026-01-01T00:00:00.000Z"),
-        currentPeriodEnd: new Date("2026-02-01T00:00:00.000Z"),
+        currentPeriodStart: dayjs("2026-01-01T00:00:00.000Z").toDate(),
+        currentPeriodEnd: dayjs("2026-02-01T00:00:00.000Z").toDate(),
         reason: "Starter",
         autoRecurringAmount: 12000,
         autoRecurringCurrency: "ARS",
@@ -45,8 +46,8 @@ describe("BillingService.handlePreapprovalWebhook", () => {
         currentPeriodStart: null,
         currentPeriodEnd: null,
         cancelAtPeriodEnd: false,
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        createdAt: dayjs().toDate(),
+        updatedAt: dayjs().toDate(),
         plan: {
           id: "plan-starter",
           code: PlanType.STARTER,
@@ -60,11 +61,11 @@ describe("BillingService.handlePreapprovalWebhook", () => {
         planId: "plan-starter",
         externalSubscriptionId: "sub_mp_1",
         status: BillingStatus.ACTIVE,
-        currentPeriodStart: new Date("2026-01-01T00:00:00.000Z"),
-        currentPeriodEnd: new Date("2026-02-01T00:00:00.000Z"),
+        currentPeriodStart: dayjs("2026-01-01T00:00:00.000Z").toDate(),
+        currentPeriodEnd: dayjs("2026-02-01T00:00:00.000Z").toDate(),
         cancelAtPeriodEnd: false,
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        createdAt: dayjs().toDate(),
+        updatedAt: dayjs().toDate(),
         plan: {
           id: "plan-starter",
           code: PlanType.STARTER,
@@ -79,11 +80,11 @@ describe("BillingService.handlePreapprovalWebhook", () => {
         planId: "plan-starter",
         externalSubscriptionId: "sub_mp_1",
         status: BillingStatus.ACTIVE,
-        currentPeriodStart: new Date("2026-01-01T00:00:00.000Z"),
-        currentPeriodEnd: new Date("2026-02-01T00:00:00.000Z"),
+        currentPeriodStart: dayjs("2026-01-01T00:00:00.000Z").toDate(),
+        currentPeriodEnd: dayjs("2026-02-01T00:00:00.000Z").toDate(),
         cancelAtPeriodEnd: false,
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        createdAt: dayjs().toDate(),
+        updatedAt: dayjs().toDate(),
         plan: {
           id: "plan-starter",
           code: PlanType.STARTER,

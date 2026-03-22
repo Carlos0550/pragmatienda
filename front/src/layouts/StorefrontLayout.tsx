@@ -9,6 +9,7 @@ import { LandingPage } from '@/pages/landing/LandingPage';
 import { StoreNotFoundFallback } from '@/pages/storefront/StoreNotFoundFallback';
 import { StorefrontLoader } from '@/components/StorefrontLoader';
 import { capitalizeName } from '@/lib/utils';
+import { dayjs } from '@/config/dayjs';
 
 const FAVICON_LINK_ID = 'tenant-favicon';
 const DEFAULT_FAVICON_URL = 'https://console-production-c5c6.up.railway.app/api/v1/buckets/assets/objects/download?preview=true&prefix=dfbaf27a-6872-4475-b26a-a94389e5ecf5.png&version_id=null';
@@ -160,7 +161,7 @@ export function StorefrontLayout() {
               )}
             </div>
             <p className="text-xs text-muted-foreground">
-              © {new Date().getFullYear()} Powered by PRAGMATIENDA
+              © {dayjs().year()} Powered by PRAGMATIENDA
             </p>
           </div>
         </div>

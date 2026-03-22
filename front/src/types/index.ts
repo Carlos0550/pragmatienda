@@ -403,15 +403,28 @@ export interface SaleOrderItem {
 export interface Sale {
   id: string;
   total: number;
+  discount: number;
   saleDate: string;
+  createdAt: string;
   status: string;
   paymentProvider: string;
+  paymentProofImage?: string | null;
   currency: string;
   orderId?: string | null;
   orderItemId?: string | null;
   order?: {
     id: string;
-    user?: { email?: string; name?: string };
+    createdAt: string;
+    guestName?: string | null;
+    guestEmail?: string | null;
+    guestPhone?: string | null;
+    userId?: string | null;
+    user?: {
+      email?: string;
+      name?: string;
+      createdAt?: string;
+      totalOrders?: number;
+    };
     items: SaleOrderItem[];
   } | null;
   orderItem?: {

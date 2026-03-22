@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Store, Zap, Shield } from 'lucide-react';
 import { capitalizeName } from '@/lib/utils';
+import { dayjs } from '@/config/dayjs';
 import type { PublicPlan } from '@/types';
 import { usePublicPlans } from '@/hooks/storefront-queries';
 
@@ -144,7 +145,7 @@ export function LandingPage() {
 
       <footer className="border-t py-8">
         <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
-          © {new Date().getFullYear()} PragmaTienda. Todos los derechos reservados.
+          © {dayjs().year()} PragmaTienda. Todos los derechos reservados.
         </div>
       </footer>
     </div>

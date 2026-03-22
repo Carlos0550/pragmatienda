@@ -1,5 +1,6 @@
 import { PaymentProvider, PaymentStatus, Prisma } from "@prisma/client";
 import { prisma } from "../../db/prisma";
+import { dayjs } from "../../config/dayjs";
 
 type UpsertStoreAccountInput = {
   storeId: string;
@@ -221,7 +222,7 @@ export class PrismaPaymentsRepository {
         orderId,
         eventType,
         payload,
-        processedAt: new Date()
+        processedAt: dayjs().toDate()
       },
       create: {
         tenantId: storeId,

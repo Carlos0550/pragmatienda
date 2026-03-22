@@ -1,6 +1,7 @@
 import { Prisma, ProductsStatus } from "@prisma/client";
 import { logger } from "../../config/logger";
 import { prisma } from "../../db/prisma";
+import { dayjs } from "../../config/dayjs";
 
 const decimalToNumber = (value: unknown): number => {
   if (typeof value === "number") return value;
@@ -77,30 +78,23 @@ export class DashboardService {
 
       if (year !== undefined && month !== undefined) {
         // Modo mes completo
-        startDate = new Date(Date.UTC(year, month, 1, 0, 0, 0, 0));
-        endDate = new Date(Date.UTC(year, month + 1, 0, 23, 59, 59, 999));
+        startDate = dayjs().year(year).month(month).date(1).startOf("day").toDate();
+        endDate = dayjs().year(year).month(month + 1).date(0).endOf("day").toDate();
         
         // Período anterior: mes anterior
-        prevStartDate = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
-        prevEndDate = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
+        prevStartDate = dayjs().year(year).month(month - 1).date(1).startOf("day").toDate();
+        prevEndDate = dayjs().year(year).month(month).date(0).endOf("day").toDate();
         
         chartDays = endDate.getUTCDate(); // Días en el mes
       } else {
         // Modo días (7 o 30)
-        endDate = new Date();
-        endDate.setUTCHours(23, 59, 59, 999);
+        endDate = dayjs().endOf("day").toDate();
         
-        startDate = new Date(endDate);
-        startDate.setUTCDate(startDate.getUTCDate() - period + 1);
-        startDate.setUTCHours(0, 0, 0, 0);
+        startDate = dayjs(endDate).subtract(period - 1, "day").startOf("day").toDate();
         
-        prevEndDate = new Date(startDate);
-        prevEndDate.setUTCDate(prevEndDate.getUTCDate() - 1);
-        prevEndDate.setUTCHours(23, 59, 59, 999);
+        prevEndDate = dayjs(startDate).subtract(1, "day").endOf("day").toDate();
         
-        prevStartDate = new Date(prevEndDate);
-        prevStartDate.setUTCDate(prevStartDate.getUTCDate() - period + 1);
-        prevStartDate.setUTCHours(0, 0, 0, 0);
+        prevStartDate = dayjs(prevEndDate).subtract(period - 1, "day").startOf("day").toDate();
         
         chartDays = period;
       }
@@ -216,22 +210,22 @@ export class DashboardService {
     const grouped = new Map<string, number>();
     
     for (const s of sales) {
-      const d = new Date(s.saleDate);
-      const key = d.toISOString().slice(0, 10);
+      const d = dayjs(s.saleDate);
+      const key = d.format("YYYY-MM-DD");
       const prev = grouped.get(key) ?? 0;
       grouped.set(key, prev + decimalToNumber(s.total));
     }
 
     const result: RevenueChartPoint[] = [];
-    const current = new Date(startDate);
+    let current = dayjs(startDate);
     
-    while (current <= endDate) {
-      const dateKey = current.toISOString().slice(0, 10);
+    while (!current.isAfter(dayjs(endDate))) {
+      const dateKey = current.format("YYYY-MM-DD");
       result.push({
         date: dateKey,
         total: grouped.get(dateKey) ?? 0
       });
-      current.setUTCDate(current.getUTCDate() + 1);
+      current = current.add(1, "day");
     }
 
     return result;
