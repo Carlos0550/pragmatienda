@@ -12,7 +12,14 @@ import {
 } from "../../utils/template.utils";
 import { issueGuestCartToken } from "../../utils/guest-cart.utils";
 import { generateSecureString } from "../../utils/security.utils";
-import type { deleteCartItemsSchema, guestCheckoutDetailsSchema, patchCartItemsSchema, checkoutOriginSchema } from "./cart.zod";
+import { shippingService } from "../Shipping/shipping.service";
+import type {
+  cartCheckoutSchema,
+  deleteCartItemsSchema,
+  guestCheckoutDetailsSchema,
+  patchCartItemsSchema,
+  checkoutOriginSchema,
+} from "./cart.zod";
 import {
   CheckoutError,
   clearCart,
@@ -50,6 +57,10 @@ type CheckoutInput = CartActorInput & {
   paymentProvider: PaymentProvider;
   origin: z.infer<typeof checkoutOriginSchema>;
   guestDetails?: GuestCheckoutInput;
+  shippingSelection?: Pick<
+    z.infer<typeof cartCheckoutSchema>,
+    "shippingMethodId" | "shippingQuoteId" | "shippingSelectionType" | "shippingAddress"
+  >;
 };
 
 const cartItemSelect = {
@@ -81,7 +92,16 @@ const checkoutCartSelect = {
       productId: true,
       quantity: true,
       product: {
-        select: { id: true, name: true, price: true, stock: true }
+        select: {
+          id: true,
+          name: true,
+          price: true,
+          stock: true,
+          weightGrams: true,
+          lengthCm: true,
+          widthCm: true,
+          heightCm: true
+        }
       }
     }
   }
@@ -630,6 +650,15 @@ export class CartService {
         }
 
         if (input.origin === "cart") {
+          if (!input.shippingSelection?.shippingMethodId || !input.shippingSelection.shippingSelectionType) {
+            throw new CheckoutError(400, "Debe seleccionar una forma de envío para finalizar la compra.");
+          }
+          const shippingSelection = {
+            shippingMethodId: input.shippingSelection.shippingMethodId,
+            shippingQuoteId: input.shippingSelection.shippingQuoteId,
+            shippingSelectionType: input.shippingSelection.shippingSelectionType,
+            shippingAddress: input.shippingSelection.shippingAddress
+          };
           const order = await createOrder(txClient, {
             tenantId: input.tenantId,
             userId: checkoutUserId,
@@ -638,10 +667,16 @@ export class CartService {
             guestPhone: guestCheckout?.guestPhone ?? null
           });
           await createOrderItemsForOrder(txClient, order.id, cart.items);
+          const shippingPrice = await shippingService.attachShipmentToOrder(txClient, {
+            tenantId: input.tenantId,
+            orderId: order.id,
+            items: cart.items,
+            selection: shippingSelection
+          });
           await createSalesForOrder(txClient, {
             orderId: order.id,
             tenantId: input.tenantId,
-            total: subtotal,
+            total: subtotal + shippingPrice,
             paymentProvider: input.paymentProvider,
             paymentProofImage
           });

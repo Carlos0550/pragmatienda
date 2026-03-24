@@ -85,6 +85,18 @@ export class SalesService {
                     unitPrice: true,
                     product: { select: { id: true, name: true, image: true } }
                   }
+                },
+                shipment: {
+                  select: {
+                    id: true,
+                    status: true,
+                    providerCode: true,
+                    kind: true,
+                    price: true,
+                    currency: true,
+                    serviceName: true,
+                    trackingCode: true
+                  }
                 }
               }
             },
@@ -134,7 +146,19 @@ export class SalesService {
                 quantity: i.quantity,
                 unitPrice: decimalToNumber(i.unitPrice),
                 product: i.product
-              }))
+              })),
+              shipment: s.order.shipment
+                ? {
+                    id: s.order.shipment.id,
+                    status: s.order.shipment.status,
+                    providerCode: s.order.shipment.providerCode,
+                    kind: s.order.shipment.kind,
+                    price: decimalToNumber(s.order.shipment.price),
+                    currency: s.order.shipment.currency,
+                    serviceName: s.order.shipment.serviceName,
+                    trackingCode: s.order.shipment.trackingCode
+                  }
+                : null
             }
           : null,
         orderItem: s.orderItem
@@ -195,6 +219,14 @@ export class SalesService {
                   unitPrice: true,
                   product: { select: { id: true, name: true, image: true, stock: true } }
                 }
+              },
+              shipment: {
+                include: {
+                  shippingMethod: {
+                    include: { zoneRules: true }
+                  },
+                  quote: true
+                }
               }
             }
           },
@@ -229,7 +261,19 @@ export class SalesService {
               items: sale.order.items.map((i) => ({
                 ...i,
                 unitPrice: decimalToNumber(i.unitPrice)
-              }))
+              })),
+              shipment: sale.order.shipment
+                ? {
+                    ...sale.order.shipment,
+                    price: decimalToNumber(sale.order.shipment.price),
+                    quote: sale.order.shipment.quote
+                      ? {
+                          ...sale.order.shipment.quote,
+                          price: decimalToNumber(sale.order.shipment.quote.price)
+                        }
+                      : null
+                  }
+                : null
             }
           : null,
         orderItem: sale.orderItem

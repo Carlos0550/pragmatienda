@@ -67,6 +67,34 @@ enum FulfillmentStatus {
   CANCELED
 }
 
+enum ShippingMethodKind {
+  THIRD_PARTY
+  EXTERNAL
+  PICKUP
+}
+
+enum ShippingProviderCode {
+  CUSTOM_EXTERNAL
+  LOCAL_PICKUP
+}
+
+enum ShippingQuoteType {
+  HOME_DELIVERY
+  PICKUP
+}
+
+enum OrderShipmentStatus {
+  DRAFT
+  QUOTED
+  PENDING_CREATION
+  READY_FOR_PICKUP
+  PREPARING
+  SHIPPED
+  DELIVERED
+  CANCELED
+  FAILED
+}
+
 enum PaymentProvider {
   MERCADOPAGO_INTEGRATION
   BANK_TRANSFER
@@ -111,6 +139,8 @@ model Tenant {
   subscriptions      Subscription[]    @relation("TenantSubscriptions")
   currentSubscription Subscription?    @relation("TenantCurrentSubscription", fields: [currentSubscriptionId], references: [id])
   sales Sales[] @relation("TenantSales")
+  shippingMethods ShippingMethod[] @relation("TenantShippingMethods")
+  shipmentQuotes ShipmentQuote[] @relation("TenantShipmentQuotes")
 }
 
 
@@ -120,6 +150,7 @@ model BusinessData {
   description String?
   address String?
   province String?
+  businessHours String?
   country String @default("Argentina")
   phone String?
   email String?
@@ -202,6 +233,10 @@ model Products {
   metaDescription String?
   price Decimal
   stock Int
+  weightGrams Int?
+  lengthCm Decimal?
+  widthCm Decimal?
+  heightCm Decimal?
   status ProductsStatus @default(PUBLISHED)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -291,19 +326,13 @@ model Order{
   
   status OrderStatus @default(PENDING)
   fulfillmentStatus FulfillmentStatus @default(UNFULFILLED)
-  shippingCost Decimal @default(0)
   tax Decimal @default(0)
   
-  shippingProvider String?
-  shippingService String?
-  trackingCode String?
-  shippingAddress Json?
   billingAddress Json?
   customerNote String?
-  shippedAt DateTime?
-  deliveredAt DateTime?
   items OrderItem[] @relation("OrderItems")
   sales Sales[] @relation("OrderSales")
+  shipment OrderShipment?
   user User? @relation("UserOrder", fields: [userId], references: [id], onDelete: SetNull)
   tenant Tenant @relation("TenantOrder", fields: [tenantId], references: [id], onDelete: Cascade)
   paymentEvents PaymentEvent[] @relation("OrderPaymentEvents")
@@ -315,7 +344,6 @@ model Order{
   @@index([userId])
   @@index([status])
   @@index([fulfillmentStatus])
-  @@index([trackingCode])
 }
 
 model OrderItem{
@@ -504,4 +532,107 @@ model Sales{
   updatedAt DateTime @updatedAt
 
   @@index([tenantId])
+}
+
+model ShippingMethod {
+  id String @id @default(cuid())
+  tenantId String
+  name String
+  kind ShippingMethodKind
+  providerCode ShippingProviderCode
+  isActive Boolean @default(true)
+  availableInCheckout Boolean @default(true)
+  availableInAdmin Boolean @default(true)
+  displayOrder Int @default(0)
+  config Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation("TenantShippingMethods", fields: [tenantId], references: [id], onDelete: Cascade)
+  zoneRules ShippingZoneRule[] @relation("ShippingMethodZoneRules")
+  quotes ShipmentQuote[] @relation("ShippingMethodQuotes")
+  shipments OrderShipment[] @relation("ShippingMethodShipments")
+
+  @@index([tenantId])
+  @@index([providerCode])
+  @@index([isActive])
+}
+
+model ShippingZoneRule {
+  id String @id @default(cuid())
+  shippingMethodId String
+  province String
+  locality String?
+  price Decimal
+  isActive Boolean @default(true)
+  displayName String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  shippingMethod ShippingMethod @relation("ShippingMethodZoneRules", fields: [shippingMethodId], references: [id], onDelete: Cascade)
+
+  @@index([shippingMethodId])
+  @@index([province, locality])
+}
+
+model ShipmentQuote {
+  id String @id @default(cuid())
+  tenantId String
+  shippingMethodId String
+  providerCode ShippingProviderCode
+  quoteType ShippingQuoteType
+  serviceCode String?
+  serviceName String?
+  price Decimal
+  currency String @default("ARS")
+  destination Json?
+  packageSummary Json?
+  providerPayload Json?
+  expiresAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation("TenantShipmentQuotes", fields: [tenantId], references: [id], onDelete: Cascade)
+  shippingMethod ShippingMethod @relation("ShippingMethodQuotes", fields: [shippingMethodId], references: [id], onDelete: Cascade)
+  shipment OrderShipment?
+
+  @@index([tenantId])
+  @@index([shippingMethodId])
+  @@index([providerCode])
+}
+
+model OrderShipment {
+  id String @id @default(cuid())
+  orderId String @unique
+  shippingMethodId String
+  quoteId String? @unique
+  providerCode ShippingProviderCode
+  kind ShippingMethodKind
+  status OrderShipmentStatus @default(DRAFT)
+  price Decimal @default(0)
+  currency String @default("ARS")
+  serviceCode String?
+  serviceName String?
+  trackingCode String?
+  labelUrl String?
+  externalShipmentId String?
+  destination Json?
+  originSnapshot Json?
+  pickupSnapshot Json?
+  providerQuotePayload Json?
+  providerShipmentPayload Json?
+  pickedUpAt DateTime?
+  shippedAt DateTime?
+  deliveredAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  shippingMethod ShippingMethod @relation("ShippingMethodShipments", fields: [shippingMethodId], references: [id], onDelete: Restrict)
+  quote ShipmentQuote? @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+
+  @@index([shippingMethodId])
+  @@index([providerCode])
+  @@index([status])
+  @@index([trackingCode])
 }

@@ -7,6 +7,7 @@ import type {
   BillingSelectPlanPayload,
   BillingSubscriptionCreateResponse,
   CartCheckoutResponse,
+  CartCheckoutPayload,
   CartResponse,
   GuestCheckoutPayload,
   CategoriesListResponse,
@@ -39,6 +40,8 @@ import type {
   Tenant,
   TenantCapabilitiesResponse,
   TenantResolveResponse,
+  ShippingMethod,
+  ShipmentQuote,
   UserMeResponse,
   ValidateResetPasswordTokenPayload,
   ValidateResetPasswordTokenResponse,
@@ -174,24 +177,23 @@ export const http = {
       return response.data;
     },
     patchItemDelta: (productId: string, delta: number) => api.patch('/cart/items', { productId, delta }),
-    checkout: async (
-      comprobante?: File | null,
-      origin: 'cart' | 'sale' = 'cart',
-      paymentProvider?: string,
-      guestCheckout?: GuestCheckoutPayload
-    ) => {
+    checkout: async (payload: CartCheckoutPayload) => {
       const formData = new FormData();
-      formData.append('origin', origin);
-      if (origin === 'sale' && paymentProvider) {
-        formData.append('paymentProvider', paymentProvider);
+      formData.append('origin', payload.origin ?? 'cart');
+      if ((payload.origin ?? 'cart') === 'sale' && payload.paymentProvider) {
+        formData.append('paymentProvider', payload.paymentProvider);
       }
-      if (guestCheckout) {
-        formData.append('name', guestCheckout.name);
-        formData.append('email', guestCheckout.email);
-        formData.append('phone', guestCheckout.phone);
-        formData.append('createAccountAfterPurchase', guestCheckout.createAccountAfterPurchase ? 'true' : 'false');
+      if (payload.guestCheckout) {
+        formData.append('name', payload.guestCheckout.name);
+        formData.append('email', payload.guestCheckout.email);
+        formData.append('phone', payload.guestCheckout.phone);
+        formData.append('createAccountAfterPurchase', payload.guestCheckout.createAccountAfterPurchase ? 'true' : 'false');
       }
-      if (comprobante && comprobante.size > 0) formData.append('comprobante', comprobante);
+      if (payload.shippingMethodId) formData.append('shippingMethodId', payload.shippingMethodId);
+      if (payload.shippingSelectionType) formData.append('shippingSelectionType', payload.shippingSelectionType);
+      if (payload.shippingQuoteId) formData.append('shippingQuoteId', payload.shippingQuoteId);
+      if (payload.shippingAddress) formData.append('shippingAddress', JSON.stringify(payload.shippingAddress));
+      if (payload.comprobante && payload.comprobante.size > 0) formData.append('comprobante', payload.comprobante);
       const idempotencyKey = crypto.randomUUID();
       const response = await api.postMultipart<CartCheckoutResponse>('/cart/checkout', formData, {
         'Idempotency-Key': idempotencyKey,
@@ -199,6 +201,33 @@ export const http = {
       const data = response.data as { order?: string; saleIds?: string[] };
       if (data.order) return { orderId: data.order };
       return { saleIds: data.saleIds ?? [] };
+    },
+  },
+
+  shipping: {
+    listMethods: async () => {
+      const response = await api.get<ApiEnvelope<ShippingMethod[]>>('/admin/shipping-methods');
+      return response.data;
+    },
+    createMethod: async (payload: Partial<ShippingMethod> & Record<string, unknown>) => {
+      const response = await api.post<ApiEnvelope<ShippingMethod>>('/admin/shipping-methods', payload);
+      return response.data;
+    },
+    updateMethod: async (id: string, payload: Partial<ShippingMethod> & Record<string, unknown>) => {
+      const response = await api.put<ApiEnvelope<ShippingMethod>>(`/admin/shipping-methods/${id}`, payload);
+      return response.data;
+    },
+    patchMethodStatus: async (id: string, isActive: boolean) => {
+      const response = await api.patch<ApiEnvelope<ShippingMethod>>(`/admin/shipping-methods/${id}/status`, { isActive });
+      return response.data;
+    },
+    deleteMethod: (id: string) => api.delete<ApiEnvelope<unknown>>(`/admin/shipping-methods/${id}`),
+    quote: async (payload: { quoteType: 'HOME_DELIVERY' | 'PICKUP'; shippingAddress?: Record<string, unknown> }) => {
+      const response = await api.post<ApiEnvelope<{ items: ShipmentQuote[]; packageSummary: Record<string, unknown> }>>(
+        '/public/shipping/quotes',
+        payload
+      );
+      return response.data;
     },
   },
 
@@ -227,6 +256,14 @@ export const http = {
     delete: (id: string) => api.delete<ApiEnvelope<unknown>>(`/admin/sales/${id}`),
     getPaymentProof: (id: string) =>
       api.get<ApiEnvelope<{ url: string }>>(`/admin/sales/${id}/payment-proof`),
+    createShipment: (id: string) =>
+      api.post<ApiEnvelope<Sale>>(`/admin/sales/${id}/shipment/create`),
+    refreshShipment: (id: string) =>
+      api.post<ApiEnvelope<Sale>>(`/admin/sales/${id}/shipment/refresh`),
+    requoteShipment: (id: string) =>
+      api.post<ApiEnvelope<Sale>>(`/admin/sales/${id}/shipment/requote`),
+    markPickedUp: (id: string) =>
+      api.post<ApiEnvelope<Sale>>(`/admin/sales/${id}/shipment/mark-picked-up`),
   },
 
   billing: {

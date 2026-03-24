@@ -13,6 +13,9 @@ export function toFormErrors(errors?: ApiFieldErrors): FormErrors {
 
 export function normalizeProduct(product: Product): Product {
   const rawPrice = typeof product.price === 'string' ? Number(product.price) : product.price;
+  const rawLengthCm = typeof product.lengthCm === 'string' ? Number(product.lengthCm) : product.lengthCm;
+  const rawWidthCm = typeof product.widthCm === 'string' ? Number(product.widthCm) : product.widthCm;
+  const rawHeightCm = typeof product.heightCm === 'string' ? Number(product.heightCm) : product.heightCm;
   const rawCompareAtPrice =
     typeof product.compareAtPrice === 'string'
       ? Number(product.compareAtPrice)
@@ -28,6 +31,10 @@ export function normalizeProduct(product: Product): Product {
     description: product.description || '',
     price: Number.isFinite(rawPrice) ? rawPrice : 0,
     ...(rawCompareAtPrice != null && Number.isFinite(rawCompareAtPrice) ? { compareAtPrice: rawCompareAtPrice } : {}),
+    ...(product.weightGrams != null ? { weightGrams: Number(product.weightGrams) } : {}),
+    ...(rawLengthCm != null && Number.isFinite(rawLengthCm) ? { lengthCm: rawLengthCm } : {}),
+    ...(rawWidthCm != null && Number.isFinite(rawWidthCm) ? { widthCm: rawWidthCm } : {}),
+    ...(rawHeightCm != null && Number.isFinite(rawHeightCm) ? { heightCm: rawHeightCm } : {}),
     images: imageList,
     categoryName: product.categoryName ?? product.category?.name,
     active: product.status ? product.status === 'PUBLISHED' : product.active,
@@ -74,6 +81,7 @@ export function normalizeResolvedTenant(response: TenantResolveResponse): Tenant
     favicon: response.data.favicon ?? undefined,
     address: response.data.address ?? undefined,
     province: response.data.province ?? undefined,
+    businessHours: response.data.businessHours ?? undefined,
     country: response.data.country ?? 'Argentina',
     socialLinks: response.data.socialMedia ?? undefined,
     bankOptions: response.data.bankOptions ?? undefined,

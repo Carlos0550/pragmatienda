@@ -83,6 +83,7 @@ export interface Tenant {
   seoDescription?: string;
   address?: string;
   province?: string;
+  businessHours?: string;
   country?: string;
   socialLinks?: SocialLinks;
   bankOptions?: BankOption[];
@@ -127,6 +128,10 @@ export interface Product {
   categoryName?: string;
   category?: CategoryRef;
   stock: number;
+  weightGrams?: number | null;
+  lengthCm?: number | null;
+  widthCm?: number | null;
+  heightCm?: number | null;
   active: boolean;
   status?: ProductStatus;
   seoTitle?: string;
@@ -158,6 +163,97 @@ export interface Cart {
   id: string;
   items: CartItem[];
   total: number;
+}
+
+export type ShippingMethodKind = 'THIRD_PARTY' | 'EXTERNAL' | 'PICKUP';
+export type ShippingProviderCode = 'CUSTOM_EXTERNAL' | 'LOCAL_PICKUP';
+export type ShippingQuoteType = 'HOME_DELIVERY' | 'PICKUP';
+export type OrderShipmentStatus =
+  | 'DRAFT'
+  | 'QUOTED'
+  | 'PENDING_CREATION'
+  | 'READY_FOR_PICKUP'
+  | 'PREPARING'
+  | 'SHIPPED'
+  | 'DELIVERED'
+  | 'CANCELED'
+  | 'FAILED';
+
+export interface ShippingAddress {
+  recipientName: string;
+  recipientPhone: string;
+  streetName: string;
+  streetNumber: string;
+  floor?: string;
+  apartment?: string;
+  postalCode: string;
+  city: string;
+  province: string;
+  country: string;
+  references?: string;
+}
+
+export interface ShippingZoneRule {
+  id?: string;
+  province: string;
+  locality: string;
+  price: number;
+  isActive: boolean;
+  displayName?: string;
+}
+
+export interface ShippingMethod {
+  id: string;
+  name: string;
+  kind: ShippingMethodKind;
+  providerCode: ShippingProviderCode;
+  isActive: boolean;
+  availableInCheckout: boolean;
+  availableInAdmin: boolean;
+  displayOrder: number;
+  config?: Record<string, unknown>;
+  zoneRules: ShippingZoneRule[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface ShipmentQuote {
+  id?: string;
+  shippingMethodId: string;
+  providerCode: ShippingProviderCode;
+  kind: ShippingMethodKind;
+  quoteType?: ShippingQuoteType;
+  serviceCode?: string;
+  serviceName?: string;
+  price?: number;
+  currency?: string;
+  methodName: string;
+  unavailableReason?: string;
+  pickupDetails?: Record<string, unknown>;
+}
+
+export interface OrderShipment {
+  id: string;
+  status: OrderShipmentStatus;
+  providerCode: ShippingProviderCode;
+  kind: ShippingMethodKind;
+  price: number;
+  currency: string;
+  serviceCode?: string;
+  serviceName?: string;
+  trackingCode?: string;
+  labelUrl?: string;
+  externalShipmentId?: string;
+  destination?: Record<string, unknown>;
+  pickupSnapshot?: Record<string, unknown>;
+  originSnapshot?: Record<string, unknown>;
+  quote?: ShipmentQuote | null;
+  shippingMethod?: ShippingMethod | null;
+  pickedUpAt?: string | null;
+  shippedAt?: string | null;
+  deliveredAt?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Order {
@@ -353,6 +449,7 @@ export type TenantResolveResponse = ApiEnvelope<{
   seoDescription?: string | null;
   address?: string | null;
   province?: string | null;
+  businessHours?: string | null;
   country?: string | null;
   socialMedia?: SocialLinks | null;
   bankOptions?: BankOption[];
@@ -382,6 +479,17 @@ export interface GuestCheckoutPayload {
   email: string;
   phone: string;
   createAccountAfterPurchase: boolean;
+}
+
+export interface CartCheckoutPayload {
+  comprobante?: File | null;
+  origin?: 'cart' | 'sale';
+  paymentProvider?: string;
+  guestCheckout?: GuestCheckoutPayload;
+  shippingMethodId?: string;
+  shippingQuoteId?: string;
+  shippingSelectionType?: ShippingQuoteType;
+  shippingAddress?: ShippingAddress;
 }
 
 export type PaymentProvider = 'MERCADOPAGO_INTEGRATION' | 'BANK_TRANSFER' | 'CASH' | 'DEBIT_CARD' | 'CREDIT_CARD' | 'OTHER';
@@ -426,6 +534,7 @@ export interface Sale {
       totalOrders?: number;
     };
     items: SaleOrderItem[];
+    shipment?: OrderShipment | null;
   } | null;
   orderItem?: {
     id: string;
@@ -525,6 +634,7 @@ export interface BusinessFormState {
   favicon: string;
   address: string;
   province: string;
+  businessHours: string;
   seoDescription: string;
   facebook: string;
   instagram: string;
@@ -552,6 +662,10 @@ export interface ProductFormState {
   barCode: string;
   categoryId: string;
   stock: string;
+  weightGrams?: string;
+  lengthCm?: string;
+  widthCm?: string;
+  heightCm?: string;
   status: ProductStatus;
   /** Solo al editar */
   description?: string;
@@ -610,7 +724,7 @@ export interface CartState {
   addItem: (productId: string, quantity: number) => Promise<void | ApiError>;
   updateItem: (productId: string, quantity: number) => Promise<void>;
   removeItem: (productId: string) => Promise<void>;
-  checkout: (comprobante: File, guestCheckout?: GuestCheckoutPayload) => Promise<{ orderId: string } | { saleIds: string[] }>;
+  checkout: (payload: CartCheckoutPayload) => Promise<{ orderId: string } | { saleIds: string[] }>;
   totalCartItems: () => number;
   totalCart: () => number;
 }

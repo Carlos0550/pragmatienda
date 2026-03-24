@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -167,7 +167,7 @@ export default function PlansPage() {
             <Button onClick={openCreate} className="gap-2"><Plus className="h-4 w-4" /> Nuevo Plan</Button>
           </DialogTrigger>
           <DialogContent>
-            <DialogHeader><DialogTitle>{editing ? 'Editar' : 'Nuevo'} Plan</DialogTitle></DialogHeader>
+            <DialogHeader><DialogTitle>{editing ? 'Editar' : 'Nuevo'} Plan</DialogTitle><DialogDescription>Configurá los límites y características del plan.</DialogDescription></DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               {!editing && (
                 <div className="space-y-2">

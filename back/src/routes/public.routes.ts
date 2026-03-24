@@ -4,9 +4,10 @@ import { billingController } from "../controllers/billing.controller";
 import { businessController } from "../controllers/business.controller";
 import { categoriesController } from "../controllers/categories.controller";
 import { productsController } from "../controllers/products.controller";
+import { shippingController } from "../controllers/shipping.controller";
 import { userController } from "../controllers/user.controller";
 import { openApiRegistry } from "../docs/swagger";
-import { requireTenant } from "../middlewares";
+import { attachAuthenticatedUserOptional, requireTenant } from "../middlewares";
 import {
   checkBusinessNameAvailabilitySchema,
   createBusinessTenantSchema,
@@ -21,6 +22,7 @@ import {
   resetPasswordWithTokenSchema,
   validatePasswordTokenSchema
 } from "../services/Users/user.zod";
+import { shippingQuoteRequestSchema } from "../services/Shipping/shipping.zod";
 
 const healthResponseSchema = z
   .object({
@@ -125,6 +127,29 @@ openApiRegistry.registerPath({
   responses: {
     "200": { description: "Categoría obtenida" },
     "404": { description: "Categoría no encontrada" }
+  }
+});
+
+openApiRegistry.registerPath({
+  method: "post",
+  path: "/public/shipping/quotes",
+  tags: ["Shipping"],
+  summary: "Cotizar opciones de envío para el carrito actual",
+  request: {
+    headers: z.object({
+      "x-tenant-id": z.string(),
+      Authorization: z.string().optional()
+    }),
+    body: {
+      content: {
+        "application/json": {
+          schema: shippingQuoteRequestSchema
+        }
+      }
+    }
+  },
+  responses: {
+    "200": { description: "Cotizaciones obtenidas" }
   }
 });
 
@@ -281,6 +306,7 @@ router.get("/platform/businesses/availability", businessController.checkBusiness
 router.get("/plans", billingController.listPublicPlans);
 router.get("/categories", requireTenant, categoriesController.getMany);
 router.get("/categories/:slug", requireTenant, categoriesController.getOneBySlug);
+router.post("/shipping/quotes", attachAuthenticatedUserOptional, requireTenant, shippingController.quoteForCart);
 router.get(
   "/products",
   requireTenant,

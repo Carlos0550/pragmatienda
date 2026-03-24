@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -47,6 +48,9 @@ import {
   Eye,
   ChevronLeft,
   ChevronRight,
+  Truck,
+  RefreshCw,
+  Store,
 } from 'lucide-react';
 import { capitalizeName } from '@/lib/utils';
 import type {
@@ -54,6 +58,7 @@ import type {
   Product,
   Sale,
   SaleMetricsPoint,
+  OrderShipment,
   PaymentProvider,
   ApiError,
 } from '@/types';
@@ -114,6 +119,19 @@ function getApiErrorMessage(err: unknown, fallback: string) {
 
 function normalizeBarCode(value: string | null | undefined): string {
   return (value ?? '').trim().toLowerCase();
+}
+
+function getShipmentMethodLabel(shipment: OrderShipment) {
+  return (
+    shipment.shippingMethod?.name ||
+    shipment.quote?.methodName ||
+    shipment.serviceName ||
+    (shipment.providerCode === 'LOCAL_PICKUP'
+      ? 'Retiro en local'
+      : shipment.providerCode === 'CUSTOM_EXTERNAL'
+        ? 'Método externo'
+        : 'Sin método')
+  );
 }
 
 const MIN_SCANNER_CODE_LENGTH = 6;
@@ -183,6 +201,7 @@ export default function AdminSalesPage() {
   const [paymentProofUrl, setPaymentProofUrl] = useState<string | null>(null);
   const [paymentProofLoading, setPaymentProofLoading] = useState<Record<string, boolean>>({});
   const [paymentProofOpen, setPaymentProofOpen] = useState(false);
+  const [shipmentActionLoading, setShipmentActionLoading] = useState<string | null>(null);
   const posProductsRequestIdRef = useRef(0);
   const salesRequestIdRef = useRef(0);
   const metricsRequestIdRef = useRef(0);
@@ -407,11 +426,10 @@ export default function AdminSalesPage() {
     );
     setPosCheckoutLoading(true);
     try {
-      const result = await http.cart.checkout(
-        undefined as unknown as File,
-        'sale',
-        posPaymentProvider
-      );
+      const result = await http.cart.checkout({
+        origin: 'sale',
+        paymentProvider: posPaymentProvider,
+      });
       if ('saleIds' in result && result.saleIds?.length) {
         setPosLastSaleIds(result.saleIds);
         setPosLastSaleDetails({
@@ -601,9 +619,15 @@ export default function AdminSalesPage() {
     void loadMetrics();
   }, [activeTab, loadSales, loadMetrics]);
 
-  const openSaleDetail = (sale: Sale) => {
+  const openSaleDetail = async (sale: Sale) => {
     setSelectedSale(sale);
     setDetailOpen(true);
+    try {
+      const full = await http.sales.getOne(sale.id);
+      setSelectedSale(full);
+    } catch {
+      sileo.error({ title: 'No se pudo cargar el detalle completo de la venta' });
+    }
   };
 
   const getSaleItems = (sale: Sale): { id: string; productId: string; quantity: number; unitPrice: number; product: { id: string; name: string } }[] => {
@@ -658,6 +682,34 @@ export default function AdminSalesPage() {
       sileo.error({ title: 'Error al cargar comprobante' });
     } finally {
       setPaymentProofLoading(prev => ({ ...prev, [saleId]: false }));
+    }
+  };
+
+  const reloadSelectedSale = async (saleId: string) => {
+    const updated = await http.sales.getOne(saleId);
+    setSelectedSale(updated);
+    if (editingSale?.id === saleId) {
+      setEditingSale(updated);
+    }
+    await loadSales();
+  };
+
+  const handleShipmentAction = async (
+    saleId: string,
+    action: 'create' | 'refresh' | 'requote' | 'pickup'
+  ) => {
+    setShipmentActionLoading(action);
+    try {
+      if (action === 'create') await http.sales.createShipment(saleId);
+      if (action === 'refresh') await http.sales.refreshShipment(saleId);
+      if (action === 'requote') await http.sales.requoteShipment(saleId);
+      if (action === 'pickup') await http.sales.markPickedUp(saleId);
+      await reloadSelectedSale(saleId);
+      sileo.success({ title: 'Envío actualizado' });
+    } catch (err) {
+      sileo.error({ title: getApiErrorMessage(err, 'No se pudo actualizar el envío') });
+    } finally {
+      setShipmentActionLoading(null);
     }
   };
 
@@ -1038,6 +1090,7 @@ export default function AdminSalesPage() {
             <DialogContent className="w-[95vw] max-w-md max-h-[85vh] overflow-hidden flex flex-col">
               <DialogHeader className="pb-1">
                 <DialogTitle>Carrito</DialogTitle>
+                <DialogDescription>Revisa los items en tu carrito antes de confirmar la venta.</DialogDescription>
               </DialogHeader>
               <div className="mb-2 flex justify-end">
                 <Button
@@ -1248,6 +1301,7 @@ export default function AdminSalesPage() {
         <DialogContent onPointerDownOutside={(e) => e.preventDefault()} className="max-w-md">
           <DialogHeader>
             <DialogTitle>Venta registrada</DialogTitle>
+            <DialogDescription>La venta fue procesada correctamente.</DialogDescription>
           </DialogHeader>
           <p className="text-muted-foreground text-sm">
             Se registraron {posLastSaleIds.length} venta(s) correctamente.
@@ -1294,6 +1348,7 @@ export default function AdminSalesPage() {
           <DialogHeader>
             <div className="flex items-center gap-3">
               <DialogTitle>Detalle de venta</DialogTitle>
+              <DialogDescription className="sr-only">Información detallada de la venta seleccionada.</DialogDescription>
               {selectedSale && (
                 <Badge variant={PAYMENT_STATUS_COLORS[selectedSale.status] ?? 'default'}>
                   {PAYMENT_STATUS_LABELS[selectedSale.status] ?? selectedSale.status}
@@ -1429,6 +1484,111 @@ export default function AdminSalesPage() {
 
               <Separator />
 
+              {selectedSale.order?.shipment && (
+                <>
+                  <div>
+                    <div className="flex items-start justify-between gap-4 mb-3">
+                      <div>
+                        <h4 className="text-sm font-medium">Envío</h4>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {selectedSale.order.shipment.providerCode === 'LOCAL_PICKUP'
+                            ? 'Retiro en local'
+                            : selectedSale.order.shipment.providerCode === 'CUSTOM_EXTERNAL'
+                              ? 'Método externo'
+                              : 'Courier pendiente de integración'}
+                        </p>
+                      </div>
+                      <Badge variant="outline">{selectedSale.order.shipment.status}</Badge>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <p className="text-muted-foreground">Método</p>
+                        <p className="font-medium">{getShipmentMethodLabel(selectedSale.order.shipment)}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">Costo</p>
+                        <p className="font-medium">
+                          {selectedSale.order.shipment.price.toLocaleString('es-AR', {
+                            style: 'currency',
+                            currency: selectedSale.order.shipment.currency || 'ARS',
+                          })}
+                        </p>
+                      </div>
+                      {selectedSale.order.shipment.serviceName && (
+                        <div>
+                          <p className="text-muted-foreground">Servicio</p>
+                          <p className="font-medium">{selectedSale.order.shipment.serviceName}</p>
+                        </div>
+                      )}
+                      {selectedSale.order.shipment.trackingCode && (
+                        <div>
+                          <p className="text-muted-foreground">Tracking</p>
+                          <p className="font-medium">{selectedSale.order.shipment.trackingCode}</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {selectedSale.order.shipment.destination && (
+                      <div className="mt-3 rounded-lg border bg-muted/20 p-3 text-sm">
+                        <p className="font-medium mb-1">Destino</p>
+                        <p className="text-muted-foreground">
+                          {String(selectedSale.order.shipment.destination.streetName ?? '')} {String(selectedSale.order.shipment.destination.streetNumber ?? '')},{' '}
+                          {String(selectedSale.order.shipment.destination.city ?? '')}, {String(selectedSale.order.shipment.destination.province ?? '')}
+                        </p>
+                      </div>
+                    )}
+
+                    {selectedSale.order.shipment.pickupSnapshot && (
+                      <div className="mt-3 rounded-lg border bg-muted/20 p-3 text-sm">
+                        <p className="font-medium mb-1">Retiro</p>
+                        {selectedSale.order.shipment.pickupSnapshot.instructions && (
+                          <p className="text-muted-foreground">{String(selectedSale.order.shipment.pickupSnapshot.instructions)}</p>
+                        )}
+                        {selectedSale.order.shipment.pickupSnapshot.address && (
+                          <p className="text-muted-foreground">Dirección: {String(selectedSale.order.shipment.pickupSnapshot.address)}</p>
+                        )}
+                        {selectedSale.order.shipment.pickupSnapshot.businessHours && (
+                          <p className="text-muted-foreground">Horario: {String(selectedSale.order.shipment.pickupSnapshot.businessHours)}</p>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="flex flex-wrap gap-2 mt-4">
+                      {selectedSale.order.shipment.providerCode === 'CUSTOM_EXTERNAL' && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => void handleShipmentAction(selectedSale.id, 'requote')}
+                          disabled={shipmentActionLoading !== null}
+                        >
+                          <RefreshCw className="h-4 w-4 mr-2" />
+                          Ver estado del envío
+                        </Button>
+                      )}
+                      {selectedSale.order.shipment.providerCode === 'LOCAL_PICKUP' && (
+                        <Button
+                          size="sm"
+                          onClick={() => void handleShipmentAction(selectedSale.id, 'pickup')}
+                          disabled={shipmentActionLoading !== null}
+                        >
+                          <Store className="h-4 w-4 mr-2" />
+                          Marcar retirado
+                        </Button>
+                      )}
+                      {selectedSale.order.shipment.labelUrl && (
+                        <Button size="sm" variant="outline" asChild>
+                          <a href={selectedSale.order.shipment.labelUrl} target="_blank" rel="noreferrer">
+                            Ver etiqueta
+                          </a>
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+
+                  <Separator />
+                </>
+              )}
+
               {/* Items */}
               <div>
                 <h4 className="text-sm font-medium mb-3">Productos</h4>
@@ -1522,6 +1682,7 @@ export default function AdminSalesPage() {
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Editar venta</DialogTitle>
+            <DialogDescription>Modificá los items y datos de la venta.</DialogDescription>
           </DialogHeader>
           {editingSale && (
             <div className="space-y-4">
@@ -1642,6 +1803,7 @@ export default function AdminSalesPage() {
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Comprobante de pago</DialogTitle>
+            <DialogDescription>Visualización del comprobante subido por el cliente.</DialogDescription>
           </DialogHeader>
           {paymentProofUrl ? (
             <div className="space-y-4">

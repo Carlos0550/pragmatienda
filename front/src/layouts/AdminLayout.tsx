@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import {
-  LayoutDashboard, Store, Tag, Package, Settings, LogOut, Menu, ChevronLeft, ShoppingCart,
+  LayoutDashboard, Store, Tag, Package, Settings, LogOut, Menu, ChevronLeft, ShoppingCart, Truck,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTenant } from '@/contexts/TenantContext';
@@ -16,6 +16,7 @@ const adminNavItems = [
   { title: 'Mi Negocio', path: '/admin/business', icon: Store },
   { title: 'Categorías', path: '/admin/categories', icon: Tag },
   { title: 'Productos', path: '/admin/products', icon: Package },
+  { title: 'Formas de envío', path: '/admin/shipping', icon: Truck },
   { title: 'Ventas', path: '/admin/sales', icon: ShoppingCart },
   { title: 'Suscripción', path: '/admin/billing', icon: Settings },
 ];
