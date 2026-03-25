@@ -58,11 +58,8 @@ export const attachAuthenticatedUserOptional = async (req: Request, res: Respons
       (req as Request & { user?: SessionUserPayload }).user = payload;
     }
     return next();
-  } catch (error) {
-    if ((error as Error).message === "SESSION_INACTIVE") {
-      return res.status(401).json({ message: "Sesion de autenticacion invalida" });
-    }
-    return res.status(401).json({ message: "Token de autenticacion invalido" });
+  } catch {
+    return next();
   }
 };
 

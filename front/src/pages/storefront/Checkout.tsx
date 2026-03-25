@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Upload, CheckCircle, X, Building2, User, Hash, Copy, Store, Truck } from 'lucide-react';
 import { sileo } from 'sileo';
@@ -46,6 +46,7 @@ export default function CheckoutPage() {
   const [quotes, setQuotes] = useState<ShipmentQuote[]>([]);
   const [quotesLoading, setQuotesLoading] = useState(false);
   const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null);
+  const latestQuoteRequestIdRef = useRef(0);
   const bankOptions = tenant?.bankOptions ?? [];
 
   useEffect(() => {
@@ -65,21 +66,45 @@ export default function CheckoutPage() {
   const shippingPrice = selectedQuote?.price ?? 0;
   const total = subtotal + shippingPrice;
 
-  const pickupQuote = useMemo(
-    () => quotes.find((quote) => quote.providerCode === 'LOCAL_PICKUP' && !quote.unavailableReason) ?? null,
-    [quotes]
-  );
-
   useEffect(() => {
-    if (deliveryType !== 'PICKUP') return;
-    void quoteShipping('PICKUP');
-  }, [deliveryType]);
-
-  useEffect(() => {
-    if (deliveryType === 'PICKUP' && pickupQuote?.id) {
-      setSelectedQuoteId(pickupQuote.id);
+    if (deliveryType !== 'PICKUP') {
+      latestQuoteRequestIdRef.current += 1;
+      setQuotes([]);
+      setSelectedQuoteId(null);
+      setQuotesLoading(false);
+      return;
     }
-  }, [deliveryType, pickupQuote]);
+
+    const requestId = ++latestQuoteRequestIdRef.current;
+    let active = true;
+
+    setQuotesLoading(true);
+
+    void http.shipping
+      .quote({ quoteType: 'PICKUP' })
+      .then((response) => {
+        if (!active || latestQuoteRequestIdRef.current !== requestId) return;
+        setQuotes(response.items);
+        const firstAvailable = response.items.find((item) => item.id && !item.unavailableReason);
+        setSelectedQuoteId(firstAvailable?.id ?? null);
+      })
+      .catch((error: unknown) => {
+        if (!active || latestQuoteRequestIdRef.current !== requestId) return;
+        console.error(error);
+        setQuotes([]);
+        setSelectedQuoteId(null);
+        sileo.error({ title: 'No se pudo cotizar el envío' });
+      })
+      .finally(() => {
+        if (active && latestQuoteRequestIdRef.current === requestId) {
+          setQuotesLoading(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [deliveryType]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -104,24 +129,29 @@ export default function CheckoutPage() {
     ) as ShippingAddress;
   };
 
-  const quoteShipping = async (quoteType: ShippingQuoteType) => {
+  const quoteHomeDelivery = async () => {
+    const requestId = ++latestQuoteRequestIdRef.current;
     setQuotesLoading(true);
     try {
-      const payload: { quoteType: ShippingQuoteType; shippingAddress?: ShippingAddress } = { quoteType };
-      if (quoteType === 'HOME_DELIVERY') {
-        payload.shippingAddress = cleanShippingAddress(shippingAddress);
-      }
+      const payload: { quoteType: ShippingQuoteType; shippingAddress?: ShippingAddress } = {
+        quoteType: 'HOME_DELIVERY',
+        shippingAddress: cleanShippingAddress(shippingAddress),
+      };
       const response = await http.shipping.quote(payload);
+      if (latestQuoteRequestIdRef.current !== requestId) return;
       setQuotes(response.items);
       const firstAvailable = response.items.find((item) => item.id && !item.unavailableReason);
       setSelectedQuoteId(firstAvailable?.id ?? null);
     } catch (error) {
+      if (latestQuoteRequestIdRef.current !== requestId) return;
       console.error(error);
       setQuotes([]);
       setSelectedQuoteId(null);
       sileo.error({ title: 'No se pudo cotizar el envío' });
     } finally {
-      setQuotesLoading(false);
+      if (latestQuoteRequestIdRef.current === requestId) {
+        setQuotesLoading(false);
+      }
     }
   };
 
@@ -352,7 +382,7 @@ export default function CheckoutPage() {
                 <Textarea value={shippingAddress.references ?? ''} onChange={(e) => updateAddress('references', e.target.value)} rows={2} />
               </div>
             </div>
-            <Button type="button" variant="outline" onClick={() => void quoteShipping('HOME_DELIVERY')} disabled={quotesLoading}>
+            <Button type="button" variant="outline" onClick={() => void quoteHomeDelivery()} disabled={quotesLoading}>
               {quotesLoading ? 'Cotizando...' : 'Cotizar envíos'}
             </Button>
           </div>
@@ -461,7 +491,14 @@ export default function CheckoutPage() {
           <div className="relative">
             <img src={preview} alt="Comprobante" className="rounded-lg max-h-64 w-full object-contain border" />
             <button
-              onClick={() => { setComprobante(null); setPreview(null); }}
+              type="button"
+              onClick={() => {
+                setComprobante(null);
+                setPreview(null);
+                if (fileRef.current) {
+                  fileRef.current.value = '';
+                }
+              }}
               className="absolute top-2 right-2 p-1 rounded-full bg-foreground/80 text-background hover:bg-foreground transition-colors"
             >
               <X className="h-4 w-4" />
@@ -469,6 +506,7 @@ export default function CheckoutPage() {
           </div>
         ) : (
           <button
+            type="button"
             onClick={() => fileRef.current?.click()}
             className="w-full border-2 border-dashed rounded-xl p-8 flex flex-col items-center gap-3 hover:border-primary/50 hover:bg-accent/30 transition-colors"
           >

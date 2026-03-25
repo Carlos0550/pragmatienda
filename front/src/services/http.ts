@@ -41,6 +41,7 @@ import type {
   TenantCapabilitiesResponse,
   TenantResolveResponse,
   ShippingMethod,
+  ShippingAddress,
   ShipmentQuote,
   UserMeResponse,
   ValidateResetPasswordTokenPayload,
@@ -222,7 +223,7 @@ export const http = {
       return response.data;
     },
     deleteMethod: (id: string) => api.delete<ApiEnvelope<unknown>>(`/admin/shipping-methods/${id}`),
-    quote: async (payload: { quoteType: 'HOME_DELIVERY' | 'PICKUP'; shippingAddress?: Record<string, unknown> }) => {
+    quote: async (payload: { quoteType: 'HOME_DELIVERY' | 'PICKUP'; shippingAddress?: ShippingAddress }) => {
       const response = await api.post<ApiEnvelope<{ items: ShipmentQuote[]; packageSummary: Record<string, unknown> }>>(
         '/public/shipping/quotes',
         payload
