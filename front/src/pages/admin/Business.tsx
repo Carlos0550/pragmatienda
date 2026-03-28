@@ -43,6 +43,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { Textarea } from '@/components/ui/textarea';
 
 const GRID_VALUES = [0, 25, 50, 75, 100];
 
@@ -167,6 +168,7 @@ function toBusinessFormState(data: Tenant): BusinessFormState {
     favicon: data.favicon || '',
     address: data.address || '',
     province: data.province || '',
+    businessHours: data.businessHours || '',
     seoDescription: data.seoDescription || '',
     facebook: data.socialLinks?.facebook || '',
     instagram: data.socialLinks?.instagram || '',
@@ -207,7 +209,7 @@ export default function BusinessPage() {
   const [form, setForm] = useState<BusinessFormState>({
     name: '', website: '', storeUrl: '',
     logo: '', banner: '', seoImage: '', favicon: '',
-    address: '', province: '', seoDescription: '',
+    address: '', province: '', businessHours: '', seoDescription: '',
     facebook: '', instagram: '', whatsapp: '',
     banners: [],
     bankOptions: [],
@@ -337,6 +339,10 @@ export default function BusinessPage() {
         formData.append('province', form.province.trim());
         hasChanges = true;
       }
+      if (form.businessHours.trim() !== (initial?.businessHours ?? '').trim()) {
+        formData.append('businessHours', form.businessHours.trim());
+        hasChanges = true;
+      }
       if (form.seoDescription.trim() !== (initial?.seoDescription ?? '').trim()) {
         formData.append('seoDescription', form.seoDescription.trim());
         hasChanges = true;
@@ -425,7 +431,7 @@ export default function BusinessPage() {
     }
   };
 
-  const handleChange = (field: keyof Pick<BusinessFormState, 'name' | 'website' | 'facebook' | 'instagram' | 'whatsapp' | 'address' | 'province' | 'seoDescription'>) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleChange = (field: keyof Pick<BusinessFormState, 'name' | 'website' | 'facebook' | 'instagram' | 'whatsapp' | 'address' | 'province' | 'businessHours' | 'seoDescription'>) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setForm((prev) => ({ ...prev, [field]: e.target.value }));
   };
 
@@ -596,6 +602,42 @@ export default function BusinessPage() {
                 URL pública: <span className="font-medium text-foreground">{storeUrlPreview || 'Sin subdominio configurado'}</span>
               </p>
               {errors.website && <p className="text-xs text-primary">{errors.website}</p>}
+            </div>
+          </div>
+        </section>
+        <section className="space-y-4">
+          <h3 className="text-lg font-semibold border-b pb-2">Datos del local</h3>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="business-address">Dirección</Label>
+              <Input
+                id="business-address"
+                value={form.address}
+                onChange={handleChange('address')}
+                placeholder="Av. Siempre Viva 123"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="business-province">Provincia</Label>
+              <Input
+                id="business-province"
+                value={form.province}
+                onChange={handleChange('province')}
+                placeholder="Salta"
+              />
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="business-hours">Horarios de atención</Label>
+              <Textarea
+                id="business-hours"
+                value={form.businessHours}
+                onChange={handleChange('businessHours')}
+                rows={3}
+                placeholder="Lunes a viernes de 9 a 18 hs. Sábados de 10 a 13 hs."
+              />
+              <p className="text-xs text-muted-foreground">
+                Este horario se mostrará automáticamente en la opción de retiro en local.
+              </p>
             </div>
           </div>
         </section>
@@ -855,14 +897,6 @@ export default function BusinessPage() {
           <div className="space-y-5">
             <div className="space-y-4">
               <h3 className="font-semibold text-sm">Redes sociales</h3>
-              <div className="space-y-2">
-                <Label>Dirección</Label>
-                <Input value={form.address} onChange={handleChange('address')} placeholder="Calle 123" />
-              </div>
-              <div className="space-y-2">
-                <Label>Provincia</Label>
-                <Input value={form.province} onChange={handleChange('province')} placeholder="Buenos Aires" />
-              </div>
               <div className="space-y-2">
                 <Label>SEO description</Label>
                 <textarea

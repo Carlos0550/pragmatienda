@@ -19,6 +19,7 @@ import BusinessPage from "@/pages/admin/Business";
 import CategoriesPage from "@/pages/admin/Categories";
 import AdminProductsPage from "@/pages/admin/Products";
 import AdminSalesPage from "@/pages/admin/Sales";
+import ShippingMethodsPage from "@/pages/admin/ShippingMethods";
 import BillingPage from "@/pages/admin/Billing";
 import MercadoPagoPage from "@/pages/admin/MercadoPago";
 import PlansPage from "@/pages/superadmin/Plans";
@@ -64,6 +65,7 @@ export function AppRoutes() {
         <Route path="business" element={<BusinessPage />} />
         <Route path="categories" element={<CategoriesPage />} />
         <Route path="products" element={<AdminProductsPage />} />
+        <Route path="shipping" element={<ShippingMethodsPage />} />
         <Route path="sales" element={<AdminSalesPage />} />
         <Route path="billing" element={<BillingPage />} />
         <Route path="mercadopago" element={<MercadoPagoPage />} />

@@ -6,6 +6,8 @@ import { dashboardController } from "../controllers/dashboard.controller";
 import { paymentsController } from "../controllers/payments.controller";
 import { productsController } from "../controllers/products.controller";
 import { salesRouter } from "./sales.routes";
+import { shippingRouter } from "./shipping.routes";
+import { shipnowRouter } from "./shipnow.routes";
 import { openApiRegistry } from "../docs/swagger";
 import {
   requireRole,
@@ -46,6 +48,7 @@ openApiRegistry.registerPath({
             seoDescription: z.string().optional(),
             address: z.string().optional(),
             province: z.string().optional(),
+            businessHours: z.string().optional(),
             phone: z.string().optional(),
             email: z.string().optional(),
             website: z.string().optional(),
@@ -436,5 +439,7 @@ router.get(
 );
 
 router.use("/sales", salesRouter);
+router.use("/shipping-methods", shippingRouter);
+router.use("/shipnow", shipnowRouter);
 
 export { router as adminRouter };

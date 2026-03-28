@@ -4,10 +4,9 @@ import { persistIdempotencyResponse } from "../middlewares";
 import { logger } from "../config/logger";
 import { cartService } from "../services/Cart/cart.service";
 import {
+  cartCheckoutSchema,
   deleteCartItemsSchema,
-  guestCheckoutDetailsSchema,
   patchCartItemsSchema,
-  checkoutOriginSchema
 } from "../services/Cart/cart.zod";
 import { clearGuestCartCookie, getGuestCartTokenFromRequest, setGuestCartCookie } from "../utils/guest-cart.utils";
 
@@ -100,45 +99,44 @@ class CartController {
       const userId = req.user?.id;
       const tenantId = req.tenantId;
       const guestCartToken = getGuestCartTokenFromRequest(req);
-      const paymentProviderRaw = req.body.paymentProvider;
-      const origin = req.body.origin;
       if (!tenantId) {
         return res.status(400).json({ message: "Tenant requerido." });
       }
 
-      const originParsed = checkoutOriginSchema.safeParse(origin);
-      if (!originParsed.success) {
-        return res.status(400).json({ message: "Origen de checkout inválido. Use 'cart' o 'sale'." });
-      }
-
-      if (originParsed.data === "sale" && !userId) {
-        return res.status(401).json({ message: "Usuario autenticado requerido para venta POS." });
-      }
-
-      if (originParsed.data === "sale" && req.user?.role !== 1) {
-        return res.status(403).json({ message: "Solo un administrador puede registrar ventas POS." });
-      }
-
-      if (originParsed.data === "sale" && (!paymentProviderRaw || !Object.values(PaymentProvider).includes(paymentProviderRaw))) {
-        return res.status(400).json({ message: "Proveedor de pago requerido para venta POS." });
-      }
-
-      const guestCheckoutParsed = guestCheckoutDetailsSchema.safeParse({
-        name: req.body.name,
-        email: req.body.email,
-        phone: req.body.phone,
-        createAccountAfterPurchase: req.body.createAccountAfterPurchase
-      });
-      if (!guestCheckoutParsed.success) {
+      const parsed = cartCheckoutSchema.safeParse(req.body);
+      if (!parsed.success) {
         return res.status(400).json({
           message: "Datos inválidos.",
-          err: guestCheckoutParsed.error.flatten().fieldErrors
+          err: parsed.error.flatten().fieldErrors
         });
       }
 
+      if (parsed.data.origin === "sale" && !userId) {
+        return res.status(401).json({ message: "Usuario autenticado requerido para venta POS." });
+      }
+
+      if (parsed.data.origin === "sale" && req.user?.role !== 1) {
+        return res.status(403).json({ message: "Solo un administrador puede registrar ventas POS." });
+      }
+
+      if (
+        parsed.data.origin === "sale" &&
+        (!parsed.data.paymentProvider ||
+          !Object.values(PaymentProvider).includes(parsed.data.paymentProvider as PaymentProvider))
+      ) {
+        return res.status(400).json({ message: "Proveedor de pago requerido para venta POS." });
+      }
+
+      if (
+        parsed.data.origin === "cart" &&
+        (!parsed.data.shippingMethodId || !parsed.data.shippingSelectionType)
+      ) {
+        return res.status(400).json({ message: "La forma de envío es obligatoria para el checkout web." });
+      }
+
       const paymentProvider: PaymentProvider =
-        paymentProviderRaw && Object.values(PaymentProvider).includes(paymentProviderRaw)
-          ? paymentProviderRaw
+        parsed.data.paymentProvider && Object.values(PaymentProvider).includes(parsed.data.paymentProvider as PaymentProvider)
+          ? parsed.data.paymentProvider as PaymentProvider
           : PaymentProvider.BANK_TRANSFER;
 
       const result = await cartService.checkout({
@@ -147,8 +145,23 @@ class CartController {
         guestCartToken,
         file: req.file ?? null,
         paymentProvider,
-        origin: originParsed.data,
-        guestDetails: userId ? undefined : guestCheckoutParsed.data
+        origin: parsed.data.origin,
+        guestDetails: userId
+          ? undefined
+          : {
+              name: parsed.data.name,
+              email: parsed.data.email,
+              phone: parsed.data.phone,
+              createAccountAfterPurchase: parsed.data.createAccountAfterPurchase
+            },
+        shippingSelection: parsed.data.shippingMethodId && parsed.data.shippingSelectionType
+          ? {
+              shippingMethodId: parsed.data.shippingMethodId,
+              shippingQuoteId: parsed.data.shippingQuoteId,
+              shippingSelectionType: parsed.data.shippingSelectionType,
+              shippingAddress: parsed.data.shippingAddress
+            }
+          : undefined
       });
       this.applyGuestCartCookie(res, result);
       await persistIdempotencyResponse(req, result.status, result);

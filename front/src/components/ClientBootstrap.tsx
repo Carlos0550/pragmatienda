@@ -4,6 +4,7 @@ import { sileo } from "sileo";
 import { useTenantStore } from "@/stores/tenant";
 import { useAuthStore } from "@/stores/auth";
 import { api } from "@/services/api";
+import { PasswordSetupModal } from "@/components/PasswordSetupModal";
 
 type ClientBootstrapProps = PropsWithChildren<{
   skipTenantBootstrap?: boolean;
@@ -58,7 +59,9 @@ export function ClientBootstrap({
       if (!skipTenantBootstrap || hydrateAuthFromCookie) {
         await useAuthStore.getState().hydrate();
       } else {
-        useAuthStore.setState({ loading: false });
+        if (useAuthStore.getState().loading) {
+          useAuthStore.setState({ loading: false });
+        }
       }
 
       if (shouldShowVerifiedWelcome) {
@@ -73,5 +76,10 @@ export function ClientBootstrap({
     })();
   }, [skipTenantBootstrap, hydrateAuthFromCookie]);
 
-  return <>{children}</>;
+  return (
+    <>
+      {children}
+      <PasswordSetupModal />
+    </>
+  );
 }

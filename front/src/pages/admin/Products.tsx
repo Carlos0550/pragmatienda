@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -42,6 +42,10 @@ const emptyForm: ProductFormState = {
   barCode: '',
   categoryId: '',
   stock: '',
+  weightGrams: '',
+  lengthCm: '',
+  widthCm: '',
+  heightCm: '',
   status: 'PUBLISHED',
 };
 
@@ -177,6 +181,10 @@ export default function AdminProductsPage() {
       barCode: p.barCode ?? '',
       categoryId: p.categoryId || p.category?.id || '',
       stock: String(p.stock),
+      weightGrams: p.weightGrams != null ? String(p.weightGrams) : '',
+      lengthCm: p.lengthCm != null ? String(p.lengthCm) : '',
+      widthCm: p.widthCm != null ? String(p.widthCm) : '',
+      heightCm: p.heightCm != null ? String(p.heightCm) : '',
       status: p.status ?? 'PUBLISHED',
       description: p.description ?? '',
       seoTitle: p.seoTitle ?? meta.title ?? '',
@@ -199,6 +207,10 @@ export default function AdminProductsPage() {
     formData.append('name', form.name);
     formData.append('price', form.price);
     formData.append('stock', form.stock);
+    if (form.weightGrams?.trim()) formData.append('weightGrams', form.weightGrams);
+    if (form.lengthCm?.trim()) formData.append('lengthCm', form.lengthCm);
+    if (form.widthCm?.trim()) formData.append('widthCm', form.widthCm);
+    if (form.heightCm?.trim()) formData.append('heightCm', form.heightCm);
     formData.append('status', form.status);
     if (form.categoryId) formData.append('categoryId', form.categoryId);
     formData.append('barCode', form.barCode?.trim() ?? '');
@@ -433,6 +445,7 @@ export default function AdminProductsPage() {
             <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>{editing ? 'Editar' : 'Nuevo'} Producto</DialogTitle>
+                <DialogDescription>Completá los datos del producto para guardarlo.</DialogDescription>
               </DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4">
                 {errors._form && (
@@ -503,6 +516,32 @@ export default function AdminProductsPage() {
                   <div className="space-y-2">
                     <Label>Stock</Label>
                     <Input type="number" value={form.stock} onChange={handleChange('stock')} required />
+                  </div>
+                </div>
+                <div className="space-y-3 rounded-lg border p-4 bg-muted/20">
+                  <div>
+                    <Label className="text-base">Datos para envíos</Label>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Sirven para calcular envíos con couriers integrados más adelante. Si hoy usás retiro en local o envíos manuales, podés completarlos después.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Peso (gramos)</Label>
+                      <Input type="number" value={form.weightGrams ?? ''} onChange={handleChange('weightGrams')} placeholder="500" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Largo (cm)</Label>
+                      <Input type="number" step="0.01" value={form.lengthCm ?? ''} onChange={handleChange('lengthCm')} placeholder="20" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Ancho (cm)</Label>
+                      <Input type="number" step="0.01" value={form.widthCm ?? ''} onChange={handleChange('widthCm')} placeholder="15" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Alto (cm)</Label>
+                      <Input type="number" step="0.01" value={form.heightCm ?? ''} onChange={handleChange('heightCm')} placeholder="10" />
+                    </div>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">

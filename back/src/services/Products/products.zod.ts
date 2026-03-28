@@ -26,6 +26,10 @@ export const createProductSchema = z.object({
   metaDescription: z.string().max(255).optional(),
   price: z.coerce.number().positive("Precio debe ser positivo"),
   stock: z.coerce.number().int().min(0, "Stock no puede ser negativo"),
+  weightGrams: z.coerce.number().int().positive().optional(),
+  lengthCm: z.coerce.number().positive().optional(),
+  widthCm: z.coerce.number().positive().optional(),
+  heightCm: z.coerce.number().positive().optional(),
   categoryId: z.string().cuid().optional().nullable(),
   metadata: metadataSchema.optional(),
   status: z.nativeEnum(ProductsStatus).optional()
@@ -39,6 +43,10 @@ export const updateProductSchema = z.object({
   metaDescription: z.string().max(255).optional(),
   price: z.coerce.number().positive().optional(),
   stock: z.coerce.number().int().min(0).optional(),
+  weightGrams: z.coerce.number().int().positive().optional(),
+  lengthCm: z.coerce.number().positive().optional(),
+  widthCm: z.coerce.number().positive().optional(),
+  heightCm: z.coerce.number().positive().optional(),
   categoryId: z.string().cuid().optional().nullable(),
   metadata: metadataSchema.optional(),
   status: z.nativeEnum(ProductsStatus).optional()

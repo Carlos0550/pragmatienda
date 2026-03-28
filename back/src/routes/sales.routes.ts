@@ -132,6 +132,62 @@ openApiRegistry.registerPath({
   }
 });
 
+openApiRegistry.registerPath({
+  method: "post",
+  path: "/admin/sales/{id}/shipment/create",
+  tags: ["Sales"],
+  summary: "Generar envío para la venta",
+  request: {
+    headers: salesHeaders,
+    params: z.object({ id: z.string().cuid() })
+  },
+  responses: {
+    "200": { description: "Envío generado o actualizado" }
+  }
+});
+
+openApiRegistry.registerPath({
+  method: "post",
+  path: "/admin/sales/{id}/shipment/refresh",
+  tags: ["Sales"],
+  summary: "Actualizar estado del envío asociado",
+  request: {
+    headers: salesHeaders,
+    params: z.object({ id: z.string().cuid() })
+  },
+  responses: {
+    "200": { description: "Estado de envío actualizado" }
+  }
+});
+
+openApiRegistry.registerPath({
+  method: "post",
+  path: "/admin/sales/{id}/shipment/requote",
+  tags: ["Sales"],
+  summary: "Recotizar envío asociado",
+  request: {
+    headers: salesHeaders,
+    params: z.object({ id: z.string().cuid() })
+  },
+  responses: {
+    "200": { description: "Envío recotizado" }
+  }
+});
+
+openApiRegistry.registerPath({
+  method: "post",
+  path: "/admin/sales/{id}/shipment/mark-picked-up",
+  tags: ["Sales"],
+  summary: "Marcar retiro en local como completado",
+  request: {
+    headers: salesHeaders,
+    params: z.object({ id: z.string().cuid() })
+  },
+  responses: {
+    "200": { description: "Pedido marcado como retirado" }
+  }
+});
+
 const router = Router();
 
 router.use(requireRole([1]));
@@ -143,6 +199,10 @@ router.get("/:id", salesController.getOne);
 router.put("/:id", salesController.update);
 router.patch("/:id/items", salesController.patchItems);
 router.get("/:id/payment-proof", salesController.getPaymentProof);
+router.post("/:id/shipment/create", salesController.createShipment);
+router.post("/:id/shipment/refresh", salesController.refreshShipment);
+router.post("/:id/shipment/requote", salesController.requoteShipment);
+router.post("/:id/shipment/mark-picked-up", salesController.markPickedUp);
 router.delete("/:id", salesController.delete);
 
 export { router as salesRouter };

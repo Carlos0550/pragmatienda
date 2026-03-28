@@ -4,7 +4,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter } from "react-router-dom";
 import { AppRoutes } from "@/AppRoutes";
 import { ClientBootstrap } from "@/components/ClientBootstrap";
-import { PasswordSetupModal } from "@/components/PasswordSetupModal";
 
 const queryClient = new QueryClient();
 
@@ -22,13 +21,12 @@ const App = () => (
           duration: 2500,
         }}
       />
-      <BrowserRouter>
-        <ClientBootstrap>
-          <AppRoutes />
-          <PasswordSetupModal />
-        </ClientBootstrap>
-      </BrowserRouter>
-    </TooltipProvider>
+        <BrowserRouter>
+          <ClientBootstrap>
+            <AppRoutes />
+          </ClientBootstrap>
+        </BrowserRouter>
+      </TooltipProvider>
   </QueryClientProvider>
 );
 

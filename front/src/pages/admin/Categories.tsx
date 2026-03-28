@@ -4,7 +4,7 @@ import { http } from '@/services/http';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -156,7 +156,7 @@ export default function CategoriesPage() {
             </Button>
           </DialogTrigger>
           <DialogContent>
-            <DialogHeader><DialogTitle>{editing ? 'Editar' : 'Nueva'} Categoría</DialogTitle></DialogHeader>
+            <DialogHeader><DialogTitle>{editing ? 'Editar' : 'Nueva'} Categoría</DialogTitle><DialogDescription>Gestioná las categorías de productos.</DialogDescription></DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
                 <Label>Nombre</Label>

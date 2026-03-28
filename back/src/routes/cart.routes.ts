@@ -9,7 +9,7 @@ import {
   requireTenant,
   uploadComprobanteOptionalMiddleware
 } from "../middlewares";
-import { deleteCartItemsSchema, guestCheckoutDetailsSchema, patchCartItemsSchema } from "../services/Cart/cart.zod";
+import { cartCheckoutSchema, deleteCartItemsSchema, guestCheckoutDetailsSchema, patchCartItemsSchema } from "../services/Cart/cart.zod";
 
 const cartHeaders = z.object({
   "x-tenant-id": z.string(),
@@ -86,11 +86,19 @@ openApiRegistry.registerPath({
       content: {
         "multipart/form-data": {
           schema: z.object({
-            comprobante: z.any().openapi({ type: "string", format: "binary" }),
+            comprobante: z.any().optional().openapi({ type: "string", format: "binary" }),
+            origin: cartCheckoutSchema.shape.origin,
+            paymentProvider: cartCheckoutSchema.shape.paymentProvider.optional(),
             name: guestCheckoutDetailsSchema.shape.name.optional(),
             email: guestCheckoutDetailsSchema.shape.email.optional(),
             phone: guestCheckoutDetailsSchema.shape.phone.optional(),
-            createAccountAfterPurchase: guestCheckoutDetailsSchema.shape.createAccountAfterPurchase.optional()
+            createAccountAfterPurchase: guestCheckoutDetailsSchema.shape.createAccountAfterPurchase.optional(),
+            shippingMethodId: cartCheckoutSchema.shape.shippingMethodId,
+            shippingQuoteId: cartCheckoutSchema.shape.shippingQuoteId.optional(),
+            shippingSelectionType: cartCheckoutSchema.shape.shippingSelectionType,
+            shippingAddress: z.string().optional().openapi({
+              description: "JSON serializado con la dirección de envío"
+            })
           })
         }
       }

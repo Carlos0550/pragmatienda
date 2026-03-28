@@ -10,8 +10,10 @@ export function useCart() {
   const removeItem = useCartStore((s) => s.removeItem);
   const checkout = useCartStore((s) => s.checkout);
   const itemCount = useCartItemCount();
-  const totalCartItems = useCartStore((s) => s.totalCartItems());
-  const totalCart = useCartStore((s) => s.totalCart());
+  // Compute totalCartItems as a reactive value based on cart
+  const totalCartItems = cart?.items?.reduce((sum: number, item) => sum + item.quantity, 0) || 0;
+  // Compute totalCart as a reactive value based on cart
+  const totalCart = cart?.items?.reduce((sum: number, item) => sum + (item.product?.price ?? 0) * item.quantity, 0) || 0;
   return {
     cart,
     itemCount,

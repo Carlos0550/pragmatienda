@@ -132,6 +132,10 @@ export class ProductsService {
           image: imageUrl,
           price: data.price,
           stock: data.stock,
+          weightGrams: data.weightGrams,
+          lengthCm: data.lengthCm,
+          widthCm: data.widthCm,
+          heightCm: data.heightCm,
           categoryId: data.categoryId || null,
           status: data.status,
           metadata: (metadata ?? undefined) as Prisma.InputJsonValue | undefined
@@ -197,6 +201,10 @@ export class ProductsService {
       if (data.metaDescription !== undefined) updatePayload.metaDescription = data.metaDescription.trim();
       if (data.price !== undefined) updatePayload.price = data.price;
       if (data.stock !== undefined) updatePayload.stock = data.stock;
+      if (data.weightGrams !== undefined) updatePayload.weightGrams = data.weightGrams;
+      if (data.lengthCm !== undefined) updatePayload.lengthCm = data.lengthCm;
+      if (data.widthCm !== undefined) updatePayload.widthCm = data.widthCm;
+      if (data.heightCm !== undefined) updatePayload.heightCm = data.heightCm;
       if (data.categoryId !== undefined) updatePayload.categoryId = data.categoryId || null;
       if (data.status !== undefined) updatePayload.status = data.status;
       if (data.metadata !== undefined) {

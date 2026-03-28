@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { shippingSelectionSchema } from "../Shipping/shipping.zod";
 
 export const patchCartItemsSchema = z.object({
   productId: z.string().cuid("productId inválido"),
@@ -27,4 +28,25 @@ export const guestCheckoutDetailsSchema = z.object({
   email: z.string().email().optional(),
   phone: optionalPhone,
   createAccountAfterPurchase: booleanFromForm.default(false)
+}).strict();
+
+export const cartCheckoutSchema = z.object({
+  origin: checkoutOriginSchema,
+  paymentProvider: z.string().optional(),
+  name: guestCheckoutDetailsSchema.shape.name,
+  email: guestCheckoutDetailsSchema.shape.email,
+  phone: guestCheckoutDetailsSchema.shape.phone,
+  createAccountAfterPurchase: guestCheckoutDetailsSchema.shape.createAccountAfterPurchase,
+  shippingMethodId: shippingSelectionSchema.shape.shippingMethodId.optional(),
+  shippingQuoteId: shippingSelectionSchema.shape.shippingQuoteId.optional(),
+  shippingSelectionType: shippingSelectionSchema.shape.shippingSelectionType.optional(),
+  shippingAddress: z.preprocess((value) => {
+    if (typeof value !== "string") return value;
+    if (!value.trim()) return undefined;
+    try {
+      return JSON.parse(value) as unknown;
+    } catch {
+      return value;
+    }
+  }, shippingSelectionSchema.shape.shippingAddress.optional()),
 }).strict();

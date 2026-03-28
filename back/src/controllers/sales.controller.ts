@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { logger } from "../config/logger";
 import { salesService } from "../services/Sales/sales.service";
+import { shippingService } from "../services/Shipping/shipping.service";
 import {
   listSalesQuerySchema,
   updateSaleSchema,
@@ -149,6 +150,70 @@ class SalesController {
     } catch (error) {
       const err = error as Error;
       logger.error("Error en sales getPaymentProof controller:", err.message);
+      return res.status(500).json({ message: "Error interno del servidor." });
+    }
+  }
+
+  async createShipment(req: Request, res: Response): Promise<Response> {
+    try {
+      const tenantId = req.tenantId;
+      const saleId = req.params.id;
+      if (!tenantId || !saleId) {
+        return res.status(400).json({ message: "Tenant e id requeridos." });
+      }
+      const result = await shippingService.createShipmentForSale(tenantId, saleId);
+      return res.status(result.status).json(result);
+    } catch (error) {
+      const err = error as Error;
+      logger.error("Error en sales createShipment controller:", err.message);
+      return res.status(500).json({ message: "Error interno del servidor." });
+    }
+  }
+
+  async refreshShipment(req: Request, res: Response): Promise<Response> {
+    try {
+      const tenantId = req.tenantId;
+      const saleId = req.params.id;
+      if (!tenantId || !saleId) {
+        return res.status(400).json({ message: "Tenant e id requeridos." });
+      }
+      const result = await shippingService.refreshShipmentForSale(tenantId, saleId);
+      return res.status(result.status).json(result);
+    } catch (error) {
+      const err = error as Error;
+      logger.error("Error en sales refreshShipment controller:", err.message);
+      return res.status(500).json({ message: "Error interno del servidor." });
+    }
+  }
+
+  async requoteShipment(req: Request, res: Response): Promise<Response> {
+    try {
+      const tenantId = req.tenantId;
+      const saleId = req.params.id;
+      if (!tenantId || !saleId) {
+        return res.status(400).json({ message: "Tenant e id requeridos." });
+      }
+      const result = await shippingService.reQuoteShipmentForSale(tenantId, saleId);
+      return res.status(result.status).json(result);
+    } catch (error) {
+      const err = error as Error;
+      logger.error("Error en sales requoteShipment controller:", err.message);
+      return res.status(500).json({ message: "Error interno del servidor." });
+    }
+  }
+
+  async markPickedUp(req: Request, res: Response): Promise<Response> {
+    try {
+      const tenantId = req.tenantId;
+      const saleId = req.params.id;
+      if (!tenantId || !saleId) {
+        return res.status(400).json({ message: "Tenant e id requeridos." });
+      }
+      const result = await shippingService.markPickedUp(tenantId, saleId);
+      return res.status(result.status).json(result);
+    } catch (error) {
+      const err = error as Error;
+      logger.error("Error en sales markPickedUp controller:", err.message);
       return res.status(500).json({ message: "Error interno del servidor." });
     }
   }

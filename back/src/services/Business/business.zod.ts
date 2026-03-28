@@ -41,6 +41,7 @@ export const updateBusinessSchema = z.object({
     seoDescription: z.string().min(20).max(220).optional(),
     address: z.string().min(3).optional(),
     province: z.string().min(2).optional(),
+    businessHours: z.string().min(3).max(200).optional(),
     phone: z.string().min(10).max(15).optional(),
     email: z.string().email().optional(),
     logo: uploadedFileSchema.optional(),
