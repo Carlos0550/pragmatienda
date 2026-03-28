@@ -1,9 +1,15 @@
 import {
   OrderShipmentStatus,
   ShippingMethodKind,
-  ShippingProviderCode,
   ShippingQuoteType,
 } from "@prisma/client";
+
+// Definimos el enum localmente para incluir SHIPNOW hasta que Prisma lo genere
+const ShippingProviderCodeEnum = {
+  CUSTOM_EXTERNAL: 'CUSTOM_EXTERNAL',
+  LOCAL_PICKUP: 'LOCAL_PICKUP',
+  SHIPNOW: 'SHIPNOW',
+} as const;
 import { z } from "zod";
 
 const optionalTrimmedString = z.preprocess(
@@ -54,7 +60,7 @@ export const shippingMethodConfigSchema = z.union([
 export const createShippingMethodSchema = z.object({
   name: z.string().trim().min(2),
   kind: z.nativeEnum(ShippingMethodKind),
-  providerCode: z.nativeEnum(ShippingProviderCode),
+  providerCode: z.enum(['CUSTOM_EXTERNAL', 'LOCAL_PICKUP', 'SHIPNOW']),
   isActive: z.boolean().optional(),
   availableInCheckout: z.boolean().optional(),
   availableInAdmin: z.boolean().optional(),

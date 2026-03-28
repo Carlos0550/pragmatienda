@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Plus, Pencil, Trash2, Store, Bike, Truck } from 'lucide-react';
+import { Plus, Pencil, Trash2, Store, Bike, Truck, Zap } from 'lucide-react';
 import { sileo } from 'sileo';
 import { http } from '@/services/http';
 import { Button } from '@/components/ui/button';
@@ -22,6 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { ShipnowModal } from '@/components/ShipnowModal';
 import type { ShippingMethod, ShippingProviderCode, ShippingZoneRule } from '@/types';
 
 type ShippingFormState = {
@@ -50,6 +51,7 @@ const emptyForm: ShippingFormState = {
 function iconForMethod(method: ShippingMethod) {
   if (method.providerCode === 'LOCAL_PICKUP') return Store;
   if (method.providerCode === 'CUSTOM_EXTERNAL') return Bike;
+  if (method.providerCode === 'SHIPNOW') return Zap;
   return Truck;
 }
 
@@ -75,9 +77,13 @@ export default function ShippingMethodsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<ShippingFormState>(emptyForm);
+  const [shipnowModalOpen, setShipnowModalOpen] = useState(false);
+  const [shipnowAccepted, setShipnowAccepted] = useState(false);
+  const [acceptingShipnow, setAcceptingShipnow] = useState(false);
 
   const isPickup = form.providerCode === 'LOCAL_PICKUP';
   const isExternal = form.providerCode === 'CUSTOM_EXTERNAL';
+  const isShipnow = form.providerCode === 'SHIPNOW';
 
   const loadMethods = async () => {
     setLoading(true);
@@ -92,15 +98,51 @@ export default function ShippingMethodsPage() {
     }
   };
 
+  const loadShipnowConfig = async () => {
+    try {
+      const config = await http.shipnow.getConfig();
+      setShipnowAccepted(config.acceptedTerms);
+    } catch (error) {
+      console.error('Error al cargar config de ShipNow:', error);
+    }
+  };
+
   useEffect(() => {
     void loadMethods();
+    void loadShipnowConfig();
   }, []);
 
+  const handleOpenShipnowModal = () => {
+    setShipnowModalOpen(true);
+  };
+
+  const handleAcceptShipnow = async () => {
+    setAcceptingShipnow(true);
+    try {
+      await http.shipnow.acceptTerms();
+      setShipnowAccepted(true);
+      setShipnowModalOpen(false);
+      sileo.success({ title: '¡ShipNow habilitado!' });
+      // Abrir el formulario para crear el método de ShipNow
+      openCreate('SHIPNOW');
+    } catch (error) {
+      console.error(error);
+      sileo.error({ title: 'No se pudo habilitar ShipNow' });
+    } finally {
+      setAcceptingShipnow(false);
+    }
+  };
+
   const openCreate = (providerCode: ShippingProviderCode) => {
+    const defaultNames: Record<string, string> = {
+      'LOCAL_PICKUP': 'Retirar en local',
+      'CUSTOM_EXTERNAL': 'Moto mandados',
+      'SHIPNOW': 'Envío con ShipNow',
+    };
     setForm({
       ...emptyForm,
       providerCode,
-      name: providerCode === 'LOCAL_PICKUP' ? 'Retirar en local' : 'Moto mandados',
+      name: defaultNames[providerCode] || 'Nuevo método',
     });
     setDialogOpen(true);
   };
@@ -121,29 +163,32 @@ export default function ShippingMethodsPage() {
     }));
   };
 
-  const buildPayload = () => ({
-    name: form.name,
-    providerCode: form.providerCode,
-    kind: isPickup ? 'PICKUP' : 'EXTERNAL',
-    isActive: form.isActive,
-    availableInCheckout: form.availableInCheckout,
-    availableInAdmin: form.availableInAdmin,
-    displayOrder: Number(form.displayOrder || 0),
-    config: {
-      instructions: form.instructions || undefined,
-    },
-    zoneRules: isExternal
-      ? form.zoneRules
-          .filter((rule) => rule.province)
-          .map((rule) => ({
-            province: rule.province,
-            locality: rule.locality || undefined,
-            price: rule.price,
-            isActive: rule.isActive ?? true,
-            displayName: rule.displayName,
-          }))
-      : [],
-  });
+  const buildPayload = () => {
+    const isShipnow = form.providerCode === 'SHIPNOW';
+    return {
+      name: form.name,
+      providerCode: form.providerCode,
+      kind: isPickup ? 'PICKUP' : isShipnow ? 'THIRD_PARTY' : 'EXTERNAL',
+      isActive: form.isActive,
+      availableInCheckout: form.availableInCheckout,
+      availableInAdmin: form.availableInAdmin,
+      displayOrder: Number(form.displayOrder || 0),
+      config: {
+        instructions: form.instructions || undefined,
+      },
+      zoneRules: isExternal && !isShipnow
+        ? form.zoneRules
+            .filter((rule) => rule.province)
+            .map((rule) => ({
+              province: rule.province,
+              locality: rule.locality || undefined,
+              price: rule.price,
+              isActive: rule.isActive ?? true,
+              displayName: rule.displayName,
+            }))
+        : [],
+    };
+  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -190,11 +235,11 @@ export default function ShippingMethodsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-2xl font-semibold">Formas de envío</h2>
           <p className="text-sm text-muted-foreground mt-1">
-            Configurá retiro en local y envíos manuales. Los couriers integrados quedarán para una próxima etapa.
+            Configurá retiro en local, envíos manuales o integrá ShipNow para cotizar con múltiples couriers.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -202,9 +247,16 @@ export default function ShippingMethodsPage() {
             <Store className="h-4 w-4 mr-2" />
             Retiro en local
           </Button>
-          <Button onClick={() => openCreate('CUSTOM_EXTERNAL')}>
-            <Plus className="h-4 w-4 mr-2" />
+          <Button variant="outline" onClick={() => openCreate('CUSTOM_EXTERNAL')}>
+            <Bike className="h-4 w-4 mr-2" />
             Método externo
+          </Button>
+          <Button 
+            onClick={shipnowAccepted ? () => openCreate('SHIPNOW') : handleOpenShipnowModal}
+            className="bg-blue-600 hover:bg-blue-700"
+          >
+            <Zap className="h-4 w-4 mr-2" />
+            {shipnowAccepted ? 'Agregar ShipNow' : 'Habilitar ShipNow'}
           </Button>
         </div>
       </div>
@@ -236,17 +288,26 @@ export default function ShippingMethodsPage() {
               </TableRow>
             ) : methods.map((method) => {
               const Icon = iconForMethod(method);
+              const isShipnowMethod = method.providerCode === 'SHIPNOW';
               return (
                 <TableRow key={method.id}>
                   <TableCell>
                     <div className="flex items-center gap-3">
-                      <div className="h-9 w-9 rounded-full bg-primary/10 text-primary flex items-center justify-center">
+                      <div className={`h-9 w-9 rounded-full flex items-center justify-center ${
+                        isShipnowMethod 
+                          ? 'bg-blue-100 text-blue-600' 
+                          : 'bg-primary/10 text-primary'
+                      }`}>
                         <Icon className="h-4 w-4" />
                       </div>
                       <div>
                         <p className="font-medium">{method.name}</p>
                         <p className="text-xs text-muted-foreground">
-                          {method.providerCode === 'LOCAL_PICKUP' ? 'Retiro' : 'Envío manual'}
+                          {method.providerCode === 'LOCAL_PICKUP' 
+                            ? 'Retiro' 
+                            : method.providerCode === 'SHIPNOW' 
+                              ? 'ShipNow' 
+                              : 'Envío manual'}
                         </p>
                       </div>
                     </div>
@@ -335,7 +396,7 @@ export default function ShippingMethodsPage() {
               )}
             </div>
 
-            {isExternal && (
+            {isExternal && !isShipnow && (
               <div className="space-y-4 rounded-lg border p-4 bg-muted/20">
                 <div className="flex items-center justify-between">
                   <div>
@@ -405,6 +466,13 @@ export default function ShippingMethodsPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <ShipnowModal
+        isOpen={shipnowModalOpen}
+        onClose={() => setShipnowModalOpen(false)}
+        onAccept={handleAcceptShipnow}
+        loading={acceptingShipnow}
+      />
     </div>
   );
 }

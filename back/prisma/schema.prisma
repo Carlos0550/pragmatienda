@@ -76,6 +76,7 @@ enum ShippingMethodKind {
 enum ShippingProviderCode {
   CUSTOM_EXTERNAL
   LOCAL_PICKUP
+  SHIPNOW
 }
 
 enum ShippingQuoteType {
@@ -141,6 +142,7 @@ model Tenant {
   sales Sales[] @relation("TenantSales")
   shippingMethods ShippingMethod[] @relation("TenantShippingMethods")
   shipmentQuotes ShipmentQuote[] @relation("TenantShipmentQuotes")
+  shipnowConfig ShipnowConfig? @relation("TenantShipnowConfig")
 }
 
 
@@ -635,4 +637,17 @@ model OrderShipment {
   @@index([providerCode])
   @@index([status])
   @@index([trackingCode])
+}
+
+model ShipnowConfig {
+  id        String   @id @default(cuid())
+  tenantId  String   @unique
+  tenant    Tenant   @relation("TenantShipnowConfig", fields: [tenantId], references: [id], onDelete: Cascade)
+  acceptedTerms Boolean @default(false)
+  acceptedAt DateTime?
+  config Json? // Configuración adicional específica del tenant
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
 }

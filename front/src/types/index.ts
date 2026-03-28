@@ -166,7 +166,7 @@ export interface Cart {
 }
 
 export type ShippingMethodKind = 'THIRD_PARTY' | 'EXTERNAL' | 'PICKUP';
-export type ShippingProviderCode = 'CUSTOM_EXTERNAL' | 'LOCAL_PICKUP';
+export type ShippingProviderCode = 'CUSTOM_EXTERNAL' | 'LOCAL_PICKUP' | 'SHIPNOW';
 export type ShippingQuoteType = 'HOME_DELIVERY' | 'PICKUP';
 export type OrderShipmentStatus =
   | 'DRAFT'

@@ -74,7 +74,9 @@ const schema = z.object({
   MP_WEBHOOK_SECRET: z.string().optional(),
   BILLING_ALLOW_PAST_DUE: booleanFromString.default(false),
   /** Sufijos de hostname para tratar como landing (ej: "code.run" → *.code.run). Separados por coma. */
-  EXTRA_LANDING_HOSTNAME_SUFFIXES: z.string().optional()
+  EXTRA_LANDING_HOSTNAME_SUFFIXES: z.string().optional(),
+  /** Token de API de ShipNow para envíos */
+  SHIPNOW_API_TOKEN: z.string().optional(),
 });
 
 const parsed = schema.safeParse(process.env);

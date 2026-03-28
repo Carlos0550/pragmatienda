@@ -7,6 +7,7 @@ import { paymentsController } from "../controllers/payments.controller";
 import { productsController } from "../controllers/products.controller";
 import { salesRouter } from "./sales.routes";
 import { shippingRouter } from "./shipping.routes";
+import { shipnowRouter } from "./shipnow.routes";
 import { openApiRegistry } from "../docs/swagger";
 import {
   requireRole,
@@ -439,5 +440,6 @@ router.get(
 
 router.use("/sales", salesRouter);
 router.use("/shipping-methods", shippingRouter);
+router.use("/shipnow", shipnowRouter);
 
 export { router as adminRouter };

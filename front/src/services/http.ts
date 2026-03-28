@@ -232,6 +232,17 @@ export const http = {
     },
   },
 
+  shipnow: {
+    getConfig: async () => {
+      const response = await api.get<ApiEnvelope<{ acceptedTerms: boolean; acceptedAt: string | null }>>('/admin/shipnow/config');
+      return response.data;
+    },
+    acceptTerms: async () => {
+      const response = await api.post<ApiEnvelope<{ acceptedTerms: boolean; acceptedAt: string }>>('/admin/shipnow/accept-terms');
+      return response.data;
+    },
+  },
+
   sales: {
     list: async (params?: ListSalesParams) => {
       const response = await api.get<ApiEnvelope<{ items: Sale[]; pagination: { page: number; limit: number; total: number; totalPages: number } }>>(

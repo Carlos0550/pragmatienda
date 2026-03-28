@@ -17,6 +17,7 @@ import type {
   shippingSelectionSchema,
   updateShippingMethodSchema,
 } from "./shipping.zod";
+import { shipnowService, type ShipnowAddress } from "./shipnow.service";
 
 type ServiceResponse = { status: number; message: string; data?: unknown; err?: string };
 
@@ -35,7 +36,7 @@ type CartItemForShipping = {
   };
 };
 
-type PackageSummary = {
+export type PackageSummary = {
   totalWeightGrams: number;
   lengthCm: number;
   widthCm: number;
@@ -575,6 +576,86 @@ export class ShippingService {
           continue;
         }
 
+        // ShipNow Integration
+        if (method.providerCode === ShippingProviderCode.SHIPNOW && shipnowService.isAvailable()) {
+          try {
+            const originAddress: ShipnowAddress = {
+              name: businessSnapshot.address ? businessSnapshot.address.split(',')[0]?.trim() || 'Local' : 'Local',
+              street: businessSnapshot.address ? businessSnapshot.address.split(',')[0]?.trim() || '' : '',
+              number: '1',
+              city: businessSnapshot.province || 'Buenos Aires',
+              province: businessSnapshot.province || 'Buenos Aires',
+              postal_code: '1000',
+              phone: '',
+            };
+
+            const destinationAddress: ShipnowAddress = {
+              name: destination.recipientName,
+              street: destination.streetName,
+              number: destination.streetNumber,
+              city: destination.city,
+              province: destination.province,
+              postal_code: destination.postalCode,
+              phone: destination.recipientPhone,
+              floor: destination.floor,
+              apartment: destination.apartment,
+              references: destination.references,
+            };
+
+            const shipnowRates = await shipnowService.getRates(
+              originAddress,
+              destinationAddress,
+              packageSummary
+            );
+
+            for (const rate of shipnowRates) {
+              const quote = await prisma.shipmentQuote.create({
+                data: {
+                  tenantId: input.tenantId,
+                  shippingMethodId: method.id,
+                  providerCode: method.providerCode,
+                  quoteType: ShippingQuoteType.HOME_DELIVERY,
+                  serviceCode: rate.service_code,
+                  serviceName: `${rate.carrier} - ${rate.service}`,
+                  price: new Prisma.Decimal(rate.price),
+                  currency: rate.currency || "ARS",
+                  destination: destination as unknown as Prisma.InputJsonValue,
+                  packageSummary: packageSummary as unknown as Prisma.InputJsonValue,
+                  providerPayload: {
+                    rateId: rate.id,
+                    carrier: rate.carrier,
+                    service: rate.service,
+                    estimatedDelivery: rate.estimated_delivery,
+                    trackingAvailable: rate.tracking_available,
+                  } as Prisma.InputJsonValue,
+                },
+              });
+
+              quotes.push({
+                id: quote.id,
+                shippingMethodId: method.id,
+                providerCode: method.providerCode,
+                kind: method.kind,
+                quoteType: quote.quoteType,
+                serviceCode: quote.serviceCode,
+                serviceName: quote.serviceName,
+                price: rate.price,
+                currency: quote.currency,
+                methodName: method.name,
+                estimatedDelivery: rate.estimated_delivery,
+                carrier: rate.carrier,
+              });
+            }
+          } catch (error) {
+            logger.error("Error al cotizar con ShipNow", { 
+              error: (error as Error).message,
+              tenantId: input.tenantId 
+            });
+            // No agregamos nada a quotes si falla ShipNow, continuamos con otros métodos
+          }
+          continue;
+        }
+
         if (method.kind === ShippingMethodKind.THIRD_PARTY) {
           quotes.push({
             shippingMethodId: method.id,
@@ -763,6 +844,107 @@ export class ShippingService {
         return { status: 200, message: "Envío manual preparado.", data: normalizeShipment(updated) };
       }
 
+      // ShipNow Integration - Crear envío real en ShipNow
+      if (shipment.providerCode === ShippingProviderCode.SHIPNOW && shipnowService.isAvailable()) {
+        try {
+          // Obtener los datos necesarios del negocio
+          const business = await prisma.businessData.findUnique({
+            where: { tenantId },
+            select: {
+              address: true,
+              province: true,
+            },
+          });
+
+          const originAddress: ShipnowAddress = {
+            name: business?.address?.split(',')[0]?.trim() || 'Local',
+            street: business?.address?.split(',')[0]?.trim() || '',
+            number: '1',
+            city: business?.province || 'Buenos Aires',
+            province: business?.province || 'Buenos Aires',
+            postal_code: '1000',
+            phone: '',
+          };
+
+          const destination = shipment.destination as unknown as {
+            recipientName: string;
+            recipientPhone: string;
+            streetName: string;
+            streetNumber: string;
+            city: string;
+            province: string;
+            postalCode: string;
+            floor?: string;
+            apartment?: string;
+            references?: string;
+          };
+
+          const destinationAddress: ShipnowAddress = {
+            name: destination.recipientName,
+            street: destination.streetName,
+            number: destination.streetNumber,
+            city: destination.city,
+            province: destination.province,
+            postal_code: destination.postalCode,
+            phone: destination.recipientPhone,
+            floor: destination.floor,
+            apartment: destination.apartment,
+            references: destination.references,
+          };
+
+          // Construir package summary
+          const packageSummary = buildPackageSummary(sale.order.items as CartItemForShipping[]);
+
+          // Obtener rateId del payload guardado
+          const providerPayload = shipment.providerQuotePayload as { rateId: string } | null;
+          const rateId = providerPayload?.rateId;
+
+          if (!rateId) {
+            throw new Error("No se encontró el rateId de ShipNow en la cotización");
+          }
+
+          // Crear envío en ShipNow
+          const shipnowShipment = await shipnowService.createShipment(
+            rateId,
+            originAddress,
+            destinationAddress,
+            packageSummary,
+            sale.order.id,
+            `Venta: ${sale.id}`
+          );
+
+          // Actualizar el envío local con los datos de ShipNow
+          const updated = await prisma.orderShipment.update({
+            where: { id: shipment.id },
+            data: {
+              status: OrderShipmentStatus.SHIPPED,
+              trackingCode: shipnowShipment.tracking_code,
+              labelUrl: shipnowShipment.label_url,
+              externalShipmentId: shipnowShipment.id,
+              shippedAt: new Date(),
+            },
+            include: orderShipmentInclude,
+          });
+
+          return { 
+            status: 200, 
+            message: "Envío creado exitosamente en ShipNow.", 
+            data: normalizeShipment(updated) 
+          };
+        } catch (error) {
+          logger.error("Error al crear envío en ShipNow", { 
+            error: (error as Error).message,
+            saleId,
+            tenantId 
+          });
+          return { 
+            status: 500, 
+            message: "Error al crear envío en ShipNow.", 
+            err: (error as Error).message 
+          };
+        }
+      }
+
       return { status: 400, message: "No hay couriers integrados activos por el momento." };
     } catch (error) {
       const err = error as Error;
@@ -799,6 +981,63 @@ export class ShippingService {
           include: orderShipmentInclude,
         });
         return { status: 200, message: "Envío sin tracking externo.", data: current ? normalizeShipment(current) : null };
+      }
+
+      // ShipNow Integration - Consultar estado del envío
+      if (shipment.providerCode === ShippingProviderCode.SHIPNOW && shipnowService.isAvailable() && shipment.externalShipmentId) {
+        try {
+          const shipnowStatus = await shipnowService.getShipmentStatus(shipment.externalShipmentId);
+          
+          // Mapear el estado de ShipNow a nuestro estado interno
+          let newStatus = shipment.status;
+          if (shipnowStatus.status === 'delivered') {
+            newStatus = OrderShipmentStatus.DELIVERED;
+          } else if (shipnowStatus.status === 'in_transit') {
+            newStatus = OrderShipmentStatus.SHIPPED;
+          } else if (shipnowStatus.status === 'ready_for_pickup') {
+            newStatus = OrderShipmentStatus.READY_FOR_PICKUP;
+          }
+
+          // Actualizar si el estado cambió
+          if (newStatus !== shipment.status || shipnowStatus.events.length > 0) {
+            const updated = await prisma.orderShipment.update({
+              where: { id: shipment.id },
+              data: {
+                status: newStatus,
+                ...(newStatus === OrderShipmentStatus.DELIVERED && !shipment.deliveredAt ? { deliveredAt: new Date() } : {}),
+                providerShipmentPayload: {
+                  lastEvent: shipnowStatus.events[0],
+                  allEvents: shipnowStatus.events,
+                } as unknown as Prisma.InputJsonValue,
+              },
+              include: orderShipmentInclude,
+            });
+
+            return { 
+              status: 200, 
+              message: "Estado del envío actualizado desde ShipNow.", 
+              data: normalizeShipment(updated) 
+            };
+          }
+
+          return { 
+            status: 200, 
+            message: "Estado del envío consultado en ShipNow.", 
+            data: normalizeShipment(shipment as unknown as Prisma.OrderShipmentGetPayload<{ include: typeof orderShipmentInclude }>) 
+          };
+        } catch (error) {
+          logger.error("Error al consultar estado en ShipNow", { 
+            error: (error as Error).message,
+            shipmentId: shipment.id,
+            externalId: shipment.externalShipmentId 
+          });
+          // Retornar el estado actual sin actualizar
+          return { 
+            status: 200, 
+            message: "No se pudo consultar ShipNow, se mantiene estado actual.", 
+            data: normalizeShipment(shipment as unknown as Prisma.OrderShipmentGetPayload<{ include: typeof orderShipmentInclude }>) 
+          };
+        }
       }
 
       return { status: 400, message: "No hay couriers integrados activos por el momento." };
