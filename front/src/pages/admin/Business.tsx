@@ -169,6 +169,11 @@ function toBusinessFormState(data: Tenant): BusinessFormState {
     address: data.address || '',
     province: data.province || '',
     businessHours: data.businessHours || '',
+    shippingOriginStreet: data.shippingOriginStreet || '',
+    shippingOriginNumber: data.shippingOriginNumber || '',
+    shippingOriginCity: data.shippingOriginCity || '',
+    shippingOriginPostalCode: data.shippingOriginPostalCode || '',
+    phone: data.phone || '',
     seoDescription: data.seoDescription || '',
     facebook: data.socialLinks?.facebook || '',
     instagram: data.socialLinks?.instagram || '',
@@ -209,7 +214,9 @@ export default function BusinessPage() {
   const [form, setForm] = useState<BusinessFormState>({
     name: '', website: '', storeUrl: '',
     logo: '', banner: '', seoImage: '', favicon: '',
-    address: '', province: '', businessHours: '', seoDescription: '',
+    address: '', province: '', businessHours: '',
+    shippingOriginStreet: '', shippingOriginNumber: '', shippingOriginCity: '', shippingOriginPostalCode: '', phone: '',
+    seoDescription: '',
     facebook: '', instagram: '', whatsapp: '',
     banners: [],
     bankOptions: [],
@@ -343,6 +350,26 @@ export default function BusinessPage() {
         formData.append('businessHours', form.businessHours.trim());
         hasChanges = true;
       }
+      if (form.shippingOriginStreet.trim() !== (initial?.shippingOriginStreet ?? '').trim()) {
+        formData.append('shippingOriginStreet', form.shippingOriginStreet.trim());
+        hasChanges = true;
+      }
+      if (form.shippingOriginNumber.trim() !== (initial?.shippingOriginNumber ?? '').trim()) {
+        formData.append('shippingOriginNumber', form.shippingOriginNumber.trim());
+        hasChanges = true;
+      }
+      if (form.shippingOriginCity.trim() !== (initial?.shippingOriginCity ?? '').trim()) {
+        formData.append('shippingOriginCity', form.shippingOriginCity.trim());
+        hasChanges = true;
+      }
+      if (form.shippingOriginPostalCode.trim() !== (initial?.shippingOriginPostalCode ?? '').trim()) {
+        formData.append('shippingOriginPostalCode', form.shippingOriginPostalCode.trim());
+        hasChanges = true;
+      }
+      if (form.phone.trim() !== (initial?.phone ?? '').trim()) {
+        formData.append('phone', form.phone.trim());
+        hasChanges = true;
+      }
       if (form.seoDescription.trim() !== (initial?.seoDescription ?? '').trim()) {
         formData.append('seoDescription', form.seoDescription.trim());
         hasChanges = true;
@@ -431,7 +458,7 @@ export default function BusinessPage() {
     }
   };
 
-  const handleChange = (field: keyof Pick<BusinessFormState, 'name' | 'website' | 'facebook' | 'instagram' | 'whatsapp' | 'address' | 'province' | 'businessHours' | 'seoDescription'>) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleChange = (field: keyof Pick<BusinessFormState, 'name' | 'website' | 'facebook' | 'instagram' | 'whatsapp' | 'address' | 'province' | 'businessHours' | 'shippingOriginStreet' | 'shippingOriginNumber' | 'shippingOriginCity' | 'shippingOriginPostalCode' | 'phone' | 'seoDescription'>) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setForm((prev) => ({ ...prev, [field]: e.target.value }));
   };
 
@@ -626,6 +653,18 @@ export default function BusinessPage() {
                 placeholder="Salta"
               />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="business-phone">Teléfono del negocio</Label>
+              <Input
+                id="business-phone"
+                value={form.phone}
+                onChange={handleChange('phone')}
+                placeholder="3871234567"
+              />
+              <p className="text-xs text-muted-foreground">
+                Se usa como teléfono de contacto para envíos integrados.
+              </p>
+            </div>
             <div className="space-y-2 md:col-span-2">
               <Label htmlFor="business-hours">Horarios de atención</Label>
               <Textarea
@@ -638,6 +677,52 @@ export default function BusinessPage() {
               <p className="text-xs text-muted-foreground">
                 Este horario se mostrará automáticamente en la opción de retiro en local.
               </p>
+            </div>
+          </div>
+          <div className="space-y-4 rounded-lg border bg-muted/20 p-4">
+            <div>
+              <h4 className="font-medium">Origen para envíos con ShipNow</h4>
+              <p className="text-xs text-muted-foreground mt-1">
+                Estos datos se usan para cotizar y generar envíos reales. Si faltan, ShipNow no se podrá usar.
+              </p>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="shipping-origin-street">Calle</Label>
+                <Input
+                  id="shipping-origin-street"
+                  value={form.shippingOriginStreet}
+                  onChange={handleChange('shippingOriginStreet')}
+                  placeholder="Av. Siempre Viva"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="shipping-origin-number">Número</Label>
+                <Input
+                  id="shipping-origin-number"
+                  value={form.shippingOriginNumber}
+                  onChange={handleChange('shippingOriginNumber')}
+                  placeholder="123"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="shipping-origin-city">Ciudad</Label>
+                <Input
+                  id="shipping-origin-city"
+                  value={form.shippingOriginCity}
+                  onChange={handleChange('shippingOriginCity')}
+                  placeholder="Salta"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="shipping-origin-postal-code">Código postal</Label>
+                <Input
+                  id="shipping-origin-postal-code"
+                  value={form.shippingOriginPostalCode}
+                  onChange={handleChange('shippingOriginPostalCode')}
+                  placeholder="4400"
+                />
+              </div>
             </div>
           </div>
         </section>

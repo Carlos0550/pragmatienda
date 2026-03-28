@@ -153,6 +153,10 @@ model BusinessData {
   address String?
   province String?
   businessHours String?
+  shippingOriginStreet String?
+  shippingOriginNumber String?
+  shippingOriginCity String?
+  shippingOriginPostalCode String?
   country String @default("Argentina")
   phone String?
   email String?

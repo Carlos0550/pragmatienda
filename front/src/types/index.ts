@@ -84,7 +84,12 @@ export interface Tenant {
   address?: string;
   province?: string;
   businessHours?: string;
+  shippingOriginStreet?: string;
+  shippingOriginNumber?: string;
+  shippingOriginCity?: string;
+  shippingOriginPostalCode?: string;
   country?: string;
+  phone?: string;
   socialLinks?: SocialLinks;
   bankOptions?: BankOption[];
 }
@@ -635,6 +640,11 @@ export interface BusinessFormState {
   address: string;
   province: string;
   businessHours: string;
+  shippingOriginStreet: string;
+  shippingOriginNumber: string;
+  shippingOriginCity: string;
+  shippingOriginPostalCode: string;
+  phone: string;
   seoDescription: string;
   facebook: string;
   instagram: string;

@@ -10,9 +10,9 @@ import { logger } from "../../config/logger";
 import { prisma } from "../../db/prisma";
 import { normalizeText } from "../../utils/normalization.utils";
 import { CheckoutError, decimalToNumber, type PrismaTransactionClient } from "../Cart/checkout.helpers";
+import { shippingAddressSchema } from "./shipping.zod";
 import type {
   createShippingMethodSchema,
-  shippingAddressSchema,
   shippingQuoteRequestSchema,
   shippingSelectionSchema,
   updateShippingMethodSchema,
@@ -44,6 +44,25 @@ export type PackageSummary = {
   itemCount: number;
 };
 
+type BusinessShippingSnapshot = {
+  name?: string | null;
+  address?: string | null;
+  province?: string | null;
+  businessHours?: string | null;
+  phone?: string | null;
+  shippingOriginStreet?: string | null;
+  shippingOriginNumber?: string | null;
+  shippingOriginCity?: string | null;
+  shippingOriginPostalCode?: string | null;
+};
+
+const SINGLETON_PROVIDER_CODES = new Set<ShippingProviderCode>([
+  ShippingProviderCode.LOCAL_PICKUP,
+  ShippingProviderCode.SHIPNOW,
+]);
+
+const SHIPPING_QUOTE_TTL_MS = 30 * 60 * 1000;
+
 const shippingMethodInclude = {
   zoneRules: {
     orderBy: [{ province: "asc" }, { locality: "asc" }],
@@ -58,6 +77,21 @@ const orderShipmentInclude = {
 } satisfies Prisma.OrderShipmentInclude;
 
 const normalizeLocation = (value: string) => normalizeText(value).toLowerCase();
+
+const isSingletonProviderCode = (providerCode: ShippingProviderCode) =>
+  SINGLETON_PROVIDER_CODES.has(providerCode);
+
+const getKindForProviderCode = (providerCode: ShippingProviderCode): ShippingMethodKind => {
+  if (providerCode === ShippingProviderCode.LOCAL_PICKUP) {
+    return ShippingMethodKind.PICKUP;
+  }
+  if (providerCode === ShippingProviderCode.SHIPNOW) {
+    return ShippingMethodKind.THIRD_PARTY;
+  }
+  return ShippingMethodKind.EXTERNAL;
+};
+
+const getQuoteExpirationDate = () => new Date(Date.now() + SHIPPING_QUOTE_TTL_MS);
 
 const decimalLikeToNumber = (value: unknown): number => {
   if (typeof value === "number") return value;
@@ -87,6 +121,93 @@ function normalizeShippingAddress(
     province: address.province.trim(),
     country: address.country.trim(),
     references: address.references?.trim(),
+  };
+}
+
+function parseStoredShippingAddress(value: unknown) {
+  const parsed = shippingAddressSchema.safeParse(value);
+  if (!parsed.success) {
+    return null;
+  }
+  return normalizeShippingAddress(parsed.data);
+}
+
+function areShippingAddressesEqual(
+  left: ReturnType<typeof normalizeShippingAddress>,
+  right: ReturnType<typeof normalizeShippingAddress>
+) {
+  return (
+    left.recipientName === right.recipientName &&
+    left.recipientPhone === right.recipientPhone &&
+    left.streetName === right.streetName &&
+    left.streetNumber === right.streetNumber &&
+    left.floor === right.floor &&
+    left.apartment === right.apartment &&
+    left.postalCode === right.postalCode &&
+    left.city === right.city &&
+    left.province === right.province &&
+    left.country === right.country &&
+    left.references === right.references
+  );
+}
+
+const shipnowOriginFieldLabels = {
+  shippingOriginStreet: "calle",
+  shippingOriginNumber: "número",
+  shippingOriginCity: "ciudad",
+  shippingOriginPostalCode: "código postal",
+  province: "provincia",
+  phone: "teléfono del negocio",
+} satisfies Record<string, string>;
+
+type ShipnowOriginRequiredField = keyof typeof shipnowOriginFieldLabels;
+
+function getMissingShipnowOriginFields(snapshot: BusinessShippingSnapshot) {
+  const values: Record<ShipnowOriginRequiredField, string | undefined> = {
+    shippingOriginStreet: snapshot.shippingOriginStreet?.trim(),
+    shippingOriginNumber: snapshot.shippingOriginNumber?.trim(),
+    shippingOriginCity: snapshot.shippingOriginCity?.trim(),
+    shippingOriginPostalCode: snapshot.shippingOriginPostalCode?.trim(),
+    province: snapshot.province?.trim(),
+    phone: snapshot.phone?.trim(),
+  };
+
+  return (Object.keys(values) as ShipnowOriginRequiredField[])
+    .filter((field) => !values[field])
+    .map((field) => shipnowOriginFieldLabels[field]);
+}
+
+function buildShipnowOriginAddress(snapshot: BusinessShippingSnapshot):
+  | { address: ShipnowAddress }
+  | { errorMessage: string } {
+  const missingFields = getMissingShipnowOriginFields(snapshot);
+  if (missingFields.length > 0) {
+    return {
+      errorMessage: `Completá ${missingFields.join(", ")} en Mi Negocio para usar ShipNow.`,
+    };
+  }
+
+  return {
+    address: {
+      name: snapshot.name?.trim() || "Local",
+      street: snapshot.shippingOriginStreet!.trim(),
+      number: snapshot.shippingOriginNumber!.trim(),
+      city: snapshot.shippingOriginCity!.trim(),
+      province: snapshot.province!.trim(),
+      postal_code: snapshot.shippingOriginPostalCode!.trim(),
+      phone: snapshot.phone!.trim(),
+    },
+  };
+}
+
+function buildUnavailableShipnowQuote(method: Prisma.ShippingMethodGetPayload<{ include: typeof shippingMethodInclude }>, reason: string) {
+  return {
+    shippingMethodId: method.id,
+    providerCode: method.providerCode,
+    kind: method.kind,
+    methodName: method.name,
+    serviceName: "ShipNow",
+    unavailableReason: reason,
   };
 }
 
@@ -258,29 +379,105 @@ async function getCartItemsForShipping(input: {
 async function getBusinessShippingSnapshot(
   tenantId: string,
   tx?: PrismaTransactionClient
-): Promise<{
-  address?: string | null;
-  province?: string | null;
-  businessHours?: string | null;
-}> {
+): Promise<BusinessShippingSnapshot> {
   const client = tx ?? prisma;
   const business = await client.businessData.findUnique({
     where: { tenantId },
     select: {
+      name: true,
       address: true,
       province: true,
       businessHours: true,
+      phone: true,
+      shippingOriginStreet: true,
+      shippingOriginNumber: true,
+      shippingOriginCity: true,
+      shippingOriginPostalCode: true,
     },
   });
 
   return {
+    name: business?.name ?? null,
     address: business?.address ?? null,
     province: business?.province ?? null,
     businessHours: business?.businessHours ?? null,
+    phone: business?.phone ?? null,
+    shippingOriginStreet: business?.shippingOriginStreet ?? null,
+    shippingOriginNumber: business?.shippingOriginNumber ?? null,
+    shippingOriginCity: business?.shippingOriginCity ?? null,
+    shippingOriginPostalCode: business?.shippingOriginPostalCode ?? null,
   };
 }
 
 export class ShippingService {
+  private async validateShipnowOriginConfiguration(tenantId: string): Promise<ServiceResponse | null> {
+    const businessSnapshot = await getBusinessShippingSnapshot(tenantId);
+    const shipnowOrigin = buildShipnowOriginAddress(businessSnapshot);
+
+    if ("errorMessage" in shipnowOrigin) {
+      return {
+        status: 400,
+        message: shipnowOrigin.errorMessage,
+      };
+    }
+
+    return null;
+  }
+
+  private async validateProviderConstraints(input: {
+    tenantId: string;
+    providerCode: ShippingProviderCode;
+    methodId?: string;
+  }): Promise<ServiceResponse | null> {
+    if (input.providerCode === ShippingProviderCode.SHIPNOW) {
+      const shipnowConfig = await prisma.shipnowConfig.findUnique({
+        where: { tenantId: input.tenantId },
+        select: { acceptedTerms: true },
+      });
+
+      if (!shipnowConfig?.acceptedTerms) {
+        return {
+          status: 400,
+          message: "Debés aceptar los términos de ShipNow antes de configurarlo.",
+        };
+      }
+
+      const shipnowOriginValidation = await this.validateShipnowOriginConfiguration(input.tenantId);
+      if (shipnowOriginValidation) {
+        return shipnowOriginValidation;
+      }
+    }
+
+    if (!isSingletonProviderCode(input.providerCode)) {
+      return null;
+    }
+
+    const duplicateMethod = await prisma.shippingMethod.findFirst({
+      where: {
+        tenantId: input.tenantId,
+        providerCode: input.providerCode,
+        ...(input.methodId ? { id: { not: input.methodId } } : {}),
+      },
+      select: { id: true },
+    });
+
+    if (!duplicateMethod) {
+      return null;
+    }
+
+    if (input.providerCode === ShippingProviderCode.SHIPNOW) {
+      return {
+        status: 409,
+        message: "Ya existe un método ShipNow configurado para este negocio.",
+      };
+    }
+
+    return {
+      status: 409,
+      message: "Ya existe una forma de retiro en local configurada para este negocio.",
+    };
+  }
+
   async listMethods(tenantId: string): Promise<ServiceResponse> {
     try {
       const methods = await prisma.shippingMethod.findMany({
@@ -306,18 +503,27 @@ export class ShippingService {
     data: z.infer<typeof createShippingMethodSchema>
   ): Promise<ServiceResponse> {
     try {
+      const providerValidation = await this.validateProviderConstraints({
+        tenantId,
+        providerCode: data.providerCode,
+      });
+      if (providerValidation) {
+        return providerValidation;
+      }
+
+      const kind = getKindForProviderCode(data.providerCode);
       const method = await prisma.shippingMethod.create({
         data: {
           tenantId,
           name: data.name.trim(),
-          kind: data.kind,
+          kind,
           providerCode: data.providerCode,
           isActive: data.isActive ?? true,
           availableInCheckout: data.availableInCheckout ?? true,
           availableInAdmin: data.availableInAdmin ?? true,
           displayOrder: data.displayOrder ?? 0,
           config: (data.config ?? undefined) as Prisma.InputJsonValue | undefined,
-          zoneRules: data.zoneRules?.length
+          zoneRules: data.providerCode === ShippingProviderCode.CUSTOM_EXTERNAL && data.zoneRules?.length
             ? {
                 create: data.zoneRules.map((rule) => ({
                   province: rule.province.trim(),
@@ -358,8 +564,22 @@ export class ShippingService {
         return { status: 404, message: "Forma de envío no encontrada." };
       }
 
+      const nextProviderCode = data.providerCode ?? existing.providerCode;
+      const providerValidation = await this.validateProviderConstraints({
+        tenantId,
+        providerCode: nextProviderCode,
+        methodId,
+      });
+      if (providerValidation) {
+        return providerValidation;
+      }
+
+      const nextKind = getKindForProviderCode(nextProviderCode);
+      const shouldReplaceZoneRules =
+        nextProviderCode !== ShippingProviderCode.CUSTOM_EXTERNAL || data.zoneRules !== undefined;
+
       const method = await prisma.$transaction(async (tx) => {
-        if (data.zoneRules) {
+        if (shouldReplaceZoneRules) {
           await tx.shippingZoneRule.deleteMany({ where: { shippingMethodId: methodId } });
         }
 
@@ -367,14 +587,14 @@ export class ShippingService {
           where: { id: methodId },
           data: {
             ...(data.name !== undefined ? { name: data.name.trim() } : {}),
-            ...(data.kind !== undefined ? { kind: data.kind } : {}),
+            kind: nextKind,
             ...(data.providerCode !== undefined ? { providerCode: data.providerCode } : {}),
             ...(data.isActive !== undefined ? { isActive: data.isActive } : {}),
             ...(data.availableInCheckout !== undefined ? { availableInCheckout: data.availableInCheckout } : {}),
             ...(data.availableInAdmin !== undefined ? { availableInAdmin: data.availableInAdmin } : {}),
             ...(data.displayOrder !== undefined ? { displayOrder: data.displayOrder } : {}),
             ...(data.config !== undefined ? { config: data.config as Prisma.InputJsonValue } : {}),
-            ...(data.zoneRules
+            ...(nextProviderCode === ShippingProviderCode.CUSTOM_EXTERNAL && data.zoneRules
               ? {
                   zoneRules: {
                     create: data.zoneRules.map((rule) => ({
@@ -411,6 +631,13 @@ export class ShippingService {
       });
       if (!method) {
         return { status: 404, message: "Forma de envío no encontrada." };
+      }
+
+      if (isActive && method.providerCode === ShippingProviderCode.SHIPNOW) {
+        const shipnowOriginValidation = await this.validateShipnowOriginConfiguration(tenantId);
+        if (shipnowOriginValidation) {
+          return shipnowOriginValidation;
+        }
       }
 
       const updated = await prisma.shippingMethod.update({
@@ -505,6 +732,7 @@ export class ShippingService {
               currency: "ARS",
               packageSummary: packageSummary as unknown as Prisma.InputJsonValue,
               providerPayload: pickupDetails as Prisma.InputJsonValue,
+              expiresAt: getQuoteExpirationDate(),
             },
           });
 
@@ -558,6 +786,7 @@ export class ShippingService {
                 zoneRuleId: rule.id,
                 displayName: rule.displayName,
               } as Prisma.InputJsonValue,
+              expiresAt: getQuoteExpirationDate(),
             },
           });
 
@@ -577,17 +806,23 @@ export class ShippingService {
         }
 
         // ShipNow Integration
-        if (method.providerCode === ShippingProviderCode.SHIPNOW && shipnowService.isAvailable()) {
+        if (method.providerCode === ShippingProviderCode.SHIPNOW) {
+          if (!shipnowService.isAvailable()) {
+            quotes.push(buildUnavailableShipnowQuote(method, "ShipNow no está disponible en este momento."));
+            continue;
+          }
+
           try {
-            const originAddress: ShipnowAddress = {
-              name: businessSnapshot.address ? businessSnapshot.address.split(',')[0]?.trim() || 'Local' : 'Local',
-              street: businessSnapshot.address ? businessSnapshot.address.split(',')[0]?.trim() || '' : '',
-              number: '1',
-              city: businessSnapshot.province || 'Buenos Aires',
-              province: businessSnapshot.province || 'Buenos Aires',
-              postal_code: '1000',
-              phone: '',
-            };
+            const shipnowOrigin = buildShipnowOriginAddress(businessSnapshot);
+            if ("errorMessage" in shipnowOrigin) {
+              logger.warn("ShipNow omitido por origen incompleto del negocio", {
+                tenantId: input.tenantId,
+                methodId: method.id,
+                reason: shipnowOrigin.errorMessage,
+              });
+              quotes.push(buildUnavailableShipnowQuote(method, shipnowOrigin.errorMessage));
+              continue;
+            }
 
             const destinationAddress: ShipnowAddress = {
               name: destination.recipientName,
@@ -603,7 +838,7 @@ export class ShippingService {
             };
 
             const shipnowRates = await shipnowService.getRates(
-              originAddress,
+              shipnowOrigin.address,
               destinationAddress,
               packageSummary
             );
@@ -628,6 +863,7 @@ export class ShippingService {
                     estimatedDelivery: rate.estimated_delivery,
                     trackingAvailable: rate.tracking_available,
                   } as Prisma.InputJsonValue,
+                  expiresAt: getQuoteExpirationDate(),
                 },
               });
 
@@ -651,7 +887,7 @@ export class ShippingService {
               error: (error as Error).message,
               tenantId: input.tenantId 
             });
-            // No agregamos nada a quotes si falla ShipNow, continuamos con otros métodos
+            quotes.push(buildUnavailableShipnowQuote(method, "ShipNow no se pudo cotizar en este momento."));
           }
           continue;
         }
@@ -720,6 +956,7 @@ export class ShippingService {
             id: input.selection.shippingQuoteId,
             tenantId: input.tenantId,
             shippingMethodId: method.id,
+            quoteType: input.selection.shippingSelectionType,
           },
         })
       : null;
@@ -749,9 +986,17 @@ export class ShippingService {
       if (!input.selection.shippingAddress) {
         throw new CheckoutError(400, "La dirección de envío es requerida.");
       }
-      destinationJson = normalizeShippingAddress(input.selection.shippingAddress) as unknown as Prisma.InputJsonValue;
+      const normalizedSelectedAddress = normalizeShippingAddress(input.selection.shippingAddress);
+      destinationJson = normalizedSelectedAddress as unknown as Prisma.InputJsonValue;
       if (!quote) {
         throw new CheckoutError(400, "La cotización de envío seleccionada no es válida.");
+      }
+      if (quote.expiresAt && quote.expiresAt.getTime() < Date.now()) {
+        throw new CheckoutError(400, "La cotización seleccionada venció. Volvé a cotizar el envío.");
+      }
+      const storedDestination = parseStoredShippingAddress(quote.destination);
+      if (!storedDestination || !areShippingAddressesEqual(storedDestination, normalizedSelectedAddress)) {
+        throw new CheckoutError(400, "La dirección cambió después de cotizar. Volvé a cotizar el envío.");
       }
       serviceCode = quote.serviceCode ?? undefined;
       serviceName = quote.serviceName ?? method.name;
@@ -847,24 +1092,14 @@ export class ShippingService {
       // ShipNow Integration - Crear envío real en ShipNow
       if (shipment.providerCode === ShippingProviderCode.SHIPNOW && shipnowService.isAvailable()) {
         try {
-          // Obtener los datos necesarios del negocio
-          const business = await prisma.businessData.findUnique({
-            where: { tenantId },
-            select: {
-              address: true,
-              province: true,
-            },
-          });
-
-          const originAddress: ShipnowAddress = {
-            name: business?.address?.split(',')[0]?.trim() || 'Local',
-            street: business?.address?.split(',')[0]?.trim() || '',
-            number: '1',
-            city: business?.province || 'Buenos Aires',
-            province: business?.province || 'Buenos Aires',
-            postal_code: '1000',
-            phone: '',
-          };
+          const businessSnapshot = await getBusinessShippingSnapshot(tenantId);
+          const shipnowOrigin = buildShipnowOriginAddress(businessSnapshot);
+          if ("errorMessage" in shipnowOrigin) {
+            return {
+              status: 400,
+              message: shipnowOrigin.errorMessage,
+            };
+          }
 
           const destination = shipment.destination as unknown as {
             recipientName: string;
@@ -906,7 +1141,7 @@ export class ShippingService {
           // Crear envío en ShipNow
           const shipnowShipment = await shipnowService.createShipment(
             rateId,
-            originAddress,
+            shipnowOrigin.address,
             destinationAddress,
             packageSummary,
             sale.order.id,

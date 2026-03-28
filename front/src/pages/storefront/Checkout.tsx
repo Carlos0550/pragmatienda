@@ -66,6 +66,28 @@ export default function CheckoutPage() {
   const shippingPrice = selectedQuote?.price ?? 0;
   const total = subtotal + shippingPrice;
 
+  const invalidateQuotes = () => {
+    latestQuoteRequestIdRef.current += 1;
+    setQuotes([]);
+    setSelectedQuoteId(null);
+    setQuotesLoading(false);
+  };
+
+  const hasCompleteHomeDeliveryAddress = () => {
+    const requiredFields: Array<keyof ShippingAddress> = [
+      'recipientName',
+      'recipientPhone',
+      'streetName',
+      'streetNumber',
+      'postalCode',
+      'city',
+      'province',
+      'country',
+    ];
+
+    return requiredFields.every((field) => String(shippingAddress[field] ?? '').trim());
+  };
+
   useEffect(() => {
     if (deliveryType !== 'PICKUP') {
       latestQuoteRequestIdRef.current += 1;
@@ -117,6 +139,9 @@ export default function CheckoutPage() {
   };
 
   const updateAddress = (field: keyof ShippingAddress, value: string) => {
+    if (deliveryType === 'HOME_DELIVERY' && (quotes.length > 0 || selectedQuoteId || quotesLoading)) {
+      invalidateQuotes();
+    }
     setShippingAddress((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -130,6 +155,12 @@ export default function CheckoutPage() {
   };
 
   const quoteHomeDelivery = async () => {
+    if (!hasCompleteHomeDeliveryAddress()) {
+      invalidateQuotes();
+      sileo.error({ title: 'Completá la dirección de envío antes de cotizar' });
+      return;
+    }
+
     const requestId = ++latestQuoteRequestIdRef.current;
     setQuotesLoading(true);
     try {
@@ -171,18 +202,7 @@ export default function CheckoutPage() {
       return;
     }
     if (deliveryType === 'HOME_DELIVERY') {
-      const requiredFields: Array<keyof ShippingAddress> = [
-        'recipientName',
-        'recipientPhone',
-        'streetName',
-        'streetNumber',
-        'postalCode',
-        'city',
-        'province',
-        'country',
-      ];
-      const missing = requiredFields.some((field) => !String(shippingAddress[field] ?? '').trim());
-      if (missing) {
+      if (!hasCompleteHomeDeliveryAddress()) {
         sileo.error({ title: 'Completá la dirección de envío antes de continuar' });
         return;
       }
@@ -402,6 +422,9 @@ export default function CheckoutPage() {
             <div className="space-y-3">
               {quotes.map((quote, index) => {
                 const checked = selectedQuoteId === quote.id;
+                const priceLabel = quote.unavailableReason
+                  ? 'No disponible'
+                  : (quote.price ?? 0).toLocaleString('es-AR', { style: 'currency', currency: quote.currency ?? 'ARS' });
                 return (
                   <label key={`${quote.shippingMethodId}-${quote.id ?? index}`} className={`flex items-start gap-3 rounded-lg border p-4 ${checked ? 'border-primary bg-primary/5' : ''}`}>
                     <input
@@ -418,7 +441,7 @@ export default function CheckoutPage() {
                           <p className="text-sm text-muted-foreground">{quote.serviceName ?? quote.providerCode}</p>
                         </div>
                         <span className="font-semibold">
-                          {(quote.price ?? 0).toLocaleString('es-AR', { style: 'currency', currency: quote.currency ?? 'ARS' })}
+                          {priceLabel}
                         </span>
                       </div>
                       {quote.unavailableReason && (
