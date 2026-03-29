@@ -368,4 +368,131 @@ describe("ShippingService", () => {
 
     expect(orderShipmentCreate).not.toHaveBeenCalled();
   });
+
+  it("allows attaching a ShipNow quote during checkout", async () => {
+    const orderShipmentCreate = vi.fn().mockResolvedValue({
+      id: "shipment-1",
+    });
+    const tx = {
+      shippingMethod: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: "shipping-method-shipnow",
+          tenantId: "tenant-1",
+          name: "Envío con ShipNow",
+          kind: ShippingMethodKind.THIRD_PARTY,
+          providerCode: ShippingProviderCode.SHIPNOW,
+          isActive: true,
+          availableInCheckout: true,
+          availableInAdmin: true,
+          displayOrder: 0,
+          config: null,
+          zoneRules: [],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        }),
+      },
+      shipmentQuote: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: "quote-shipnow-1",
+          tenantId: "tenant-1",
+          shippingMethodId: "shipping-method-shipnow",
+          quoteType: ShippingQuoteType.HOME_DELIVERY,
+          serviceCode: "shipnow-economic-home",
+          serviceName: "OCA - OCA Puerta a Puerta - Estandar",
+          price: 21899.39,
+          currency: "ARS",
+          destination: {
+            recipientName: "Carlos Test",
+            recipientPhone: "3871234567",
+            streetName: "Tarelli",
+            streetNumber: "233",
+            postalCode: "3308",
+            city: "Candelaria",
+            province: "Misiones",
+            country: "Argentina",
+          },
+          providerPayload: {
+            rateId: "shipnow-economic-home",
+            carrier: "OCA",
+            service: "OCA Puerta a Puerta - Estandar",
+            estimatedDelivery: "2026-03-31T09:00:00.000Z",
+            trackingAvailable: true,
+          },
+          expiresAt: new Date(Date.now() + 60_000),
+        }),
+      },
+      businessData: {
+        findUnique: vi.fn().mockResolvedValue({
+          address: "Belgrano 123",
+          province: "Salta",
+          businessHours: "9 a 18",
+        }),
+      },
+      orderShipment: {
+        create: orderShipmentCreate,
+      },
+    };
+
+    const service = new ShippingService();
+
+    const price = await service.attachShipmentToOrder(tx as never, {
+      tenantId: "tenant-1",
+      orderId: "order-1",
+      items: [
+        {
+          productId: "product-1",
+          quantity: 1,
+          product: {
+            id: "product-1",
+            name: "Producto test",
+            price: 1000,
+            stock: 10,
+            weightGrams: 500,
+            lengthCm: 10,
+            widthCm: 10,
+            heightCm: 10,
+          },
+        },
+      ],
+      selection: {
+        shippingMethodId: "shipping-method-shipnow",
+        shippingQuoteId: "quote-shipnow-1",
+        shippingSelectionType: ShippingQuoteType.HOME_DELIVERY,
+        shippingAddress: {
+          recipientName: "Carlos Test",
+          recipientPhone: "3871234567",
+          streetName: "Tarelli",
+          streetNumber: "233",
+          postalCode: "3308",
+          city: "Candelaria",
+          province: "Misiones",
+          country: "Argentina",
+        },
+      },
+    });
+
+    expect(price).toBe(21899.39);
+    expect(orderShipmentCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          orderId: "order-1",
+          shippingMethodId: "shipping-method-shipnow",
+          quoteId: "quote-shipnow-1",
+          providerCode: ShippingProviderCode.SHIPNOW,
+          kind: ShippingMethodKind.THIRD_PARTY,
+          price: 21899.39,
+          currency: "ARS",
+          serviceCode: "shipnow-economic-home",
+          serviceName: "OCA - OCA Puerta a Puerta - Estandar",
+          providerQuotePayload: {
+            rateId: "shipnow-economic-home",
+            carrier: "OCA",
+            service: "OCA Puerta a Puerta - Estandar",
+            estimatedDelivery: "2026-03-31T09:00:00.000Z",
+            trackingAvailable: true,
+          },
+        }),
+      })
+    );
+  });
 });

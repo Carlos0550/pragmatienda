@@ -980,7 +980,7 @@ export class ShippingService {
       serviceName = method.name;
       price = 0;
       status = OrderShipmentStatus.READY_FOR_PICKUP;
-    } else if (method.kind === ShippingMethodKind.THIRD_PARTY) {
+    } else if (method.kind === ShippingMethodKind.THIRD_PARTY && method.providerCode !== ShippingProviderCode.SHIPNOW) {
       throw new CheckoutError(400, "Este courier todavía no está disponible.");
     } else {
       if (!input.selection.shippingAddress) {
